@@ -51,8 +51,9 @@ export function createShortLinkExpander(config: ExpanderConfig, fetchImpl: Fetch
         }
         let response: Response;
         try {
+          // GET rather than HEAD: short link services do not reliably answer HEAD with a redirect. The body is never read.
           response = await fetchImpl(current, {
-            method: 'HEAD',
+            method: 'GET',
             redirect: 'manual',
             signal: AbortSignal.timeout(config.timeoutMs),
             headers: { 'user-agent': 'BreadCrumb/0.2 (+short link expansion)', accept: '*/*' },

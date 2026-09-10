@@ -1,0 +1,46 @@
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > has at least one fixture for every link form matrix row (BC-022) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > every fixture names a known matrix row and states an expected state or reason 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > failures/layouts-without-locator.json: A _layouts page with no parameter that locates an item fails as unsupported (BC-021) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > failures/not-a-url.json: Plain text that is not a URL fails with not_a_url 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > failures/not-microsoft.json: A URL on an unrelated host with no SharePoint path shape fails with not_microsoft_365 naming the host 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > failures/safelinks-truncated.json: Safe Links wrapper whose url value is cut off fails saying the wrapped link is incomplete (BC-017) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > failures/site-root.json: A link to a site collection root with no library fails as unsupported (BC-021) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > failures/teams-missing-objecturl.json: Teams file link without objectUrl fails naming the missing parameter (BC-016) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > failures/teams-not-a-file-link.json: A Teams link that is not a file deep link fails as unsupported (BC-016) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > failures/truncated-id.json: A view link whose id value is cut off mid escape fails with truncated naming the parameter 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row1-library-view/folder-id-equals-parent.json: AllItems.aspx where id equals parent: a folder result with no file component (BC-019) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row1-library-view/id-only.json: AllItems.aspx with id only: folder is the parent of id 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row1-library-view/library-inferred.json: AllItems.aspx whose id does not start with the page path library: library Inferred 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row1-library-view/library-root-on-root-site.json: AllItems.aspx with no parameters on the root site: folder is the library root, site path empty 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row1-library-view/special-characters.json: BC-009: ampersand, hash, plus, percent, non ASCII and mixed case hex decode once and re-encode once 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row1-library-view/worked-example.json: Worked example from the brief: AllItems.aspx with id and parent 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row10-safelinks/ap-variant-around-teams.json: Safe Links /ap/ variant around a Teams deep link around a SharePoint URL: both wrappers recorded in order (BC-017) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row10-safelinks/wrapped-direct.json: Safe Links wrapper around a direct SharePoint URL (BC-017) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row11-copy-link-params/direct-with-params.json: Direct URL with copy link parameters appended converts identically to the bare URL (BC-010) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row12-sovereign/china-my-direct.json: -my variant of a sharepoint.cn host gets OneDrive for Business behaviour with cloud china (BC-020, BC-014) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row12-sovereign/gcc-high-library-view.json: Library view link on a sharepoint.us host: identical structure, cloud recorded as gcc-high (BC-020) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row12-sovereign/unknown-host-with-shape.json: Unknown host with a recognised SharePoint path shape: result downgraded to Inferred with a host note (BC-020) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row1b-classic-view/rootfolder.json: Classic view link with RootFolder and viewid: folder result, no file component 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row2-direct/file.json: Direct file URL under a site: path Derived, library Inferred (BC-008) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row2-direct/folder-trailing-slash.json: Direct folder URL with a trailing slash: folder result, well known library name (BC-008, BC-018) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row2-direct/root-site.json: Direct file URL on the root site: empty site path, first segment offered as the library (BC-008) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row2-direct/site-page.json: A site page URL parses as a direct path with SitePages as the inferred library 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row3a-sharing-path/folder.json: :f: prefix in the /r/ variant yields a folder result with no file component (BC-010, BC-019) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row3a-sharing-path/word.json: /r/ sharing link to a Word document with d, csf, web and e parameters (BC-010) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row3b-sharing-token/s-variant.json: /s/ sharing token link: Unresolved with site and item type hints (BC-011) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row3c-sharing-token/g-personal.json: /g/personal/ sharing token link on a -my host: Unresolved, personal site path and owner hint (BC-011, BC-014) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row3d-sharing-token/t-variant.json: /t/ sharing token link to a folder: Unresolved with the variant recorded (BC-011) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row4-doc-aspx/sourcedoc-with-file.json: Doc.aspx with a braced sourcedoc GUID and a file parameter: Unresolved, site and file name known (BC-012) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row4-doc-aspx/wopiframe-no-file.json: WopiFrame.aspx with sourcedoc and no file parameter: Unresolved with no file name (BC-012) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row5-download/other-layouts-page-source-url.json: Another _layouts page carrying SourceUrl is handled like download.aspx (BC-013) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row5-download/source-url.json: download.aspx with SourceUrl: path Derived, library Inferred (BC-013) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row5b-download/unique-id.json: download.aspx with UniqueId: Unresolved, site Derived, GUID reported (BC-013) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row6-onedrive-business/direct-personal.json: Direct /personal/ URL on a -my host matches the onedrive.aspx form for the same file (BC-014) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row6-onedrive-business/onedrive-aspx.json: OneDrive for Business onedrive.aspx?id= link: personal site path, Documents inferred, owner hint (BC-014) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row7a-onedrive-consumer/cid-resid.json: onedrive.live.com with cid and resid: Unresolved with identifiers (BC-015) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row7b-onedrive-consumer/short-link.json: 1drv.ms short link by the parser alone: Unresolved, flagged as needing expansion (BC-015) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row8-guest-access/docid.json: Legacy guestaccess.aspx link: Unresolved with the docid retained (BC-011) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row9-teams/deep-link.json: Teams file deep link is unwrapped to its objectUrl and parsed as a direct path (BC-016) 
+ ✓ |parser| test/fixtures.test.ts > fixture corpus > row9-teams/inner-token.json: Teams deep link around a sharing token: Unresolved, both the wrapper and the inner form recorded (BC-016) 
+ Test Files  1 passed (1)
+      Tests  44 passed (44)
