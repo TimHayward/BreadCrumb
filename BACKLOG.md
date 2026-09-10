@@ -130,29 +130,6 @@ As a user, I want to paste a link and see the path, folder URL, file URL and com
 
 Priority: Must. Size: M. Depends on: BC-006, BC-007, BC-024.
 
-#### BC-025 Honest result labelling
-
-As a user, I want every result to say how it was obtained and how much of it is a guess, so that I trust it exactly as much as it deserves.
-
-- Given a Derived result, When it is rendered, Then the method text reads that the path was decoded from the link with no guesswork and no component carries an inferred marker.
-- Given an Inferred result, When it is rendered, Then the method text names each inferred component and the rule used (from BC-018), for example "library boundary inferred: first segment after site".
-- Given an Unresolved result, When it is rendered, Then the method text says what was recognised, what could not be decoded and that sign in would be needed, and no path is shown as if it were known.
-- Given a Verified result (from M3), When it is rendered, Then the method text names the Graph lookup used and the time it was confirmed.
-- Given a result that passed through wrappers (BC-016, BC-017), When it is rendered, Then the wrappers removed are listed in order.
-
-Priority: Must. Size: S. Depends on: BC-023, BC-018.
-
-#### BC-026 Failure and Unresolved presentation
-
-As a user, I want failures and Unresolved results to tell me what to do next, so that I am not left with a bare error.
-
-- Given a parse failure from BC-021, When it is rendered, Then the message states the reason in plain language and the input remains in the box for editing.
-- Given an Unresolved result, When it is rendered before M3 ships, Then the next step reads that authenticated validation is not yet available in this version, and the result can still be saved to history with its Unresolved state.
-- Given an Unresolved result, When it is rendered after M3 ships, Then the next step offers the sign in and validate action (BC-036).
-- Given a failure, When the user chooses "keep this in history anyway", Then a row is written with the failure reason and no state, and it is filterable as a failure (BC-033).
-
-Priority: Must. Size: S. Depends on: BC-023, BC-021.
-
 #### BC-027 Server side short link expansion
 
 As a user, I want `1drv.ms` short links to be expanded before parsing, so that the parser can see the real link.
@@ -208,16 +185,6 @@ As a signed in user, I want `Doc.aspx` and `UniqueId` links resolved, so that a 
 - Given the lookup method from S5 returns nothing, When validation completes, Then the result stays Unresolved with a message that the document id could not be resolved in this site.
 
 Priority: Should. Size: M. Depends on: BC-036, BC-012, BC-040. Blocked by spike S5.
-
-#### BC-040 Record validation upgrades in history
-
-As a user, I want to see which stored results were upgraded by validation, so that I can tell verified facts from earlier guesses.
-
-- Given a stored row in the Derived, Inferred or Unresolved state, When it is validated, Then the row records the Verified result, the time and the Graph item identifier while retaining the original result, and the list shows an "upgraded" marker with the previous state.
-- Given the history filter (BC-033), When "upgraded" is chosen, Then only rows that moved from Inferred or Unresolved to Verified are listed.
-- Given a row that was Verified from the start, When it is listed, Then it carries no "upgraded" marker.
-
-Priority: Must. Size: M. Depends on: BC-030, BC-036.
 
 #### BC-041 Graph failures are reported honestly
 
@@ -301,7 +268,7 @@ Progress evidence at the boundary: a screen recording or screenshots of the Port
 
 ### M2 Breadth and history
 
-Stories: BC-025, BC-026, BC-027.
+Stories: BC-027.
 
 Demonstrable outcome: every row of the link form matrix converts in best effort mode with the confidence state and per component inferred markers the matrix predicts, or fails with the message it predicts. The fixture corpus covers every row. History is searchable and filterable at five thousand rows, entries can be deleted singly and in bulk, and the filtered set exports as CSV and JSON. Backup and restore have been rehearsed once.
 
@@ -311,7 +278,7 @@ Progress evidence at the boundary: the fixture corpus report showing one pass pe
 
 ### M3 Authenticated validation
 
-Stories: BC-036, BC-037, BC-038, BC-039, BC-040, BC-041.
+Stories: BC-036, BC-037, BC-038, BC-039, BC-041.
 
 Demonstrable outcome: a user signs in against the personal test tenant, validates an Inferred result whose library boundary was guessed wrongly, sees it corrected and upgraded to Verified, and sees the "was inferred as" record beneath it. An Unresolved sharing token resolves to a Verified path. The history list shows which rows were upgraded. Signing out removes the token and the default no sign in path is unchanged.
 
