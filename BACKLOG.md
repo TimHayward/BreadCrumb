@@ -116,152 +116,6 @@ Priority: Must. Size: S. Depends on: BC-002.
 
 ### E2 Shared link parser
 
-#### BC-008 Direct server relative file and folder URLs
-
-As a user, I want to paste a plain SharePoint URL to a file or folder and get its components, so that I get the same breakdown as for view links.
-
-- Given a direct file URL under a site, When it is converted, Then the path, folder URL and file URL are returned, the path and file are Derived and the library component is Inferred, so the overall state is Inferred.
-- Given a direct URL with no file extension on the last segment and a trailing slash, When it is converted, Then it is treated as a folder with no file component.
-- Given a direct URL on the root site with no `/sites/` or `/teams/` prefix, When it is converted, Then the site path is empty and the first segment is offered as the Inferred library.
-
-Priority: Must. Size: S. Depends on: BC-006, BC-009, BC-018.
-
-#### BC-010 Path bearing sharing links and copy link parameters
-
-As a user, I want `/r/` sharing links and copy link output with `d`, `csf`, `web` and `e` parameters to convert, so that links copied from the Share dialogue work.
-
-- Given a link of the form `/:w:/r/sites/SiteA/Lib/Folder/File.docx?d=w{guid}&csf=1&web=1&e={short}`, When it is converted, Then the path, folder URL and file URL are Derived, the library is Inferred, the overall state is Inferred and the four parameters do not appear in any output URL.
-- Given the `d` parameter is present, When the result is inspected, Then its value is reported as an identifier labelled "document id from link" and marked Derived.
-- Given a type code prefix such as `:b:`, `:x:`, `:p:`, `:v:`, `:f:`, `:u:` or `:t:`, When the result is inspected, Then the item type implied by the prefix is reported and a `:f:` prefix yields a folder result with no file component.
-- Given a direct URL (BC-008) with `?web=1` or `?csf=1&web=1&e=` appended, When it is converted, Then the result is identical to the same URL without the parameters.
-
-Priority: Must. Size: M. Depends on: BC-006, BC-009.
-
-#### BC-011 Token bearing sharing links and guest access links
-
-As a user, I want token based sharing links in the `/s/`, `/g/` and `/t/` variants and guest access links to be recognised and labelled Unresolved, so that I know they need authenticated validation rather than seeing a wrong path.
-
-- Given a link of the form `/:b:/s/SiteA/{token}?e={short}`, When it is converted, Then the state is Unresolved, the message says the link is a sharing token that needs sign in to resolve, and the site name and item type from the prefix are reported as Derived hints.
-- Given `/g/` and `/t/` variants of the same shape, including `/g/personal/{alias}/{token}` on a `-my` host, When they are converted, Then they are Unresolved with the variant recorded in the detected form so the two can be told apart later.
-- Given a legacy `guestaccess.aspx` link carrying `docid` or `share` parameters, When it is converted, Then the state is Unresolved and the identifiers are retained in the result.
-- Given any Unresolved sharing link, When the result is inspected, Then the original link is preserved unchanged for later submission to Graph (BC-038).
-
-Priority: Must. Size: S. Depends on: BC-006.
-
-#### BC-012 Doc.aspx links with a sourcedoc GUID
-
-As a user, I want `Doc.aspx` and `WopiFrame.aspx` links to be recognised, so that I get the site and file name straight away and a clear statement of what is missing.
-
-- Given a `Doc.aspx?sourcedoc={guid}&file=File.docx&action=default` link, When it is converted, Then the site path is Derived, the file name is Derived from `file`, the sourcedoc GUID is reported as an identifier, and the overall state is Unresolved with a message that the folder cannot be known without sign in.
-- Given the `sourcedoc` value is wrapped in encoded braces `%7B` and `%7D`, When it is converted, Then the GUID is extracted without the braces.
-- Given a `Doc.aspx` link with no `file` parameter, When it is converted, Then no file name is reported and the state remains Unresolved.
-
-Priority: Must. Size: S. Depends on: BC-006.
-
-#### BC-013 download.aspx and layouts pages with SourceUrl or UniqueId
-
-As a user, I want `download.aspx` links to convert, so that a link copied from a download button still yields the folder.
-
-- Given `_layouts/15/download.aspx?SourceUrl={enc}`, When it is converted, Then the path, folder URL and file URL are Derived, the library is Inferred, and the overall state is Inferred.
-- Given `download.aspx?UniqueId={guid}`, When it is converted, Then the site path is Derived, the GUID is reported as an identifier and the state is Unresolved.
-- Given any other `_layouts/15/` page carrying a `SourceUrl` parameter, When it is converted, Then it is handled identically to `download.aspx`.
-
-Priority: Must. Size: S. Depends on: BC-006, BC-009.
-
-#### BC-014 OneDrive for Business personal site links
-
-As a user, I want links on `-my.sharepoint.com` hosts to convert, so that files in a colleague's OneDrive resolve like SharePoint files.
-
-- Given `https://contoso-my.sharepoint.com/personal/{alias}/_layouts/15/onedrive.aspx?id={enc}`, When it is converted, Then the site path is `/personal/{alias}`, the path and file are Derived, the library is Inferred as `Documents`, and the overall state is Inferred.
-- Given a direct `/personal/{alias}/Documents/Folder/File.xlsx` URL, When it is converted, Then the result matches the `onedrive.aspx` form for the same file.
-- Given the alias, When the result is inspected, Then the owner's user principal name is offered as a Derived hint by reversing the underscore encoding, labelled as a hint because underscores in the original name make it ambiguous.
-- Given a `-my` host, When the tenant is extracted, Then it is the host's first label with the `-my` suffix removed.
-
-Priority: Must. Size: S. Depends on: BC-006, BC-009, BC-018.
-
-#### BC-015 OneDrive consumer links
-
-As a user, I want `onedrive.live.com` and `1drv.ms` links to be recognised, so that I get a clear Unresolved result instead of a parse failure.
-
-- Given `https://onedrive.live.com/?cid={hex}&resid={hex}%21{n}&authkey={key}`, When it is converted, Then the state is Unresolved, the `cid` and `resid` values are reported as Derived identifiers and the message says consumer OneDrive cannot be resolved to a path in this version.
-- Given a `1drv.ms` link, When it is converted by the parser alone, Then the state is Unresolved and the result flags that the link needs expansion (BC-027) before anything more can be said.
-- Given a `1drv.ms` link that has been expanded by BC-027 to an `onedrive.live.com` link, When the expanded link is converted, Then the result is as in the first criterion and the original short link is recorded as a wrapper.
-
-Priority: Should. Size: S. Depends on: BC-006.
-
-#### BC-016 Teams deep links wrapping a file URL
-
-As a user, I want Teams file links to be unwrapped, so that a link copied from a Teams chat converts like its underlying SharePoint URL.
-
-- Given a `teams.microsoft.com/l/file/` link whose `objectUrl` is a percent encoded SharePoint URL, When it is converted, Then the inner URL is decoded once and parsed, the result equals the result for the inner URL, and the wrapper is recorded with `teams` as its type.
-- Given `objectUrl` is absent or is not a URL, When the link is converted, Then the result is a clean failure with a reason that names the missing parameter.
-- Given the inner URL is itself a sharing token form, When it is converted, Then the state is Unresolved as in BC-011 and both the wrapper and the inner form are recorded.
-
-Priority: Must. Size: S. Depends on: BC-006, BC-011.
-
-#### BC-017 Outlook Safe Links wrappers
-
-As a user, I want Safe Links wrapped links to be unwrapped, so that a link pasted from an email converts like the link it protects.
-
-- Given a `safelinks.protection.outlook.com` link with a `url` parameter, When it is converted, Then the inner URL is decoded once and parsed, the result equals the inner result and the wrapper is recorded with `safelinks` as its type.
-- Given a Safe Links wrapper around a Teams deep link around a SharePoint URL, When it is converted, Then both wrappers are recorded in order and the result equals the innermost result.
-- Given a Safe Links link whose `url` is truncated so that it is not a valid URL, When it is converted, Then the result is a clean failure that says the wrapped link is incomplete.
-
-Priority: Must. Size: S. Depends on: BC-006, BC-016.
-
-#### BC-018 Document library boundary inference
-
-As a user, I want the split between site, library and folders to be shown as a guess where it is a guess, so that I never take an inferred library name as fact.
-
-- Given any form where the library is not fixed by the page path (BC-008, BC-010, BC-013, BC-014), When it is converted, Then the library component is marked Inferred, the overall state is Inferred and the interface wording says the library boundary was inferred.
-- Given a path whose first segment after the site is `Shared Documents` or `Documents`, When the library is inferred, Then that segment is chosen and the reason recorded is "well known library name".
-- Given a path with no well known library name, When the library is inferred, Then the first segment after the site is chosen and the reason recorded is "first segment after site".
-- Given the same path with the library already Derived (BC-007), When the result is inspected, Then the inference rule is not applied and the reason is "from page path".
-
-Priority: Must. Size: M. Depends on: BC-006.
-
-#### BC-019 Links to folders rather than files
-
-As a user, I want a folder link to produce a folder result with no file component, so that I am not shown a made up file name.
-
-- Given a library view link where `id` equals `parent`, When it is converted, Then no file name is reported, the folder URL equals the encoded path and the state follows the library rule in BC-007.
-- Given a `:f:` sharing prefix in the `/r/` variant, When it is converted, Then the result is a folder with no file component and the state is Inferred.
-- Given a folder result, When the interface renders it (BC-023), Then the file URL row is absent rather than blank.
-
-Priority: Must. Size: XS. Depends on: BC-007, BC-010.
-
-#### BC-020 Hosts other than sharepoint.com
-
-As a user in a sovereign or government cloud, I want links on other Microsoft hosts to parse in best effort mode, so that the tool is not limited to the global cloud.
-
-- Given a link on a `sharepoint.us`, `sharepoint-mil.us` or `sharepoint.cn` host in any of the offline resolvable forms, When it is converted, Then the result is identical in structure and state to the same form on `sharepoint.com`, and the cloud is recorded in the result.
-- Given a link on a `-my` variant of those hosts, When it is converted, Then BC-014 behaviour applies.
-- Given a host that matches none of the known suffixes but whose path has a recognised SharePoint shape, When it is converted, Then the result is produced with the state downgraded to Inferred and a note that the host is not a known Microsoft cloud.
-
-Priority: Should. Size: S. Depends on: BC-008, BC-014.
-
-#### BC-021 Malformed, truncated and non Microsoft links fail cleanly
-
-As a user, I want bad input to produce a specific message, so that I know what to fix.
-
-- Given an empty string, whitespace, or text that is not a URL, When it is converted, Then the parser returns a failure with a reason code for "not a URL" and no result state.
-- Given a URL on a host that is not a recognised Microsoft host and has no recognised path shape, When it is converted, Then the failure reason is "not a Microsoft 365 link" and the host is named in the message.
-- Given a recognised form whose query string is cut off mid value, When it is converted, Then the failure reason is "link appears truncated" and the message names the parameter that was incomplete.
-- Given any failure, When the web application receives it, Then no history row is written unless the user has chosen to keep failures (BC-030).
-
-Priority: Must. Size: S. Depends on: BC-006.
-
-#### BC-022 Fixture corpus and regression harness
-
-As a developer, I want every supported link form to have an anonymised fixture with its expected result, so that regressions are caught and new forms are added the same way every time.
-
-- Given the parser package test suite, When it runs, Then every row of the link form matrix has at least one fixture and every fixture passes, including negative fixtures for BC-021.
-- Given a new fixture file is added with an expected result, When the suite runs, Then it is picked up without registering it anywhere else.
-- Given the fixture set, When the anonymisation check in section 8 runs, Then no fixture contains a real tenant name, person name, client name, sharing token or Safe Links data blob.
-- Given a fixture, When its expected result is inspected, Then it states the expected confidence state and the expected per component Derived or Inferred flags.
-
-Priority: Must. Size: S. Depends on: BC-006.
-
 ### E3 Web conversion experience
 
 #### BC-023 Paste and convert page
@@ -310,59 +164,7 @@ As a user, I want `1drv.ms` short links to be expanded before parsing, so that t
 
 Priority: Should. Size: M. Depends on: BC-015, BC-024, BC-005.
 
-#### BC-028 Accessibility of the conversion and history pages
-
-As a user relying on a keyboard or a screen reader, I want the pages to be operable and announced correctly, so that I can use the tool without a mouse.
-
-- Given the conversion page, When it is navigated with Tab and Enter only, Then every control is reachable in a sensible order and the result region is announced when it updates.
-- Given the state badge and inferred markers, When viewed by a colour vision deficiency simulator, Then the state is still distinguishable by text or shape, not colour alone.
-- Given the history page, When an automated accessibility checker runs, Then no critical or serious issues are reported and text contrast meets WCAG 2.2 AA.
-
-Priority: Should. Size: S. Depends on: BC-023, BC-031.
-
 ### E4 Conversion history
-
-#### BC-032 Search across history
-
-As a user, I want to search history by any text, so that I can find a conversion from a client name, file name or part of a link.
-
-- Given rows exist, When a search term is entered, Then rows whose input, path, folder URL, file URL or file name contain the term are returned, case insensitively.
-- Given a history of at least five thousand rows, When a search is run, Then results appear within one second on the reference host and the page remains responsive.
-- Given a search that matches nothing, When it completes, Then the page says so and offers to clear the search.
-- Given each matched row, When it is listed, Then its state badge is shown so Verified, Derived, Inferred and Unresolved rows can be told apart in results.
-
-Priority: Must. Size: M. Depends on: BC-031.
-
-#### BC-033 Filter history
-
-As a user, I want to filter history by state, date range, host or tenant, source and failure, so that I can narrow a long list.
-
-- Given rows with mixed states, When the state filter is set to one of Verified, Derived, Inferred or Unresolved, Then only rows in that state are shown and the count is displayed.
-- Given a date range, When it is applied, Then only rows converted within the range are shown, inclusive of both ends.
-- Given the source filter is set to `extension`, When applied, Then only rows submitted by the extension are shown.
-- Given filters and a search term together, When applied, Then the result is the intersection and the combination is reflected in the URL.
-
-Priority: Should. Size: S. Depends on: BC-032.
-
-#### BC-034 Delete history entries
-
-As a user, I want to delete one entry or a selected set, so that I can remove lookups that should not be kept.
-
-- Given a row, When delete is chosen and confirmed, Then the row is gone from the list and from search, and a second confirmation is not required.
-- Given several rows are selected, When bulk delete is confirmed, Then only those rows are removed and the count removed is shown.
-- Given a delete is cancelled at the confirmation step, When the list is refreshed, Then nothing has changed.
-
-Priority: Must. Size: S. Depends on: BC-031.
-
-#### BC-035 Export history
-
-As a user, I want to export the current filtered history as CSV and JSON, so that I can use it outside the tool.
-
-- Given a filter or search is active, When export is chosen, Then only the matching rows are exported and the file name includes the date.
-- Given the CSV export, When it is opened in a spreadsheet, Then one row per conversion appears with columns for time, input, path, folder URL, file URL, state, method, source and inferred components, and values containing commas or quotes are escaped correctly.
-- Given the JSON export, When it is parsed, Then each entry contains the full stored result including the state and per component flags.
-
-Priority: Should. Size: S. Depends on: BC-033.
 
 ### E5 Authenticated validation
 
@@ -483,18 +285,6 @@ Priority: Must. Size: S. Depends on: BC-042, BC-043.
 
 ### E7 Operability
 
-#### BC-048 Backup and restore of the database
-
-As the person running BreadCrumb, I want a documented and tested way to back up and restore the database file, so that history can be recovered after a failure.
-
-- Given the application is running, When the documented backup command is run, Then a consistent copy of the database is produced without stopping the container, and opening the copy shows the same row count.
-- Given a backup copy, When the documented restore steps are followed on a fresh volume, Then the application starts and history matches the backup.
-- Given the README, When it is read, Then it states where the file lives on the volume, that write ahead log companion files must be included if present, and how to verify a restore.
-
-Priority: Must. Size: S. Depends on: BC-004, BC-029.
-
----
-
 ## 6. Release plan
 
 Progress is reported only at the boundaries below. Each milestone is done when its demonstrable outcome has been shown from a deployed stack, not from a developer machine.
@@ -511,7 +301,7 @@ Progress evidence at the boundary: a screen recording or screenshots of the Port
 
 ### M2 Breadth and history
 
-Stories: BC-008, BC-010, BC-011, BC-012, BC-013, BC-014, BC-015, BC-016, BC-017, BC-018, BC-019, BC-020, BC-021, BC-022, BC-025, BC-026, BC-027, BC-028, BC-032, BC-033, BC-034, BC-035, BC-048.
+Stories: BC-025, BC-026, BC-027.
 
 Demonstrable outcome: every row of the link form matrix converts in best effort mode with the confidence state and per component inferred markers the matrix predicts, or fails with the message it predicts. The fixture corpus covers every row. History is searchable and filterable at five thousand rows, entries can be deleted singly and in bulk, and the filtered set exports as CSV and JSON. Backup and restore have been rehearsed once.
 
