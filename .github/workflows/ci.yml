@@ -17,8 +17,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
+      # Build first: consumers resolve @breadcrumb/parser through its emitted dist/ types.
       - run: pnpm build
+      - run: pnpm typecheck
       - run: pnpm test
 
   container:
