@@ -1,4 +1,5 @@
-// Copy buttons (BC-023). The rest of the page works without JavaScript.
+// Copy buttons (BC-023) and the select-all checkbox (BC-034). Everything
+// else on the pages works without JavaScript.
 (function () {
   'use strict';
   var announcer = document.getElementById('announcer');
@@ -57,4 +58,14 @@
       }
     );
   });
+
+  var selectAll = document.getElementById('select-all');
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      var boxes = document.querySelectorAll('input[name="ids"]');
+      for (var i = 0; i < boxes.length; i++) {
+        boxes[i].checked = selectAll.checked;
+      }
+    });
+  }
 })();

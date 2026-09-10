@@ -16,6 +16,10 @@ export interface AppConfig {
   logLevel: LogLevel;
   /** When true, request logs carry only the host of a submitted link. */
   redactLinks: boolean;
+  /** Whether the server may fetch 1drv.ms short links to expand them (BC-027). */
+  shortLinkExpansionEnabled: boolean;
+  /** Timeout for one short link expansion request, in milliseconds. */
+  shortLinkTimeoutMs: number;
 }
 
 export const DEFAULTS: Readonly<AppConfig> = {
@@ -23,6 +27,8 @@ export const DEFAULTS: Readonly<AppConfig> = {
   databasePath: './data/breadcrumb.sqlite',
   logLevel: 'info',
   redactLinks: false,
+  shortLinkExpansionEnabled: false,
+  shortLinkTimeoutMs: 5000,
 };
 
 export class ConfigError extends Error {
@@ -46,12 +52,14 @@ function read<T>(env: Env, name: string, fallback: T, parse: (raw: string) => T,
   return parse(raw.trim());
 }
 
-function parsePort(raw: string): number {
-  const port = Number(raw);
-  if (!/^\d+$/.test(raw) || !Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new ConfigError('PORT', 'must be an integer between 1 and 65535', raw);
-  }
-  return port;
+function parseInteger(name: string, min: number, max: number): (raw: string) => number {
+  return (raw) => {
+    const value = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isInteger(value) || value < min || value > max) {
+      throw new ConfigError(name, `must be an integer between ${min} and ${max}`, raw);
+    }
+    return value;
+  };
 }
 
 function parseLogLevel(raw: string): LogLevel {
@@ -81,9 +89,17 @@ function parseBoolean(name: string): (raw: string) => boolean {
  */
 export function loadConfig(env: Env = process.env, log: (line: string) => void = console.log): AppConfig {
   return {
-    port: read(env, 'PORT', DEFAULTS.port, parsePort, log),
+    port: read(env, 'PORT', DEFAULTS.port, parseInteger('PORT', 1, 65535), log),
     databasePath: read(env, 'DATABASE_PATH', DEFAULTS.databasePath, (raw) => raw, log),
     logLevel: read(env, 'LOG_LEVEL', DEFAULTS.logLevel, parseLogLevel, log),
     redactLinks: read(env, 'LOG_REDACT_LINKS', DEFAULTS.redactLinks, parseBoolean('LOG_REDACT_LINKS'), log),
+    shortLinkExpansionEnabled: read(
+      env,
+      'SHORTLINK_EXPANSION_ENABLED',
+      DEFAULTS.shortLinkExpansionEnabled,
+      parseBoolean('SHORTLINK_EXPANSION_ENABLED'),
+      log,
+    ),
+    shortLinkTimeoutMs: read(env, 'SHORTLINK_TIMEOUT_MS', DEFAULTS.shortLinkTimeoutMs, parseInteger('SHORTLINK_TIMEOUT_MS', 100, 60000), log),
   };
 }

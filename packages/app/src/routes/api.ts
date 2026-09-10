@@ -28,7 +28,7 @@ export function registerApiRoutes(app: FastifyInstance, service: ConversionServi
     }
 
     request.breadcrumb.input = link;
-    const outcome = service.convert(link, source as ConversionSource);
+    const outcome = await service.convert(link, source as ConversionSource);
     if (!outcome.ok) {
       request.breadcrumb.reason = outcome.failure.reason;
       return reply.code(400).send(outcome.failure);

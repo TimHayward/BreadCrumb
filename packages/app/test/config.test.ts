@@ -11,16 +11,32 @@ describe('loadConfig (BC-005)', () => {
       'config: DATABASE_PATH not set, using "./data/breadcrumb.sqlite"',
       'config: LOG_LEVEL not set, using "info"',
       'config: LOG_REDACT_LINKS not set, using "false"',
+      'config: SHORTLINK_EXPANSION_ENABLED not set, using "false"',
+      'config: SHORTLINK_TIMEOUT_MS not set, using "5000"',
     ]);
   });
 
   it('reads every variable when set', () => {
     const lines: string[] = [];
     const config = loadConfig(
-      { PORT: '8080', DATABASE_PATH: '/data/x.sqlite', LOG_LEVEL: 'DEBUG', LOG_REDACT_LINKS: 'true' },
+      {
+        PORT: '8080',
+        DATABASE_PATH: '/data/x.sqlite',
+        LOG_LEVEL: 'DEBUG',
+        LOG_REDACT_LINKS: 'true',
+        SHORTLINK_EXPANSION_ENABLED: 'yes',
+        SHORTLINK_TIMEOUT_MS: '2500',
+      },
       (l) => lines.push(l),
     );
-    expect(config).toEqual({ port: 8080, databasePath: '/data/x.sqlite', logLevel: 'debug', redactLinks: true });
+    expect(config).toEqual({
+      port: 8080,
+      databasePath: '/data/x.sqlite',
+      logLevel: 'debug',
+      redactLinks: true,
+      shortLinkExpansionEnabled: true,
+      shortLinkTimeoutMs: 2500,
+    });
     expect(lines).toEqual([]);
   });
 
@@ -31,6 +47,8 @@ describe('loadConfig (BC-005)', () => {
     ['PORT', '80.5'],
     ['LOG_LEVEL', 'loud'],
     ['LOG_REDACT_LINKS', 'maybe'],
+    ['SHORTLINK_EXPANSION_ENABLED', 'sometimes'],
+    ['SHORTLINK_TIMEOUT_MS', '10'],
   ])('rejects malformed %s=%s with an error naming the variable', (name, value) => {
     expect(() => loadConfig({ [name]: value }, () => {})).toThrowError(ConfigError);
     try {

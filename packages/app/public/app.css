@@ -96,6 +96,33 @@ table.history th, table.history td { text-align: left; padding: 0.5rem 0.6rem; b
 table.history th { background: var(--surface); }
 table.history td.input, table.history td.path { max-width: 22rem; overflow-wrap: anywhere; }
 
+.filters { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: end; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+.filters .field { display: flex; flex-direction: column; gap: 0.2rem; }
+.filters .field.grow { flex: 1 1 16rem; }
+.filters label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.filters input, .filters select { font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); }
+.filters .actions { flex-direction: row; gap: 0.75rem; align-items: center; }
+.filters button, .bulk-actions button, .confirm-form button, .keep-form button {
+  font: inherit; padding: 0.45rem 0.9rem; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: var(--accent-fg); cursor: pointer;
+}
+button.secondary { background: var(--bg); color: var(--accent); }
+button.danger { background: var(--badge-failure); border-color: var(--badge-failure); }
+.button-link { display: inline-block; padding: 0.45rem 0.9rem; }
+.count { margin: 0.5rem 0 0; font-weight: 600; }
+.export { margin: 0.25rem 0 0.5rem; color: var(--muted); }
+.flash { padding: 0.6rem 0.9rem; border: 1px solid var(--badge-verified); border-radius: 4px; color: var(--badge-verified); background: #f1f8f1; }
+.bulk-actions, .detail-actions { display: flex; gap: 1rem; align-items: center; margin: 0.75rem 0; }
+form.inline { display: inline; }
+table.history td.select, table.history th.select { width: 2rem; text-align: center; }
+.confirm-list { margin: 1rem 0; padding-left: 1.2rem; }
+.confirm-form { display: flex; gap: 1rem; align-items: center; }
+.result-unresolved { border-style: dashed; }
+.unresolved-note { color: var(--muted); }
+.next-step { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.hints, .wrappers { padding-left: 1.2rem; }
+.hints li, .wrappers li { margin: 0.25rem 0; }
+.keep-form { margin-top: 0.75rem; }
+
 .pager { display: flex; gap: 1rem; align-items: center; margin: 0.75rem 0; }
 .pager .disabled { color: var(--muted); }
 .empty { padding: 2rem; text-align: center; border: 1px dashed var(--border); border-radius: 6px; }

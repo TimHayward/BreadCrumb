@@ -21,6 +21,10 @@ const store = new SqliteHistoryStore(db);
 const app = await buildServer({ config, db, store });
 
 app.log.info({ databasePath: config.databasePath, schemaVersion: migration.version, applied: migration.applied }, 'database ready');
+app.log.info(
+  { enabled: config.shortLinkExpansionEnabled, timeoutMs: config.shortLinkTimeoutMs },
+  config.shortLinkExpansionEnabled ? 'short link expansion enabled: the server will fetch 1drv.ms links' : 'short link expansion disabled: no outbound requests',
+);
 
 const shutdown = async (signal: string): Promise<void> => {
   app.log.info({ signal }, 'shutting down');

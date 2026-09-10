@@ -10,6 +10,13 @@ export interface ConvertPageOptions {
 
 export function renderConvertPage(options: ConvertPageOptions): string {
   const outcome = options.outcome;
+  let resultMarkup = html``;
+  if (outcome !== undefined) {
+    resultMarkup = outcome.ok
+      ? html`${renderResult(outcome.result)}
+      <p class="saved">Saved to history as <a href="/history/${outcome.id}">entry ${outcome.id}</a>.</p>`
+      : renderFailure(outcome.failure, outcome.id !== undefined ? { keptAs: outcome.id } : { keepInput: options.input });
+  }
   const body = html`<h1>Convert a link</h1>
     <p class="lede">Paste a SharePoint or OneDrive link to see the folder it points at. Every conversion is kept in <a href="/history">history</a>.</p>
     <form method="post" action="/convert" class="convert-form">
@@ -18,8 +25,7 @@ export function renderConvertPage(options: ConvertPageOptions): string {
       <button type="submit">Convert</button>
     </form>
     <div id="result-region" aria-live="polite">
-      ${outcome === undefined ? '' : outcome.ok ? renderResult(outcome.result) : renderFailure(outcome.failure)}
-      ${outcome !== undefined && outcome.ok ? html`<p class="saved">Saved to history as <a href="/history/${outcome.id}">entry ${outcome.id}</a>.</p>` : ''}
+      ${resultMarkup}
     </div>`;
   return layout({ title: 'Convert', active: 'convert', body });
 }

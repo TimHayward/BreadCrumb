@@ -4,6 +4,7 @@ import { openDatabase, type Database } from '../src/db/connection.js';
 import { SqliteHistoryStore } from '../src/db/historyStore.js';
 import { migrate } from '../src/db/migrate.js';
 import { buildServer } from '../src/server.js';
+import type { ShortLinkExpander } from '../src/services/shortLinkExpander.js';
 
 export const WORKED_EXAMPLE =
   'https://848.sharepoint.com/sites/848Technical/Projects/Forms/AllItems.aspx?id=%2Fsites%2F848Technical%2FProjects%2FProjects%20WIP%2FDeloitte%2FDeloitte%20%2D%20Digital%20Development%20Environment%2FSMR%20SIID%20029%20%2D%20Development%20Environment%20for%20Digital%20team%2Epdf&parent=%2Fsites%2F848Technical%2FProjects%2FProjects%20WIP%2FDeloitte%2FDeloitte%20%2D%20Digital%20Development%20Environment';
@@ -14,6 +15,11 @@ export const WORKED_EXAMPLE_PATH =
 export const FOLDER_LINK =
   'https://contoso.sharepoint.com/teams/SiteB/Lib/Forms/AllItems.aspx?id=%2Fteams%2FSiteB%2FLib%2FProjects%2FAlpha&parent=%2Fteams%2FSiteB%2FLib%2FProjects%2FAlpha';
 
+export const TOKEN_LINK = 'https://contoso.sharepoint.com/:b:/s/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd';
+
+export const SAFELINKS_LINK =
+  'https://eur01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fcontoso.sharepoint.com%2Fsites%2FSiteA%2FLib%2FFolder%2FPlan.docx&data=PLACEHOLDER&sdata=PLACEHOLDER&reserved=0';
+
 export interface TestContext {
   app: FastifyInstance;
   db: Database;
@@ -21,13 +27,33 @@ export interface TestContext {
   config: AppConfig;
 }
 
-/** An in-memory database, migrated, behind a server with logging silenced. */
-export async function createTestServer(overrides: Partial<AppConfig> = {}): Promise<TestContext> {
-  const config: AppConfig = { ...DEFAULTS, databasePath: ':memory:', ...overrides };
+export interface TestServerOptions {
+  config?: Partial<AppConfig>;
+  expander?: ShortLinkExpander;
+}
+
+/** An in-memory database, migrated, behind a server with logging silenced and no network. */
+export async function createTestServer(options: TestServerOptions = {}): Promise<TestContext> {
+  const config: AppConfig = { ...DEFAULTS, databasePath: ':memory:', ...options.config };
   const db = openDatabase(':memory:');
   migrate(db);
   const store = new SqliteHistoryStore(db);
-  const app = await buildServer({ config, db, store, logger: false });
+  const expander: ShortLinkExpander = options.expander ?? {
+    enabled: false,
+    expand: async () => ({ ok: false, reason: 'disabled', message: 'Short link expansion is switched off in tests.' }),
+  };
+  const app = await buildServer({ config, db, store, logger: false, expander });
   await app.ready();
   return { app, db, store, config };
+}
+
+/** Posts a form the way a browser does. */
+export function postForm(app: FastifyInstance, url: string, fields: Record<string, string | string[]>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(fields)) {
+    for (const v of Array.isArray(value) ? value : [value]) {
+      params.append(key, v);
+    }
+  }
+  return app.inject({ method: 'POST', url, headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: params.toString() });
 }

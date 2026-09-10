@@ -12,6 +12,7 @@ import { registerApiRoutes } from './routes/api.js';
 import { registerHealthRoute } from './routes/health.js';
 import { registerPageRoutes } from './routes/pages.js';
 import { createConversionService } from './services/conversionService.js';
+import { DEFAULT_MAX_HOPS, createShortLinkExpander, type ShortLinkExpander } from './services/shortLinkExpander.js';
 
 export interface ServerDeps {
   config: AppConfig;
@@ -19,6 +20,8 @@ export interface ServerDeps {
   store: HistoryStore;
   /** Pino logger options override, used by tests to silence output. */
   logger?: boolean | { level: string };
+  /** Short link expander override, used by tests to avoid the network. */
+  expander?: ShortLinkExpander;
 }
 
 /** `public/` next to `src/` in development, copied to `dist/public` in the build. */
@@ -47,7 +50,17 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   await app.register(formbody);
   await app.register(fastifyStatic, { root: resolvePublicDir(), prefix: '/static/', cacheControl: true, maxAge: '1h' });
 
-  const service = createConversionService(deps.store);
+  const expander =
+    deps.expander ??
+    createShortLinkExpander({
+      enabled: deps.config.shortLinkExpansionEnabled,
+      timeoutMs: deps.config.shortLinkTimeoutMs,
+      maxHops: DEFAULT_MAX_HOPS,
+    });
+  const service = createConversionService(deps.store, {
+    expander,
+    log: { warn: (obj, msg) => app.log.warn(obj, msg) },
+  });
   registerHealthRoute(app, deps.db, deps.config.databasePath);
   registerApiRoutes(app, service);
   registerPageRoutes(app, service, deps.store);

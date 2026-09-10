@@ -23,7 +23,10 @@
     "fastify": "catalog:"
   },
   "devDependencies": {
+    "@types/jsdom": "catalog:",
     "@types/node": "catalog:",
+    "axe-core": "catalog:",
+    "jsdom": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
