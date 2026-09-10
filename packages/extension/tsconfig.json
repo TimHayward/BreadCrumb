@@ -5,8 +5,17 @@
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM"],
-    "types": ["chrome"]
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [
+      "chrome",
+      "node"
+    ]
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "test"
+  ]
 }

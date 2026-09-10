@@ -1,0 +1,26 @@
+:root { --fg: #1a1a1a; --muted: #555; --border: #d0d0d0; --accent: #0b5cad; --surface: #f5f6f8; --derived: #0b5cad; --inferred: #8a5a00; --unresolved: #5a5a5a; --failed: #a30000; --ok: #1b5e20; }
+body { margin: 0; width: 420px; max-height: 560px; overflow: auto; font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); }
+header { display: flex; align-items: baseline; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+h1 { font-size: 15px; margin: 0; }
+main { padding: 10px 12px; }
+.small { font-size: 12px; }
+button { font: inherit; padding: 5px 10px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; cursor: pointer; }
+button.secondary { background: #fff; color: var(--accent); }
+button:disabled { opacity: 0.6; cursor: default; }
+ul.rows { list-style: none; margin: 0; padding: 0; }
+li.row { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+li.row .label { font-weight: 600; word-break: break-word; }
+li.row .folder { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
+li.row .meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 600; color: #fff; }
+.badge-derived { background: var(--derived); }
+.badge-inferred { background: var(--inferred); }
+.badge-unresolved { background: var(--unresolved); }
+.badge-verified { background: var(--ok); }
+.badge-failed { background: var(--failed); }
+.marker-inferred { font-size: 11px; font-style: italic; color: var(--inferred); border: 1px dashed var(--inferred); border-radius: 3px; padding: 0 4px; }
+.note { font-size: 12px; color: var(--muted); }
+.outcome-ok { color: var(--ok); font-size: 12px; }
+.outcome-fail { color: var(--failed); font-size: 12px; }
+.actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.empty h2 { font-size: 14px; margin: 0 0 6px; }

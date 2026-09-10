@@ -46,6 +46,14 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   registerRequestLogging(app, deps.config);
 
+  // Chromium's private network access check sends this header on preflights from
+  // a public or secure context to a private address (risk R6, spike S6). Registered
+  // before the CORS plugin because that plugin answers preflights in its own hook.
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.method === 'OPTIONS' && request.headers['access-control-request-private-network'] === 'true') {
+      reply.header('access-control-allow-private-network', 'true');
+    }
+  });
   // No access control in v1 (R4): any origin on the private network may call the API.
   await app.register(cors, { origin: true, methods: ['GET', 'POST', 'OPTIONS'] });
   await app.register(formbody);

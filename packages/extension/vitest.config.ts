@@ -4,6 +4,5 @@ export default defineProject({
   test: {
     name: 'extension',
     include: ['test/**/*.test.ts'],
-    passWithNoTests: true,
   },
 });

@@ -159,6 +159,21 @@ What the browser does: for a path (Derived or Inferred) it resolves the site by 
 
 The Verified state is asserted by the browser (risk R12): the server checks the payload's shape and records the Graph item and drive ids with every validation so it can be re-checked.
 
+## Copilot extension
+
+`packages/extension` is a Manifest V3 extension for current Chrome and Edge. It runs only on `m365.cloud.microsoft`, `copilot.cloud.microsoft` and `copilot.microsoft.com` (host permissions for those three and nothing broader). Opening the popup on a Copilot response lists every SharePoint or OneDrive citation once, with its folder, confidence state and a "library inferred" marker where the library boundary was guessed; ticked items are sent one at a time to `POST /api/convert` with source `extension`. On the consumer host the popup shows a defined empty state, because Copilot there cites web pages. When no citations are found on a work host, "Report markup" copies a redacted sample of the response container to the clipboard for diagnosis.
+
+Build and load unpacked:
+
+```sh
+pnpm build
+# Chrome or Edge: Extensions → Developer mode → Load unpacked → packages/extension/dist
+```
+
+Then open the extension options and enter the API base URL, for example `http://192.168.1.20:3000`. The extension keeps no other setting and uses the shared parser package, never a copy of it.
+
+Until spike S1 delivers DOM captures from the live Copilot surfaces, the response container selectors in `packages/extension/src/extract.ts` are best effort; see `docs/m4-extension-run.md`.
+
 ## Backup and restore
 
 The database lives at `/data/breadcrumb.sqlite` on the named volume `breadcrumb-data`. In write ahead logging mode SQLite also keeps `breadcrumb.sqlite-wal` and `breadcrumb.sqlite-shm` next to it. Never copy the raw files while the application runs: recent writes may still be in the `-wal` file.

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BreadCrumb options</title>
+    <style>
+      body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 16px; min-width: 360px; color: #1a1a1a; }
+      label { display: block; font-weight: 600; margin-bottom: 4px; }
+      input { font: inherit; width: 100%; padding: 6px 8px; border: 1px solid #d0d0d0; border-radius: 4px; box-sizing: border-box; }
+      button { font: inherit; margin-top: 10px; padding: 6px 12px; border: 1px solid #0b5cad; border-radius: 4px; background: #0b5cad; color: #fff; cursor: pointer; }
+      p.note { color: #555; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1 style="font-size: 16px">BreadCrumb options</h1>
+    <form id="form">
+      <label for="base-url">API base URL</label>
+      <input id="base-url" name="baseUrl" type="url" placeholder="http://192.168.1.20:3000" autocomplete="off" />
+      <p class="note">The address of the BreadCrumb web application on your private network, without a trailing slash. The popup posts selected citations to <code>/api/convert</code> there.</p>
+      <button type="submit">Save</button>
+      <p id="status" class="note" role="status"></p>
+    </form>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

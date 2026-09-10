@@ -69,4 +69,17 @@ describe('POST /api/convert (BC-024)', () => {
     expect(response.headers['access-control-allow-origin']).toBe('chrome-extension://abcdefghijklmnop');
     expect(String(response.headers['access-control-allow-methods'])).toContain('POST');
   });
+
+  it('answers a private network access preflight (R6)', async () => {
+    const response = await ctx.app.inject({
+      method: 'OPTIONS',
+      url: '/api/convert',
+      headers: {
+        origin: 'chrome-extension://abcdefghijklmnop',
+        'access-control-request-method': 'POST',
+        'access-control-request-private-network': 'true',
+      },
+    });
+    expect(response.headers['access-control-allow-private-network']).toBe('true');
+  });
 });

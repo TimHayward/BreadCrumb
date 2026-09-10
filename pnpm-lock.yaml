@@ -118,9 +118,15 @@ importers:
       '@types/chrome':
         specifier: 'catalog:'
         version: 0.2.9
+      '@types/jsdom':
+        specifier: 'catalog:'
+        version: 30.0.0
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2
+      jsdom:
+        specifier: 'catalog:'
+        version: 30.0.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

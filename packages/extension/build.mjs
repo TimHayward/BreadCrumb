@@ -6,7 +6,12 @@ import { cpSync, mkdirSync } from 'node:fs';
 mkdirSync('dist', { recursive: true });
 
 await build({
-  entryPoints: { popup: 'src/popup.ts' },
+  entryPoints: {
+    popup: 'src/popup.ts',
+    options: 'src/options.ts',
+    content: 'src/content.ts',
+    background: 'src/background.ts',
+  },
   bundle: true,
   format: 'esm',
   target: 'chrome120',
@@ -15,5 +20,6 @@ await build({
   logLevel: 'info',
 });
 
-cpSync('manifest.json', 'dist/manifest.json');
-cpSync('src/popup.html', 'dist/popup.html');
+for (const file of ['manifest.json', 'src/popup.html', 'src/popup.css', 'src/options.html']) {
+  cpSync(file, `dist/${file.replace(/^src\//, '')}`);
+}
