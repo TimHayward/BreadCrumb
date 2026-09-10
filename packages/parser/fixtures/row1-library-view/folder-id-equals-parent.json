@@ -1,0 +1,27 @@
+{
+  "title": "AllItems.aspx where id equals parent: a folder result with no file component (BC-019)",
+  "row": "13",
+  "input": "https://contoso.sharepoint.com/teams/SiteB/Lib/Forms/AllItems.aspx?id=%2Fteams%2FSiteB%2FLib%2FProjects%2FAlpha&parent=%2Fteams%2FSiteB%2FLib%2FProjects%2FAlpha",
+  "expected": {
+    "ok": true,
+    "state": "Derived",
+    "form": "library-view",
+    "method": {
+      "code": "library-view/id+parent",
+      "text": "Folder decoded from the link's id parameter, which equals parent. Library boundary taken from the page path."
+    },
+    "cloud": "global",
+    "path": "/teams/SiteB/Lib/Projects/Alpha",
+    "folderUrl": "https://contoso.sharepoint.com/teams/SiteB/Lib/Projects/Alpha",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/teams/SiteB", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Derived", "reason": "from page path" },
+      "folders": { "value": ["Projects", "Alpha"], "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "title": "A view link whose id value is cut off mid escape fails with truncated naming the parameter",
+  "row": "14",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?id=%2Fsites%2FSiteA%2FLib%2FFolder%2FFile%2",
+  "expected": {
+    "ok": false,
+    "reason": "truncated",
+    "detail": { "parameter": "id" }
+  }
+}

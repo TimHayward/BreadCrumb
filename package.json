@@ -1,0 +1,29 @@
+{
+  "name": "breadcrumb",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Self hosted tool that turns Microsoft 365 SharePoint and OneDrive links into the folder location they point at.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "pnpm --filter @breadcrumb/app dev",
+    "start": "pnpm --filter @breadcrumb/app start"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

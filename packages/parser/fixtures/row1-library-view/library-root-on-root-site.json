@@ -1,0 +1,27 @@
+{
+  "title": "AllItems.aspx with no parameters on the root site: folder is the library root, site path empty",
+  "row": "1",
+  "input": "https://contoso.sharepoint.com/Shared%20Documents/Forms/AllItems.aspx",
+  "expected": {
+    "ok": true,
+    "state": "Derived",
+    "form": "library-view",
+    "method": {
+      "code": "library-view/library-root",
+      "text": "The link opens the library's default view, so the folder is the library root. Library boundary taken from the page path."
+    },
+    "cloud": "global",
+    "path": "/Shared Documents",
+    "folderUrl": "https://contoso.sharepoint.com/Shared%20Documents",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "", "flag": "Derived" },
+      "library": { "value": "Shared Documents", "flag": "Derived", "reason": "from page path" },
+      "folders": { "value": [], "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

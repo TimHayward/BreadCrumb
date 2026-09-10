@@ -1,0 +1,10 @@
+{
+  "title": "A URL on an unrelated host with no SharePoint path shape fails with not_microsoft_365 naming the host",
+  "row": "14",
+  "input": "https://www.example.com/some/page?x=1",
+  "expected": {
+    "ok": false,
+    "reason": "not_microsoft_365",
+    "detail": { "host": "www.example.com" }
+  }
+}

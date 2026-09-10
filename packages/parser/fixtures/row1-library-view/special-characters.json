@@ -1,0 +1,29 @@
+{
+  "title": "BC-009: ampersand, hash, plus, percent, non ASCII and mixed case hex decode once and re-encode once",
+  "row": "1",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?id=%2Fsites%2FSiteA%2FLib%2FR%26D%2FQ1%20%231%20%2B%20100%25%20caf%C3%A9%2epdf&parent=%2Fsites%2FSiteA%2FLib%2FR%26D",
+  "expected": {
+    "ok": true,
+    "state": "Derived",
+    "form": "library-view",
+    "method": {
+      "code": "library-view/id+parent",
+      "text": "Path decoded from the link's id and parent parameters. Library boundary taken from the page path."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/R&D/Q1 #1 + 100% café.pdf",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/R%26D",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/R%26D/Q1%20%231%20%2B%20100%25%20caf%C3%A9.pdf",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Derived", "reason": "from page path" },
+      "folders": { "value": ["R&D"], "flag": "Derived" },
+      "fileName": { "value": "Q1 #1 + 100% café.pdf", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

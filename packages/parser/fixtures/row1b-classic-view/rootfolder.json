@@ -1,0 +1,27 @@
+{
+  "title": "Classic view link with RootFolder and viewid: folder result, no file component",
+  "row": "1b",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?RootFolder=%2Fsites%2FSiteA%2FLib%2FFolder%20One%2FSub&viewid=3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c",
+  "expected": {
+    "ok": true,
+    "state": "Derived",
+    "form": "library-view-classic",
+    "method": {
+      "code": "library-view/root-folder",
+      "text": "Folder decoded from the link's RootFolder parameter. Library boundary taken from the page path."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/Folder One/Sub",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Sub",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Derived", "reason": "from page path" },
+      "folders": { "value": ["Folder One", "Sub"], "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

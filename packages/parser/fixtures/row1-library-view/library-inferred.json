@@ -1,0 +1,29 @@
+{
+  "title": "AllItems.aspx whose id does not start with the page path library: library Inferred",
+  "row": "1",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?id=%2Fsites%2FSiteA%2FArchive%2F2024%2FMinutes%2Edocx&parent=%2Fsites%2FSiteA%2FArchive%2F2024",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "library-view",
+    "method": {
+      "code": "library-view/id+parent",
+      "text": "Path decoded from the link's id and parent parameters. Library boundary inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Archive/2024/Minutes.docx",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Archive/2024",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Archive/2024/Minutes.docx",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Archive", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": ["2024"], "flag": "Inferred" },
+      "fileName": { "value": "Minutes.docx", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "title": "Plain text that is not a URL fails with not_a_url",
+  "row": "14",
+  "input": "please find the file in the projects folder",
+  "expected": {
+    "ok": false,
+    "reason": "not_a_url"
+  }
+}

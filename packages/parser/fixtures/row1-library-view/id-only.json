@@ -1,0 +1,29 @@
+{
+  "title": "AllItems.aspx with id only: folder is the parent of id",
+  "row": "1",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2FSiteA%2FShared%20Documents%2FGeneral%2FReport%202025%2Epdf",
+  "expected": {
+    "ok": true,
+    "state": "Derived",
+    "form": "library-view",
+    "method": {
+      "code": "library-view/id",
+      "text": "Path decoded from the link's id parameter; the folder is its parent. Library boundary taken from the page path."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Shared Documents/General/Report 2025.pdf",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/General",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/General/Report%202025.pdf",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Shared Documents", "flag": "Derived", "reason": "from page path" },
+      "folders": { "value": ["General"], "flag": "Derived" },
+      "fileName": { "value": "Report 2025.pdf", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}
