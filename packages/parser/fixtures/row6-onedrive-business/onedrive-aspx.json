@@ -1,0 +1,31 @@
+{
+  "title": "OneDrive for Business onedrive.aspx?id= link: personal site path, Documents inferred, owner hint (BC-014)",
+  "row": "6",
+  "input": "https://contoso-my.sharepoint.com/personal/user_contoso_onmicrosoft_com/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fuser_contoso_onmicrosoft_com%2FDocuments%2FFolder%2FBudget%2Exlsx",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "onedrive-view",
+    "method": {
+      "code": "onedrive-view/id",
+      "text": "Path decoded from the onedrive.aspx link's id parameter. Library boundary and folder chain inferred: well known library name."
+    },
+    "cloud": "global",
+    "path": "/personal/user_contoso_onmicrosoft_com/Documents/Folder/Budget.xlsx",
+    "folderUrl": "https://contoso-my.sharepoint.com/personal/user_contoso_onmicrosoft_com/Documents/Folder",
+    "fileUrl": "https://contoso-my.sharepoint.com/personal/user_contoso_onmicrosoft_com/Documents/Folder/Budget.xlsx",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso-my.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/personal/user_contoso_onmicrosoft_com", "flag": "Derived" },
+      "library": { "value": "Documents", "flag": "Inferred", "reason": "well known library name" },
+      "folders": { "value": ["Folder"], "flag": "Inferred" },
+      "fileName": { "value": "Budget.xlsx", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [
+      { "kind": "owner", "value": "user@contoso.onmicrosoft.com", "label": "owner sign in name reversed from the personal site alias (a hint: underscores in the original name make it ambiguous)" }
+    ],
+    "wrappers": []
+  }
+}

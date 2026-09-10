@@ -1,0 +1,25 @@
+{
+  "title": "WopiFrame.aspx with sourcedoc and no file parameter: Unresolved with no file name (BC-012)",
+  "row": "4",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/_layouts/15/WopiFrame.aspx?sourcedoc=3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c&action=view",
+  "expected": {
+    "ok": true,
+    "state": "Unresolved",
+    "form": "doc-aspx",
+    "method": {
+      "code": "doc-aspx/wopiframe",
+      "text": "Recognised a WopiFrame.aspx link. The site can be read from the link, but the document is identified only by its id, so the folder cannot be known without signing in."
+    },
+    "cloud": "global",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" }
+    },
+    "identifiers": [
+      { "kind": "sourcedoc", "value": "3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c", "label": "document id (list item unique id) from sourcedoc", "flag": "Derived" }
+    ],
+    "hints": [],
+    "wrappers": []
+  }
+}

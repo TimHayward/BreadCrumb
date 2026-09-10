@@ -1,25 +1,29 @@
 import type { Cloud } from './types.js';
 
-/** What kind of Microsoft host the link is on. M2 adds consumer OneDrive, short links and wrappers. */
-export type HostKind = 'sharepoint' | 'unknown';
+/** What kind of host the link is on. */
+export type HostKind = 'sharepoint' | 'onedrive-consumer' | 'shortlink' | 'teams' | 'safelinks' | 'unknown';
 
 export interface HostInfo {
   kind: HostKind;
   /** Lower cased host name exactly as it appears in the link. */
   host: string;
   cloud: Cloud;
-  /** First host label with any `-my` suffix removed. Empty when unknown. */
+  /** First host label with any `-my` suffix removed. Empty when there is no tenant. */
   tenant: string;
   /** True for `-my` hosts (OneDrive for Business personal sites). */
   personal: boolean;
 }
 
+/** SharePoint Online host suffixes per cloud (BC-020). */
 const SHAREPOINT_CLOUDS: ReadonlyArray<{ suffix: string; cloud: Cloud }> = [
   { suffix: '.sharepoint.com', cloud: 'global' },
   { suffix: '.sharepoint.us', cloud: 'gcc-high' },
   { suffix: '.sharepoint-mil.us', cloud: 'dod' },
   { suffix: '.sharepoint.cn', cloud: 'china' },
 ];
+
+/** Short link hosts the server may expand (BC-027). Nothing else is ever fetched. */
+export const SHORT_LINK_HOSTS: ReadonlySet<string> = new Set(['1drv.ms']);
 
 const LOOKS_LIKE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?(\/|$)/i;
 
@@ -45,7 +49,7 @@ export function safeParseUrl(input: string): URL | undefined {
   return url;
 }
 
-/** Classifies a host name into a Microsoft cloud and extracts the tenant. */
+/** Classifies a host name into a kind and cloud and extracts the tenant. */
 export function classifyHost(hostname: string): HostInfo {
   const host = hostname.toLowerCase();
   for (const { suffix, cloud } of SHAREPOINT_CLOUDS) {
@@ -59,5 +63,19 @@ export function classifyHost(hostname: string): HostInfo {
       return { kind: 'sharepoint', host, cloud, tenant, personal };
     }
   }
-  return { kind: 'unknown', host, cloud: 'unknown', tenant: '', personal: false };
+  if (host === 'onedrive.live.com') {
+    return { kind: 'onedrive-consumer', host, cloud: 'global', tenant: '', personal: true };
+  }
+  if (SHORT_LINK_HOSTS.has(host)) {
+    return { kind: 'shortlink', host, cloud: 'global', tenant: '', personal: true };
+  }
+  if (host === 'teams.microsoft.com') {
+    return { kind: 'teams', host, cloud: 'global', tenant: '', personal: false };
+  }
+  if (host.endsWith('.safelinks.protection.outlook.com')) {
+    return { kind: 'safelinks', host, cloud: 'global', tenant: '', personal: false };
+  }
+  const firstLabel = host.split('.')[0] ?? '';
+  const personal = firstLabel.endsWith('-my');
+  return { kind: 'unknown', host, cloud: 'unknown', tenant: personal ? firstLabel.slice(0, -3) : firstLabel, personal };
 }

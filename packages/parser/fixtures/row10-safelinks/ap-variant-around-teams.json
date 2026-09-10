@@ -1,0 +1,38 @@
+{
+  "title": "Safe Links /ap/ variant around a Teams deep link around a SharePoint URL: both wrappers recorded in order (BC-017)",
+  "row": "10",
+  "input": "https://gbr01.safelinks.protection.outlook.com/ap/w-59584e83/?url=https%3A%2F%2Fteams.microsoft.com%2Fl%2Ffile%2F3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%3FtenantId%3D7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f%26fileType%3Ddocx%26objectUrl%3Dhttps%253A%252F%252Fcontoso.sharepoint.com%252Fsites%252FSiteA%252FLib%252FFolder%252FPlan.docx%26baseUrl%3Dhttps%253A%252F%252Fcontoso.sharepoint.com%252Fsites%252FSiteA%26serviceName%3Dteams%26threadId%3D19%253Aabcdef0123456789%2540thread.tacv2%26groupId%3D9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b&data=PLACEHOLDER&sdata=PLACEHOLDER&reserved=0",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "direct-path",
+    "method": {
+      "code": "direct/path",
+      "text": "Path taken from the link itself. Library boundary and folder chain inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/Folder/Plan.docx",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Plan.docx",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": ["Folder"], "flag": "Inferred" },
+      "fileName": { "value": "Plan.docx", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": [
+      {
+        "type": "safelinks",
+        "original": "https://gbr01.safelinks.protection.outlook.com/ap/w-59584e83/?url=https%3A%2F%2Fteams.microsoft.com%2Fl%2Ffile%2F3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%3FtenantId%3D7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f%26fileType%3Ddocx%26objectUrl%3Dhttps%253A%252F%252Fcontoso.sharepoint.com%252Fsites%252FSiteA%252FLib%252FFolder%252FPlan.docx%26baseUrl%3Dhttps%253A%252F%252Fcontoso.sharepoint.com%252Fsites%252FSiteA%26serviceName%3Dteams%26threadId%3D19%253Aabcdef0123456789%2540thread.tacv2%26groupId%3D9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b&data=PLACEHOLDER&sdata=PLACEHOLDER&reserved=0"
+      },
+      {
+        "type": "teams",
+        "original": "https://teams.microsoft.com/l/file/3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c?tenantId=7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f&fileType=docx&objectUrl=https%3A%2F%2Fcontoso.sharepoint.com%2Fsites%2FSiteA%2FLib%2FFolder%2FPlan.docx&baseUrl=https%3A%2F%2Fcontoso.sharepoint.com%2Fsites%2FSiteA&serviceName=teams&threadId=19%3Aabcdef0123456789%40thread.tacv2&groupId=9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b"
+      }
+    ]
+  }
+}

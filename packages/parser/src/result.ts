@@ -1,13 +1,17 @@
 import { buildUrl } from './encoding.js';
+import { hasSiteShape, inferLibrary, isUnderPath, looksLikeFolder, ownerHint, segmentsOf, splitSitePath } from './path.js';
 import type {
   Component,
   ComponentFlag,
   ConfidenceState,
   FailureDetail,
   FailureReason,
+  Hint,
+  Identifier,
   LibraryReason,
   ParseFailure,
   ParseSuccess,
+  Wrapper,
 } from './types.js';
 import type { HostInfo } from './url.js';
 import { PARSER_VERSION } from './version.js';
@@ -42,14 +46,21 @@ export function flagged<T>(value: T, flag: ComponentFlag): Component<T> {
   return { value, flag };
 }
 
-/** Everything a form matcher knows once it has located the item. */
-export interface LocatedItem {
+/** Everything shared by every result builder. */
+export interface ResultBase {
   host: HostInfo;
   form: string;
   methodCode: string;
-  /** Plain language statement of how the path was decoded, without the library sentence. */
+  /** Plain language statement of how the item was located, before the inference sentence. */
   methodText: string;
   original: string;
+  wrappers: Wrapper[];
+  identifiers?: Identifier[];
+  hints?: Hint[];
+}
+
+/** A located item: the site, library and folder chain are all known or inferred. */
+export interface LocatedItem extends ResultBase {
   sitePath: string;
   library: { value: string; flag: ComponentFlag; reason: LibraryReason };
   /** Folder chain below the library, up to but excluding the file. */
@@ -58,28 +69,44 @@ export interface LocatedItem {
   fileName?: string;
 }
 
+function unknownHostNote(host: HostInfo): string {
+  return ` The host ${host.host} is not a known Microsoft cloud, so the result is inferred.`;
+}
+
 /**
- * Assembles a ParseSuccess from a located item. The overall state is Derived
- * only when every component is Derived; otherwise Inferred (BC-018). The
- * folder chain inherits the library's flag, because moving the library
- * boundary moves the folders with it.
+ * Assembles a ParseSuccess from a located item. The state is Derived only
+ * when every component is Derived and the host is a known Microsoft cloud;
+ * otherwise Inferred (BC-018, BC-020). The folder chain inherits the
+ * library's flag, because moving the library boundary moves the folders.
  */
 export function success(item: LocatedItem): ParseSuccess {
   const librarySegments = item.library.value === '' ? [] : [item.library.value];
   const folderPath = [item.sitePath, ...librarySegments.map((s) => `/${s}`), ...item.folders.map((s) => `/${s}`)].join('') || '/';
   const itemPath = item.fileName === undefined ? folderPath : `${folderPath === '/' ? '' : folderPath}/${item.fileName}`;
 
-  const state: ConfidenceState = item.library.flag === 'Derived' ? 'Derived' : 'Inferred';
-  const librarySentence =
-    item.library.flag === 'Derived'
-      ? 'Library boundary taken from the page path.'
-      : `Library boundary inferred: ${item.library.reason}.`;
+  const libraryDerived = item.library.flag === 'Derived';
+  const hints = [...(item.hints ?? [])];
+  let state: ConfidenceState = libraryDerived ? 'Derived' : 'Inferred';
+  let text = `${item.methodText} ${
+    libraryDerived ? 'Library boundary taken from the page path.' : `Library boundary and folder chain inferred: ${item.library.reason}.`
+  }`;
+  if (item.host.kind === 'unknown') {
+    state = 'Inferred';
+    text += unknownHostNote(item.host);
+    hints.push({ kind: 'host', value: item.host.host, label: 'host is not a known Microsoft cloud' });
+  }
+  if (item.sitePath.toLowerCase().startsWith('/personal/')) {
+    const alias = segmentsOf(item.sitePath)[1];
+    if (alias !== undefined && !hints.some((h) => h.kind === 'owner')) {
+      hints.push(ownerHint(alias));
+    }
+  }
 
   const result: ParseSuccess = {
     ok: true,
     state,
     form: item.form,
-    method: { code: item.methodCode, text: `${item.methodText} ${librarySentence}` },
+    method: { code: item.methodCode, text },
     cloud: item.host.cloud,
     path: itemPath,
     folderUrl: buildUrl(item.host.host, folderPath),
@@ -90,9 +117,9 @@ export function success(item: LocatedItem): ParseSuccess {
       library: { value: item.library.value, flag: item.library.flag, reason: item.library.reason },
       folders: flagged([...item.folders], item.library.flag),
     },
-    identifiers: [],
-    hints: [],
-    wrappers: [],
+    identifiers: [...(item.identifiers ?? [])],
+    hints,
+    wrappers: [...item.wrappers],
     original: item.original,
     parserVersion: PARSER_VERSION,
   };
@@ -102,3 +129,77 @@ export function success(item: LocatedItem): ParseSuccess {
   }
   return result;
 }
+
+/** An Unresolved result: the form is recognised but the path is unknown without sign in. */
+export interface UnresolvedItem extends ResultBase {
+  sitePath?: string;
+  fileName?: string;
+}
+
+export function unresolved(item: UnresolvedItem): ParseSuccess {
+  const result: ParseSuccess = {
+    ok: true,
+    state: 'Unresolved',
+    form: item.form,
+    method: { code: item.methodCode, text: item.methodText },
+    cloud: item.host.cloud,
+    components: {
+      tenant: derived(item.host.tenant),
+      host: derived(item.host.host),
+    },
+    identifiers: [...(item.identifiers ?? [])],
+    hints: [...(item.hints ?? [])],
+    wrappers: [...item.wrappers],
+    original: item.original,
+    parserVersion: PARSER_VERSION,
+  };
+  if (item.sitePath !== undefined) {
+    result.components.sitePath = derived(item.sitePath);
+  }
+  if (item.fileName !== undefined) {
+    result.components.fileName = derived(item.fileName);
+  }
+  return result;
+}
+
+export interface LocateOptions extends ResultBase {
+  /** Force a folder result regardless of what the last segment looks like. */
+  folder?: boolean;
+}
+
+/**
+ * Locates an item from a decoded server relative path when nothing fixes the
+ * library boundary: the site is split by convention and the library is
+ * inferred by the BC-018 rules. Used by the direct, sharing, download and
+ * OneDrive forms.
+ */
+export function locateByPath(decodedPath: string, options: LocateOptions): ParseSuccess | ParseFailure {
+  if (options.host.kind === 'unknown' && !hasSiteShape(decodedPath)) {
+    return failure('not_microsoft_365', { host: options.host.host });
+  }
+  const isFolder = options.folder ?? looksLikeFolder(decodedPath);
+  const split = splitSitePath(decodedPath);
+  const inferred = inferLibrary(split.remainder);
+  if (inferred === undefined) {
+    return failure('unsupported_form', undefined, 'The link points at a site rather than a document library, folder or file.');
+  }
+  const { folder: _folder, ...base } = options;
+  const item: LocatedItem = {
+    ...base,
+    sitePath: split.sitePath,
+    library: { value: inferred.library, flag: 'Inferred', reason: inferred.reason },
+    folders: isFolder ? inferred.rest : inferred.rest.slice(0, -1),
+  };
+  if (!isFolder) {
+    const fileName = inferred.rest.at(-1);
+    if (fileName === undefined) {
+      // A file directly under the site with no library: treat the "library" as the file's container.
+      return failure('unsupported_form', undefined, 'The link points at a site rather than a document library, folder or file.');
+    }
+    item.fileName = fileName;
+  }
+  return success(item);
+}
+
+/** Re-exported for form matchers that need the library-derived rule. */
+export { isUnderPath };

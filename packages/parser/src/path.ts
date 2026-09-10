@@ -1,4 +1,4 @@
-import type { LibraryReason } from './types.js';
+import type { Hint, LibraryReason } from './types.js';
 
 /** Site collection prefixes recognised in a server relative path. */
 const SITE_PREFIXES = new Set(['sites', 'teams', 'personal']);
@@ -38,6 +38,12 @@ export function splitSitePath(decodedPath: string): SiteSplit {
   return { sitePath: '', remainder: segments };
 }
 
+/** True when the path starts with a site collection prefix (a SharePoint shape). */
+export function hasSiteShape(decodedPath: string): boolean {
+  const first = segmentsOf(decodedPath)[0];
+  return first !== undefined && SITE_PREFIXES.has(first.toLowerCase());
+}
+
 export interface LibraryInference {
   library: string;
   reason: LibraryReason;
@@ -71,4 +77,43 @@ export function isUnderPath(path: string, prefix: string): boolean {
 export function parentOf(decodedPath: string): string {
   const segments = segmentsOf(decodedPath);
   return joinSegments(segments.slice(0, -1));
+}
+
+/**
+ * Whether a direct URL points at a folder: a trailing slash, or a last
+ * segment with no file extension (BC-008).
+ */
+export function looksLikeFolder(decodedPath: string): boolean {
+  if (decodedPath.endsWith('/')) {
+    return true;
+  }
+  const last = segmentsOf(decodedPath).at(-1);
+  return last === undefined || !/\.[a-z0-9]{1,8}$/i.test(last);
+}
+
+/**
+ * Reverses the underscore encoding of a personal site alias into a sign in
+ * name (BC-014). Underscores in the original name make this ambiguous, so it
+ * is offered as a hint and labelled as such.
+ */
+export function ownerHint(alias: string): Hint {
+  const parts = alias.split('_');
+  let user: string;
+  let domain: string;
+  const om = parts.lastIndexOf('onmicrosoft');
+  if (om >= 2 && parts[om + 1] === 'com' && om + 1 === parts.length - 1) {
+    user = parts.slice(0, om - 1).join('.');
+    domain = `${parts[om - 1]}.onmicrosoft.com`;
+  } else if (parts.length >= 3) {
+    user = parts.slice(0, -2).join('.');
+    domain = parts.slice(-2).join('.');
+  } else {
+    user = alias;
+    domain = '';
+  }
+  return {
+    kind: 'owner',
+    value: domain === '' ? user : `${user}@${domain}`,
+    label: 'owner sign in name reversed from the personal site alias (a hint: underscores in the original name make it ambiguous)',
+  };
 }

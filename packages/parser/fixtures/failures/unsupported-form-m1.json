@@ -1,9 +1,0 @@
-{
-  "title": "M1 only: a SharePoint page that is not a library view fails with unsupported_form (BC-008 in M2 changes this case)",
-  "row": "14",
-  "input": "https://contoso.sharepoint.com/sites/SiteA/SitePages/Home.aspx",
-  "expected": {
-    "ok": false,
-    "reason": "unsupported_form"
-  }
-}

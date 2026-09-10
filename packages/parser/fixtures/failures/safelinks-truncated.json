@@ -1,0 +1,10 @@
+{
+  "title": "Safe Links wrapper whose url value is cut off fails saying the wrapped link is incomplete (BC-017)",
+  "row": "14",
+  "input": "https://eur01.safelinks.protection.outlook.com/?url=https%3A%2&data=PLACEHOLDER&sdata=PLACEHOLDER&reserved=0",
+  "expected": {
+    "ok": false,
+    "reason": "truncated",
+    "detail": { "parameter": "url" }
+  }
+}

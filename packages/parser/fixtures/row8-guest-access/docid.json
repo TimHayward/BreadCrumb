@@ -1,0 +1,25 @@
+{
+  "title": "Legacy guestaccess.aspx link: Unresolved with the docid retained (BC-011)",
+  "row": "8",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/_layouts/15/guestaccess.aspx?docid=0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6&authkey=AaBbCcDdEeFf",
+  "expected": {
+    "ok": true,
+    "state": "Unresolved",
+    "form": "guest-access",
+    "method": {
+      "code": "guest-access/legacy",
+      "text": "Recognised a legacy guest access link. Its identifiers cannot be decoded without signing in, so the path, library and folder are unknown."
+    },
+    "cloud": "global",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" }
+    },
+    "identifiers": [
+      { "kind": "docid", "value": "0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6", "label": "guest access document id", "flag": "Derived" }
+    ],
+    "hints": [],
+    "wrappers": []
+  }
+}

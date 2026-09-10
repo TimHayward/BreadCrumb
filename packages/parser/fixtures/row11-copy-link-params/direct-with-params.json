@@ -1,0 +1,29 @@
+{
+  "title": "Direct URL with copy link parameters appended converts identically to the bare URL (BC-010)",
+  "row": "11",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf?csf=1&web=1&e=Ab12Cd",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "direct-path",
+    "method": {
+      "code": "direct/path",
+      "text": "Path taken from the link itself. Library boundary and folder chain inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/Folder One/Report.pdf",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": ["Folder One"], "flag": "Inferred" },
+      "fileName": { "value": "Report.pdf", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

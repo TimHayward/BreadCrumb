@@ -1,0 +1,29 @@
+{
+  "title": "A site page URL parses as a direct path with SitePages as the inferred library",
+  "row": "2",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/SitePages/Home.aspx",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "direct-path",
+    "method": {
+      "code": "direct/path",
+      "text": "Path taken from the link itself. Library boundary and folder chain inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/SitePages/Home.aspx",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/SitePages",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/SitePages/Home.aspx",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "SitePages", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": [], "flag": "Inferred" },
+      "fileName": { "value": "Home.aspx", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

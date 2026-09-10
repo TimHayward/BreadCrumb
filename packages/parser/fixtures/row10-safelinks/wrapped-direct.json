@@ -1,0 +1,34 @@
+{
+  "title": "Safe Links wrapper around a direct SharePoint URL (BC-017)",
+  "row": "10",
+  "input": "https://eur01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fcontoso.sharepoint.com%2Fsites%2FSiteA%2FLib%2FFolder%2FPlan.docx&data=PLACEHOLDER&sdata=PLACEHOLDER&reserved=0",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "direct-path",
+    "method": {
+      "code": "direct/path",
+      "text": "Path taken from the link itself. Library boundary and folder chain inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/Folder/Plan.docx",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Plan.docx",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": ["Folder"], "flag": "Inferred" },
+      "fileName": { "value": "Plan.docx", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": [
+      {
+        "type": "safelinks",
+        "original": "https://eur01.safelinks.protection.outlook.com/?url=https%3A%2F%2Fcontoso.sharepoint.com%2Fsites%2FSiteA%2FLib%2FFolder%2FPlan.docx&data=PLACEHOLDER&sdata=PLACEHOLDER&reserved=0"
+      }
+    ]
+  }
+}

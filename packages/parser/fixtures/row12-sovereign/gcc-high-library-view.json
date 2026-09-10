@@ -1,0 +1,29 @@
+{
+  "title": "Library view link on a sharepoint.us host: identical structure, cloud recorded as gcc-high (BC-020)",
+  "row": "12",
+  "input": "https://contoso.sharepoint.us/sites/SiteA/Lib/Forms/AllItems.aspx?id=%2Fsites%2FSiteA%2FLib%2FFolder%2FReport%2Epdf&parent=%2Fsites%2FSiteA%2FLib%2FFolder",
+  "expected": {
+    "ok": true,
+    "state": "Derived",
+    "form": "library-view",
+    "method": {
+      "code": "library-view/id+parent",
+      "text": "Path decoded from the link's id and parent parameters. Library boundary taken from the page path."
+    },
+    "cloud": "gcc-high",
+    "path": "/sites/SiteA/Lib/Folder/Report.pdf",
+    "folderUrl": "https://contoso.sharepoint.us/sites/SiteA/Lib/Folder",
+    "fileUrl": "https://contoso.sharepoint.us/sites/SiteA/Lib/Folder/Report.pdf",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.us", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Derived", "reason": "from page path" },
+      "folders": { "value": ["Folder"], "flag": "Derived" },
+      "fileName": { "value": "Report.pdf", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

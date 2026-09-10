@@ -6,20 +6,16 @@
  * This is the one form where the library boundary is deterministic: the page
  * path places `/Forms/<view>.aspx` at the library root.
  */
-import { safeParseUrl } from '../url.js';
 import { decodePercent } from '../encoding.js';
 import { inferLibrary, isUnderPath, parentOf, segmentsOf, splitSitePath } from '../path.js';
 import { failure, success, type LocatedItem } from '../result.js';
-import type { ComponentFlag, LibraryReason } from '../types.js';
+import { safeParseUrl } from '../url.js';
 import type { FormMatcher } from './context.js';
 
 const VIEW_PAGE = /^(.*)\/Forms\/[^/]+\.aspx$/i;
 
-/**
- * Some links carry an absolute URL in `id`. Reduce it to a decoded server
- * relative path so the same rules apply.
- */
-function toServerRelative(value: string, parameter: string): string {
+/** Some links carry an absolute URL in `id`; reduce it to a decoded server relative path. */
+export function toServerRelative(value: string, parameter: string): string {
   if (/^https?:\/\//i.test(value)) {
     const url = safeParseUrl(value);
     if (url !== undefined) {
@@ -30,6 +26,9 @@ function toServerRelative(value: string, parameter: string): string {
 }
 
 export const libraryView: FormMatcher = (ctx) => {
+  if (ctx.host.kind !== 'sharepoint' && ctx.host.kind !== 'unknown') {
+    return undefined;
+  }
   const match = VIEW_PAGE.exec(ctx.pagePath);
   if (match === null) {
     return undefined;
@@ -97,10 +96,8 @@ export const libraryView: FormMatcher = (ctx) => {
     if (inferred === undefined) {
       return failure('unsupported_form', undefined, 'The id parameter does not point inside a document library.');
     }
-    const flag: ComponentFlag = 'Inferred';
-    const reason: LibraryReason = inferred.reason;
     sitePath = split.sitePath;
-    library = { value: inferred.library, flag, reason };
+    library = { value: inferred.library, flag: 'Inferred', reason: inferred.reason };
     folders = inferred.rest;
   }
 
@@ -110,6 +107,7 @@ export const libraryView: FormMatcher = (ctx) => {
     methodCode,
     methodText,
     original: ctx.original,
+    wrappers: ctx.wrappers,
     sitePath,
     library,
     folders,

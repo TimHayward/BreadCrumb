@@ -1,0 +1,33 @@
+{
+  "title": "/r/ sharing link to a Word document with d, csf, web and e parameters (BC-010)",
+  "row": "3a",
+  "input": "https://contoso.sharepoint.com/:w:/r/sites/SiteA/Lib/Folder/Plan.docx?d=w1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6&csf=1&web=1&e=Ab12Cd",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "sharing-path",
+    "method": {
+      "code": "sharing-path/r",
+      "text": "Path taken from the /r/ sharing link itself; the csf, web and e parameters are share bookkeeping and were dropped. Library boundary and folder chain inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/Folder/Plan.docx",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Plan.docx",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": ["Folder"], "flag": "Inferred" },
+      "fileName": { "value": "Plan.docx", "flag": "Derived" }
+    },
+    "identifiers": [
+      { "kind": "d", "value": "w1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6", "label": "document id from link", "flag": "Derived" }
+    ],
+    "hints": [
+      { "kind": "itemType", "value": "Word document", "label": "item type from the link prefix \":w:\"" }
+    ],
+    "wrappers": []
+  }
+}

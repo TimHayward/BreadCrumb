@@ -7,8 +7,9 @@
 import { DecodeError, decodePercent, parseQuery } from './encoding.js';
 import type { MatchContext } from './forms/context.js';
 import { forms } from './forms/registry.js';
+import { unwrap } from './forms/wrappers.js';
 import { failure } from './result.js';
-import type { ParseResult } from './types.js';
+import type { ParseOptions, ParseResult, Wrapper } from './types.js';
 import { classifyHost, safeParseUrl } from './url.js';
 
 export type {
@@ -25,21 +26,26 @@ export type {
   LibraryReason,
   Method,
   ParseFailure,
+  ParseOptions,
   ParseResult,
   ParseSuccess,
   Wrapper,
   WrapperType,
 } from './types.js';
+export { SHORT_LINK_HOSTS, classifyHost } from './url.js';
 export { PARSER_VERSION } from './version.js';
+
+/** Wrappers nested deeper than this are treated as malformed. */
+const MAX_WRAPPERS = 5;
 
 /**
  * Parses a link. Never throws for string input: every outcome is either a
  * ParseSuccess carrying exactly one confidence state or a ParseFailure
  * carrying a reason code and a plain language message.
  */
-export function parseLink(input: string): ParseResult {
+export function parseLink(input: string, options: ParseOptions = {}): ParseResult {
   try {
-    return parse(input);
+    return parse(input, options);
   } catch (error) {
     if (error instanceof DecodeError) {
       return failure('truncated', { parameter: error.parameter });
@@ -48,7 +54,7 @@ export function parseLink(input: string): ParseResult {
   }
 }
 
-function parse(input: string): ParseResult {
+function parse(input: string, options: ParseOptions): ParseResult {
   if (typeof input !== 'string') {
     return failure('not_a_url');
   }
@@ -56,20 +62,32 @@ function parse(input: string): ParseResult {
   if (original === '') {
     return failure('not_a_url', undefined, 'Enter a link to convert.');
   }
-  const url = safeParseUrl(original);
+  let url = safeParseUrl(original);
   if (url === undefined) {
     return failure('not_a_url');
   }
-  const host = classifyHost(url.hostname);
-  if (host.kind === 'unknown') {
-    return failure('not_microsoft_365', { host: host.host });
+
+  const wrappers: Wrapper[] = [...(options.priorWrappers ?? [])];
+  let host = classifyHost(url.hostname);
+  for (let depth = 0; host.kind === 'teams' || host.kind === 'safelinks'; depth++) {
+    if (depth >= MAX_WRAPPERS) {
+      return failure('unsupported_form', undefined, 'The link is wrapped too many times to be unwrapped safely.');
+    }
+    const inner = unwrap(url, host, wrappers);
+    if (!(inner instanceof URL)) {
+      return inner;
+    }
+    url = inner;
+    host = classifyHost(url.hostname);
   }
+
   const ctx: MatchContext = {
     url,
     host,
     pagePath: decodePercent(url.pathname, 'path'),
     query: parseQuery(url.search),
     original,
+    wrappers,
   };
   for (const matcher of forms) {
     const result = matcher(ctx);
@@ -77,5 +95,5 @@ function parse(input: string): ParseResult {
       return result;
     }
   }
-  return failure('unsupported_form');
+  return host.kind === 'unknown' ? failure('not_microsoft_365', { host: host.host }) : failure('unsupported_form');
 }

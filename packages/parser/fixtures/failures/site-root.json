@@ -1,0 +1,9 @@
+{
+  "title": "A link to a site collection root with no library fails as unsupported (BC-021)",
+  "row": "14",
+  "input": "https://contoso.sharepoint.com/sites/SiteA",
+  "expected": {
+    "ok": false,
+    "reason": "unsupported_form"
+  }
+}

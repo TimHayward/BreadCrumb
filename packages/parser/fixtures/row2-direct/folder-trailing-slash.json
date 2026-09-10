@@ -1,0 +1,27 @@
+{
+  "title": "Direct folder URL with a trailing slash: folder result, well known library name (BC-008, BC-018)",
+  "row": "2",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/General/",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "direct-path",
+    "method": {
+      "code": "direct/path",
+      "text": "Path taken from the link itself. Library boundary and folder chain inferred: well known library name."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Shared Documents/General",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/General",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Shared Documents", "flag": "Inferred", "reason": "well known library name" },
+      "folders": { "value": ["General"], "flag": "Inferred" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

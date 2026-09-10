@@ -1,0 +1,9 @@
+{
+  "title": "A Teams link that is not a file deep link fails as unsupported (BC-016)",
+  "row": "14",
+  "input": "https://teams.microsoft.com/l/team/19%3Aabcdef0123456789%40thread.tacv2/conversations?groupId=9e0f1a2b-3c4d-4e5f-8a6b-7c8d9e0f1a2b",
+  "expected": {
+    "ok": false,
+    "reason": "unsupported_form"
+  }
+}

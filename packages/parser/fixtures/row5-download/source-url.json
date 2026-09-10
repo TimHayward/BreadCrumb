@@ -1,0 +1,29 @@
+{
+  "title": "download.aspx with SourceUrl: path Derived, library Inferred (BC-013)",
+  "row": "5",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/_layouts/15/download.aspx?SourceUrl=%2Fsites%2FSiteA%2FLib%2FFolder%2FReport%2Epdf",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "layouts-source-url",
+    "method": {
+      "code": "layouts/download/source-url",
+      "text": "Path taken from the SourceUrl parameter of the download.aspx page. Library boundary and folder chain inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/Folder/Report.pdf",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": ["Folder"], "flag": "Inferred" },
+      "fileName": { "value": "Report.pdf", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

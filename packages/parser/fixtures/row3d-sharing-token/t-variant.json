@@ -1,0 +1,25 @@
+{
+  "title": "/t/ sharing token link to a folder: Unresolved with the variant recorded (BC-011)",
+  "row": "3d",
+  "input": "https://contoso.sharepoint.com/:f:/t/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd",
+  "expected": {
+    "ok": true,
+    "state": "Unresolved",
+    "form": "sharing-token/t",
+    "method": {
+      "code": "sharing-token/t",
+      "text": "Recognised a sharing token link (/t/ variant, folder) for site SiteA. The token cannot be decoded without signing in, so the path, library and folder are unknown. Authenticated validation can resolve it."
+    },
+    "cloud": "global",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [
+      { "kind": "itemType", "value": "folder", "label": "item type from the link prefix \":f:\"" },
+      { "kind": "site", "value": "SiteA", "label": "site name from the sharing link (whether it lives under /sites/ or /teams/ is not known)" }
+    ],
+    "wrappers": []
+  }
+}

@@ -32,8 +32,13 @@ describe('parser contract (BC-006)', () => {
       expect(result.parserVersion).toBe(PARSER_VERSION);
       if (result.ok) {
         expect(STATES.has(result.state)).toBe(true);
-        expect(typeof result.path).toBe('string');
-        expect(result.folderUrl.startsWith('https://')).toBe(true);
+        if (result.state === 'Unresolved') {
+          expect(result.path).toBeUndefined();
+          expect(result.folderUrl).toBeUndefined();
+        } else {
+          expect(typeof result.path).toBe('string');
+          expect(result.folderUrl?.startsWith('https://')).toBe(true);
+        }
       } else {
         expect(typeof result.reason).toBe('string');
         expect(result.message.length).toBeGreaterThan(0);

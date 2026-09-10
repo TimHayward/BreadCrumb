@@ -1,0 +1,26 @@
+{
+  "title": "/g/personal/ sharing token link on a -my host: Unresolved, personal site path and owner hint (BC-011, BC-014)",
+  "row": "3c",
+  "input": "https://contoso-my.sharepoint.com/:x:/g/personal/user_contoso_onmicrosoft_com/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd",
+  "expected": {
+    "ok": true,
+    "state": "Unresolved",
+    "form": "sharing-token/g",
+    "method": {
+      "code": "sharing-token/g",
+      "text": "Recognised a sharing token link (/g/ variant, Excel workbook) on the personal site of user_contoso_onmicrosoft_com. The token cannot be decoded without signing in, so the path, library and folder are unknown. Authenticated validation can resolve it."
+    },
+    "cloud": "global",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso-my.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/personal/user_contoso_onmicrosoft_com", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [
+      { "kind": "itemType", "value": "Excel workbook", "label": "item type from the link prefix \":x:\"" },
+      { "kind": "owner", "value": "user@contoso.onmicrosoft.com", "label": "owner sign in name reversed from the personal site alias (a hint: underscores in the original name make it ambiguous)" }
+    ],
+    "wrappers": []
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "title": "/s/ sharing token link: Unresolved with site and item type hints (BC-011)",
+  "row": "3b",
+  "input": "https://contoso.sharepoint.com/:b:/s/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd",
+  "expected": {
+    "ok": true,
+    "state": "Unresolved",
+    "form": "sharing-token/s",
+    "method": {
+      "code": "sharing-token/s",
+      "text": "Recognised a sharing token link (/s/ variant, PDF or other binary file) for site SiteA. The token cannot be decoded without signing in, so the path, library and folder are unknown. Authenticated validation can resolve it."
+    },
+    "cloud": "global",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [
+      { "kind": "itemType", "value": "PDF or other binary file", "label": "item type from the link prefix \":b:\"" },
+      { "kind": "site", "value": "SiteA", "label": "site name from the sharing link (whether it lives under /sites/ or /teams/ is not known)" }
+    ],
+    "wrappers": []
+  }
+}

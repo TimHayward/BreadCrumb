@@ -1,0 +1,9 @@
+{
+  "title": "A _layouts page with no parameter that locates an item fails as unsupported (BC-021)",
+  "row": "14",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/_layouts/15/start.aspx",
+  "expected": {
+    "ok": false,
+    "reason": "unsupported_form"
+  }
+}

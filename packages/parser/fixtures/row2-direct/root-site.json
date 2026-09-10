@@ -1,0 +1,29 @@
+{
+  "title": "Direct file URL on the root site: empty site path, first segment offered as the library (BC-008)",
+  "row": "2",
+  "input": "https://contoso.sharepoint.com/Shared%20Documents/Report.pdf",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "direct-path",
+    "method": {
+      "code": "direct/path",
+      "text": "Path taken from the link itself. Library boundary and folder chain inferred: well known library name."
+    },
+    "cloud": "global",
+    "path": "/Shared Documents/Report.pdf",
+    "folderUrl": "https://contoso.sharepoint.com/Shared%20Documents",
+    "fileUrl": "https://contoso.sharepoint.com/Shared%20Documents/Report.pdf",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "", "flag": "Derived" },
+      "library": { "value": "Shared Documents", "flag": "Inferred", "reason": "well known library name" },
+      "folders": { "value": [], "flag": "Inferred" },
+      "fileName": { "value": "Report.pdf", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

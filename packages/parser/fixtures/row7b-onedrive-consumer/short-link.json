@@ -1,0 +1,24 @@
+{
+  "title": "1drv.ms short link by the parser alone: Unresolved, flagged as needing expansion (BC-015)",
+  "row": "7b",
+  "input": "https://1drv.ms/x/s!AaBbCcDdEeFfGgHh",
+  "expected": {
+    "ok": true,
+    "state": "Unresolved",
+    "form": "onedrive-shortlink",
+    "method": {
+      "code": "onedrive-shortlink/unexpanded",
+      "text": "Recognised a 1drv.ms short link. It says nothing about the file until it is expanded to the link it redirects to, which the web application can do when short link expansion is enabled."
+    },
+    "cloud": "global",
+    "components": {
+      "tenant": { "value": "", "flag": "Derived" },
+      "host": { "value": "1drv.ms", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [
+      { "kind": "expansion", "value": "required", "label": "short link must be expanded before anything more can be said" }
+    ],
+    "wrappers": []
+  }
+}

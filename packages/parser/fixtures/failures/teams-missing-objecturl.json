@@ -1,0 +1,10 @@
+{
+  "title": "Teams file link without objectUrl fails naming the missing parameter (BC-016)",
+  "row": "14",
+  "input": "https://teams.microsoft.com/l/file/3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c?tenantId=7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f&fileType=docx&serviceName=teams",
+  "expected": {
+    "ok": false,
+    "reason": "missing_parameter",
+    "detail": { "parameter": "objectUrl" }
+  }
+}

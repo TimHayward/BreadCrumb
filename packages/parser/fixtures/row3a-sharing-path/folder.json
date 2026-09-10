@@ -1,0 +1,29 @@
+{
+  "title": ":f: prefix in the /r/ variant yields a folder result with no file component (BC-010, BC-019)",
+  "row": "13",
+  "input": "https://contoso.sharepoint.com/:f:/r/sites/SiteA/Lib/Folder?csf=1&web=1&e=Ab12Cd",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "sharing-path",
+    "method": {
+      "code": "sharing-path/r",
+      "text": "Path taken from the /r/ sharing link itself; the csf, web and e parameters are share bookkeeping and were dropped. Library boundary and folder chain inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/Folder",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": ["Folder"], "flag": "Inferred" }
+    },
+    "identifiers": [],
+    "hints": [
+      { "kind": "itemType", "value": "folder", "label": "item type from the link prefix \":f:\"" }
+    ],
+    "wrappers": []
+  }
+}

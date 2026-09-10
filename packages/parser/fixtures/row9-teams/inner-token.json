@@ -1,0 +1,30 @@
+{
+  "title": "Teams deep link around a sharing token: Unresolved, both the wrapper and the inner form recorded (BC-016)",
+  "row": "9",
+  "input": "https://teams.microsoft.com/l/file/3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c?tenantId=7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f&fileType=pdf&objectUrl=https%3A%2F%2Fcontoso.sharepoint.com%2F%3Ab%3A%2Fs%2FSiteA%2FEaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc%3Fe%3DAb12Cd&serviceName=teams",
+  "expected": {
+    "ok": true,
+    "state": "Unresolved",
+    "form": "sharing-token/s",
+    "method": {
+      "code": "sharing-token/s",
+      "text": "Recognised a sharing token link (/s/ variant, PDF or other binary file) for site SiteA. The token cannot be decoded without signing in, so the path, library and folder are unknown. Authenticated validation can resolve it."
+    },
+    "cloud": "global",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [
+      { "kind": "itemType", "value": "PDF or other binary file", "label": "item type from the link prefix \":b:\"" },
+      { "kind": "site", "value": "SiteA", "label": "site name from the sharing link (whether it lives under /sites/ or /teams/ is not known)" }
+    ],
+    "wrappers": [
+      {
+        "type": "teams",
+        "original": "https://teams.microsoft.com/l/file/3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c?tenantId=7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f&fileType=pdf&objectUrl=https%3A%2F%2Fcontoso.sharepoint.com%2F%3Ab%3A%2Fs%2FSiteA%2FEaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc%3Fe%3DAb12Cd&serviceName=teams"
+      }
+    ]
+  }
+}

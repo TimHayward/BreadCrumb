@@ -8,7 +8,7 @@
     "form": "library-view",
     "method": {
       "code": "library-view/id+parent",
-      "text": "Path decoded from the link's id and parent parameters. Library boundary inferred: first segment after site."
+      "text": "Path decoded from the link's id and parent parameters. Library boundary and folder chain inferred: first segment after site."
     },
     "cloud": "global",
     "path": "/sites/SiteA/Archive/2024/Minutes.docx",

@@ -1,0 +1,29 @@
+{
+  "title": "Another _layouts page carrying SourceUrl is handled like download.aspx (BC-013)",
+  "row": "5",
+  "input": "https://contoso.sharepoint.com/sites/SiteA/_layouts/15/xlviewer.aspx?SourceUrl=https%3A%2F%2Fcontoso.sharepoint.com%2Fsites%2FSiteA%2FLib%2FBudget%2Exlsx",
+  "expected": {
+    "ok": true,
+    "state": "Inferred",
+    "form": "layouts-source-url",
+    "method": {
+      "code": "layouts/xlviewer/source-url",
+      "text": "Path taken from the SourceUrl parameter of the xlviewer.aspx page. Library boundary and folder chain inferred: first segment after site."
+    },
+    "cloud": "global",
+    "path": "/sites/SiteA/Lib/Budget.xlsx",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib",
+    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Budget.xlsx",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
+      "library": { "value": "Lib", "flag": "Inferred", "reason": "first segment after site" },
+      "folders": { "value": [], "flag": "Inferred" },
+      "fileName": { "value": "Budget.xlsx", "flag": "Derived" }
+    },
+    "identifiers": [],
+    "hints": [],
+    "wrappers": []
+  }
+}

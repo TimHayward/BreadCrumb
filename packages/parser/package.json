@@ -1,6 +1,6 @@
 {
   "name": "@breadcrumb/parser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pure parser that turns a Microsoft 365 SharePoint or OneDrive link into its folder location. No runtime dependencies, no Node built-ins, no DOM, no network.",
   "type": "module",
   "main": "./dist/index.js",
