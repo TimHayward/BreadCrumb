@@ -1,0 +1,39 @@
+# BreadCrumb: the single deployment definition (backlog invariant 13).
+# Used unchanged by `docker compose up` locally and by a Portainer Git stack.
+#
+# PRIVATE NETWORK ONLY. There is no application level access control in v1 and
+# the history holds client names and file titles (risks R4, R5). The published
+# port binds to 127.0.0.1 by default. To expose it to the LAN, set
+# BREADCRUMB_BIND to the host's private interface address (for example in the
+# Portainer stack's environment variables). Never bind to a public interface.
+#
+# History lives on the named volume `breadcrumb-data`, never a bind mount and
+# never the container filesystem (invariant 9). `docker compose down` keeps it;
+# only `docker compose down -v` deletes it.
+
+services:
+  breadcrumb:
+    build:
+      context: .
+      args:
+        BUILD_ID: ${BUILD_ID:-dev}
+    image: breadcrumb:local
+    ports:
+      - "${BREADCRUMB_BIND:-127.0.0.1}:${BREADCRUMB_PUBLISH_PORT:-3000}:3000"
+    environment:
+      PORT: "3000"
+      DATABASE_PATH: /data/breadcrumb.sqlite
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_REDACT_LINKS: ${LOG_REDACT_LINKS:-false}
+    volumes:
+      - breadcrumb-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  breadcrumb-data:
