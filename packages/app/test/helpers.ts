@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { DEFAULTS, type AppConfig } from '../src/config.js';
 import { openDatabase, type Database } from '../src/db/connection.js';
 import { SqliteHistoryStore } from '../src/db/historyStore.js';
@@ -48,7 +48,7 @@ export async function createTestServer(options: TestServerOptions = {}): Promise
 }
 
 /** Posts a form the way a browser does. */
-export function postForm(app: FastifyInstance, url: string, fields: Record<string, string | string[]>) {
+export function postForm(app: FastifyInstance, url: string, fields: Record<string, string | string[]>): Promise<LightMyRequestResponse> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(fields)) {
     for (const v of Array.isArray(value) ? value : [value]) {
