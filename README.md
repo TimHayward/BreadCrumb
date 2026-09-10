@@ -43,6 +43,9 @@ Every setting is an environment variable with a documented default. Nothing is r
 | `LOG_REDACT_LINKS` | `false` | No | When `true`, request logs carry only the host of a submitted link, never the full link. |
 | `SHORTLINK_EXPANSION_ENABLED` | `false` | No | When `true`, the server follows `1drv.ms` redirects (without cookies, at most 5 hops, only that host is ever fetched) so the target link can be parsed. Needs outbound HTTPS from the container. Off by default so the application makes no outbound requests. |
 | `SHORTLINK_TIMEOUT_MS` | `5000` | No | Timeout for one short link request. |
+| `AUTH_TENANT_ID` | unset | Only with `AUTH_CLIENT_ID` | Entra tenant id (GUID) for optional Microsoft sign in. When both auth variables are unset the sign in control is hidden and a log line says validation is not configured. Setting one without the other stops the process. |
+| `AUTH_CLIENT_ID` | unset | Only with `AUTH_TENANT_ID` | Application (client) id of the public client registration described under "Authenticated validation". |
+| `AUTH_SCOPES` | `Files.Read.All Sites.Read.All` | No | Delegated Graph permissions requested at sign in, space separated. Spike S2 may narrow this. |
 | `BREADCRUMB_BIND` | `127.0.0.1` | No | Compose only. Host interface the published port binds to. |
 | `BREADCRUMB_PUBLISH_PORT` | `3000` | No | Compose only. Host port mapped to the container's `PORT`. |
 
@@ -138,6 +141,23 @@ To measure search on a large history, build once and seed a scratch database:
 pnpm build
 node scripts/seed-history.mjs ./data/seed.sqlite 5000
 ```
+
+## Authenticated validation
+
+Optional. Without it everything above works unchanged. With it, a user can sign in to Microsoft in the browser and confirm a Derived, Inferred or Unresolved result against Microsoft Graph. The result becomes Verified, corrections to the library boundary and folder chain are shown as "was inferred as", and the original result stays beneath. Graph is called from the browser; the access token lives in the browser session (`sessionStorage`) and is never sent to the server. Signing out discards it.
+
+**Register a public client once in Entra ID (global Microsoft cloud only):**
+
+1. Entra admin centre → App registrations → New registration. Single tenant. No client secret is needed or used.
+2. Authentication → Add a platform → **Single-page application**. Redirect URI: the exact origin users open, with a trailing slash, for example `http://192.168.1.20:3000/`. Add one entry per address in use.
+3. API permissions → Add a permission → Microsoft Graph → **Delegated** → `Files.Read.All` and `Sites.Read.All` (the default `AUTH_SCOPES`). Grant admin consent, or let each user consent if the tenant allows it. Spike S2 records the smallest set that works.
+4. Set `AUTH_TENANT_ID` (Directory (tenant) ID) and `AUTH_CLIENT_ID` (Application (client) ID) in the environment and restart.
+
+**Using it:** a "Sign in to Microsoft" control appears in the header. After signing in, every result that is not yet Verified shows "Validate with Microsoft Graph". Graph errors are shown plainly: a permission or consent problem names the permission, throttling shows the wait Graph asked for and the button re-enables when it has passed, and an expired sign in asks you to sign in again. The stored result never changes on an error.
+
+What the browser does: for a path (Derived or Inferred) it resolves the site by path, lists the site's document libraries, picks the library whose URL prefixes the path, and fetches the item by path within it. For a sharing token (Unresolved) it submits the link to the `/shares/{u!…}/driveItem` endpoint and reads the item and its library. `Doc.aspx` and `UniqueId` links await spike S5. Sovereign clouds and consumer OneDrive are not validated in this version.
+
+The Verified state is asserted by the browser (risk R12): the server checks the payload's shape and records the Graph item and drive ids with every validation so it can be re-checked.
 
 ## Backup and restore
 

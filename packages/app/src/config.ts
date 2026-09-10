@@ -8,6 +8,14 @@ export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 const LOG_LEVELS: readonly LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'];
 
+/** Microsoft sign in for authenticated validation (BC-036). Absent when not configured. */
+export interface AuthConfig {
+  tenantId: string;
+  clientId: string;
+  /** Delegated Graph scopes requested at sign in. */
+  scopes: string[];
+}
+
 export interface AppConfig {
   /** Port the process listens on. */
   port: number;
@@ -20,9 +28,13 @@ export interface AppConfig {
   shortLinkExpansionEnabled: boolean;
   /** Timeout for one short link expansion request, in milliseconds. */
   shortLinkTimeoutMs: number;
+  /** Set only when both AUTH_TENANT_ID and AUTH_CLIENT_ID are present. */
+  auth?: AuthConfig;
 }
 
-export const DEFAULTS: Readonly<AppConfig> = {
+export const DEFAULT_AUTH_SCOPES = 'Files.Read.All Sites.Read.All';
+
+export const DEFAULTS: Readonly<Omit<AppConfig, 'auth'>> = {
   port: 3000,
   databasePath: './data/breadcrumb.sqlite',
   logLevel: 'info',
@@ -83,12 +95,42 @@ function parseBoolean(name: string): (raw: string) => boolean {
   };
 }
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseGuid(name: string): (raw: string) => string {
+  return (raw) => {
+    if (!GUID.test(raw)) {
+      throw new ConfigError(name, 'must be a GUID such as 00000000-0000-0000-0000-000000000000', raw);
+    }
+    return raw.toLowerCase();
+  };
+}
+
+function parseAuth(env: Env, log: (line: string) => void): AuthConfig | undefined {
+  const tenant = env['AUTH_TENANT_ID']?.trim() ?? '';
+  const client = env['AUTH_CLIENT_ID']?.trim() ?? '';
+  if (tenant === '' && client === '') {
+    log('config: AUTH_TENANT_ID and AUTH_CLIENT_ID not set, authenticated validation is not configured');
+    return undefined;
+  }
+  if (tenant === '') {
+    throw new ConfigError('AUTH_TENANT_ID', 'must be set when AUTH_CLIENT_ID is set', '');
+  }
+  if (client === '') {
+    throw new ConfigError('AUTH_CLIENT_ID', 'must be set when AUTH_TENANT_ID is set', '');
+  }
+  const scopes = read(env, 'AUTH_SCOPES', DEFAULT_AUTH_SCOPES, (raw) => raw, log)
+    .split(/[\s,]+/)
+    .filter((s) => s !== '');
+  return { tenantId: parseGuid('AUTH_TENANT_ID')(tenant), clientId: parseGuid('AUTH_CLIENT_ID')(client), scopes };
+}
+
 /**
  * Loads configuration. Logs one line for every default in use. Throws
  * ConfigError for the first malformed variable found.
  */
 export function loadConfig(env: Env = process.env, log: (line: string) => void = console.log): AppConfig {
-  return {
+  const config: AppConfig = {
     port: read(env, 'PORT', DEFAULTS.port, parseInteger('PORT', 1, 65535), log),
     databasePath: read(env, 'DATABASE_PATH', DEFAULTS.databasePath, (raw) => raw, log),
     logLevel: read(env, 'LOG_LEVEL', DEFAULTS.logLevel, parseLogLevel, log),
@@ -102,4 +144,9 @@ export function loadConfig(env: Env = process.env, log: (line: string) => void =
     ),
     shortLinkTimeoutMs: read(env, 'SHORTLINK_TIMEOUT_MS', DEFAULTS.shortLinkTimeoutMs, parseInteger('SHORTLINK_TIMEOUT_MS', 100, 60000), log),
   };
+  const auth = parseAuth(env, log);
+  if (auth !== undefined) {
+    config.auth = auth;
+  }
+  return config;
 }

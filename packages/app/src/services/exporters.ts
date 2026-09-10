@@ -1,7 +1,7 @@
 /**
  * History export (BC-035): CSV and JSON of the currently filtered rows.
  */
-import type { ConversionRow } from '../db/historyStore.js';
+import { effectiveState, type ConversionRow } from '../db/historyStore.js';
 
 export const CSV_COLUMNS = ['time', 'input', 'path', 'folderUrl', 'fileUrl', 'state', 'method', 'source', 'inferredComponents'] as const;
 
@@ -23,17 +23,18 @@ export function inferredComponents(row: ConversionRow): string[] {
 export function toCsv(rows: readonly ConversionRow[]): string {
   const lines = [CSV_COLUMNS.join(',')];
   for (const row of rows) {
+    const v = row.validation?.verified;
     lines.push(
       [
         row.createdAt,
         row.input,
-        row.path,
-        row.folderUrl,
-        row.fileUrl,
-        row.state ?? `failed: ${row.failureReason ?? ''}`,
-        row.methodText,
+        v?.path ?? row.path,
+        v?.folderUrl ?? row.folderUrl,
+        v === undefined ? row.fileUrl : (v.fileUrl ?? null),
+        effectiveState(row) ?? `failed: ${row.failureReason ?? ''}`,
+        v?.methodText ?? row.methodText,
         row.source,
-        inferredComponents(row).join(';'),
+        v === undefined ? inferredComponents(row).join(';') : '',
       ]
         .map(csvField)
         .join(','),
@@ -49,10 +50,12 @@ export function toJson(rows: readonly ConversionRow[]): string {
       createdAt: row.createdAt,
       source: row.source,
       input: row.input,
-      state: row.state,
+      state: effectiveState(row),
+      parserState: row.state,
       failureReason: row.failureReason,
       parserVersion: row.parserVersion,
       result: row.result,
+      validation: row.validation === null ? null : { previousState: row.validation.previousState, ...row.validation.verified },
     })),
     null,
     2,

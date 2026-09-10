@@ -77,6 +77,24 @@ h3 { font-size: 1.05rem; margin: 1.25rem 0 0.5rem; }
 .badge-unresolved { background: var(--badge-unresolved); }
 .badge-failure { background: var(--badge-failure); }
 
+.auth { margin-left: auto; display: flex; gap: 0.75rem; align-items: center; font-size: 0.9rem; }
+.auth button { font: inherit; padding: 0.35rem 0.8rem; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: var(--accent-fg); cursor: pointer; }
+.auth button.secondary { background: var(--bg); color: var(--accent); }
+.auth-account { color: var(--muted); }
+.validate { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.validate-button { font: inherit; padding: 0.45rem 0.9rem; border: 1px solid var(--badge-verified); border-radius: 4px; background: var(--badge-verified); color: #fff; cursor: pointer; }
+.validate-button:disabled { opacity: 0.6; cursor: wait; }
+.validate-status { margin: 0.5rem 0 0; }
+.result-verified { border-color: var(--badge-verified); }
+.marker-confirmed { display: inline-block; margin-left: 0.4rem; padding: 0 0.4rem; border: 1px solid var(--badge-verified); border-radius: 3px; color: var(--badge-verified); font-size: 0.8rem; }
+.marker-upgraded { display: inline-block; margin-left: 0.4rem; padding: 0 0.4rem; border: 1px solid var(--badge-verified); border-radius: 999px; color: var(--badge-verified); font-size: 0.8rem; white-space: nowrap; }
+.was { color: var(--badge-inferred); font-size: 0.9rem; font-style: italic; }
+.id-check { padding: 0.5rem 0.75rem; border-radius: 4px; }
+.id-match { background: #f1f8f1; }
+.id-mismatch { background: #fff3e0; border: 1px solid var(--badge-inferred); }
+details.original { margin-top: 1rem; }
+details.original summary { cursor: pointer; font-weight: 600; }
+
 .marker-inferred {
   display: inline-block; margin-left: 0.4rem; padding: 0 0.4rem; border: 1px dashed var(--badge-inferred); border-radius: 3px; color: var(--badge-inferred); font-size: 0.8rem; font-style: italic;
 }

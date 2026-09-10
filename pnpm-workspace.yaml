@@ -16,3 +16,4 @@ catalog:
   axe-core: 4.13.0
   jsdom: 30.0.1
   "@types/jsdom": 30.0.0
+  "@azure/msal-browser": 5.21.0

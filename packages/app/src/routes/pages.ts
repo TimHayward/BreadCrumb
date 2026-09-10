@@ -1,7 +1,8 @@
 /**
  * Server rendered pages (BC-023, BC-026, BC-031, BC-033 to BC-035). Forms
  * post natively, so everything works without client script; app.js only
- * adds copy buttons and a select-all checkbox.
+ * adds copy buttons and a select-all checkbox, and validate.js (when sign in
+ * is configured) drives Microsoft Graph validation from the browser.
  */
 import type { FastifyInstance } from 'fastify';
 import type { HistoryStore } from '../db/historyStore.js';
@@ -9,6 +10,7 @@ import type { ConversionService } from '../services/conversionService.js';
 import { exportFileName, toCsv, toJson } from '../services/exporters.js';
 import { renderConvertPage } from '../views/convertPage.js';
 import { renderDeleteConfirmPage, renderHistoryDetailPage, renderHistoryListPage, renderNotFoundPage } from '../views/historyPages.js';
+import type { ViewContext } from '../views/layout.js';
 import { parseFilters, parsePage, type Query } from './filters.js';
 
 export const HISTORY_PAGE_SIZE = 50;
@@ -26,9 +28,9 @@ function safeReturn(value: unknown): string {
   return text.startsWith('/history') && !text.startsWith('//') ? text : '/history';
 }
 
-export function registerPageRoutes(app: FastifyInstance, service: ConversionService, store: HistoryStore): void {
+export function registerPageRoutes(app: FastifyInstance, service: ConversionService, store: HistoryStore, context: ViewContext): void {
   app.get('/', async (_request, reply) => {
-    return reply.type(HTML).send(renderConvertPage({ input: '' }));
+    return reply.type(HTML).send(renderConvertPage({ input: '', context }));
   });
 
   app.post('/convert', async (request, reply) => {
@@ -43,7 +45,7 @@ export function registerPageRoutes(app: FastifyInstance, service: ConversionServ
     } else {
       request.breadcrumb.reason = outcome.failure.reason;
     }
-    return reply.type(HTML).send(renderConvertPage({ input: link, outcome }));
+    return reply.type(HTML).send(renderConvertPage({ input: link, outcome, context }));
   });
 
   app.get<{ Querystring: Query }>('/history', async (request, reply) => {
@@ -51,7 +53,7 @@ export function registerPageRoutes(app: FastifyInstance, service: ConversionServ
     const page = store.list({ page: parsePage(request.query), pageSize: HISTORY_PAGE_SIZE, filters });
     const deletedRaw = Number.parseInt(String(request.query['deleted'] ?? ''), 10);
     const deleted = Number.isInteger(deletedRaw) && deletedRaw >= 0 ? deletedRaw : undefined;
-    return reply.type(HTML).send(renderHistoryListPage({ page, filters, ...(deleted !== undefined ? { deleted } : {}) }));
+    return reply.type(HTML).send(renderHistoryListPage({ page, filters, context, ...(deleted !== undefined ? { deleted } : {}) }));
   });
 
   app.get<{ Querystring: Query }>('/history/export.csv', async (request, reply) => {
@@ -79,7 +81,7 @@ export function registerPageRoutes(app: FastifyInstance, service: ConversionServ
     }
     if (body['confirm'] !== '1') {
       const rows = ids.map((id) => store.getById(id)).filter((row) => row !== undefined);
-      return reply.type(HTML).send(renderDeleteConfirmPage({ rows, returnTo }));
+      return reply.type(HTML).send(renderDeleteConfirmPage({ rows, returnTo, context }));
     }
     const deleted = store.delete(ids);
     request.log.info({ deleted, ids }, 'history entries deleted');
@@ -87,12 +89,13 @@ export function registerPageRoutes(app: FastifyInstance, service: ConversionServ
     return reply.redirect(`${returnTo}${separator}deleted=${deleted}`, 303);
   });
 
-  app.get<{ Params: { id: string } }>('/history/:id', async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: Query }>('/history/:id', async (request, reply) => {
     const id = /^\d+$/.test(request.params.id) ? Number(request.params.id) : undefined;
     const row = id === undefined ? undefined : store.getById(id);
     if (row === undefined) {
-      return reply.code(404).type(HTML).send(renderNotFoundPage(`There is no history entry ${request.params.id}.`));
+      return reply.code(404).type(HTML).send(renderNotFoundPage(`There is no history entry ${request.params.id}.`, context));
     }
-    return reply.type(HTML).send(renderHistoryDetailPage(row));
+    const validated = request.query['validated'] === '1' && row.validation !== null;
+    return reply.type(HTML).send(renderHistoryDetailPage({ row, context, validated }));
   });
 }

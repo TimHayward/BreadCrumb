@@ -9,13 +9,14 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.build.json && node scripts/build-client.mjs && node scripts/copy-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
     "test": "vitest run",
-    "dev": "tsx watch src/main.ts",
+    "dev": "node scripts/build-client.mjs && tsx watch src/main.ts",
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@azure/msal-browser": "catalog:",
     "@breadcrumb/parser": "workspace:*",
     "@fastify/cors": "catalog:",
     "@fastify/formbody": "catalog:",
@@ -26,6 +27,7 @@
     "@types/jsdom": "catalog:",
     "@types/node": "catalog:",
     "axe-core": "catalog:",
+    "esbuild": "catalog:",
     "jsdom": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

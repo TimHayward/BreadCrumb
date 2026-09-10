@@ -1,10 +1,12 @@
 /**
- * JSON API (BC-024). One link per request; the extension and the page share
- * this path into history.
+ * JSON API (BC-024, BC-040). One link per request; the extension and the
+ * page share this path into history. Validation results come from the
+ * browser, which is where Graph is called (decision D3).
  */
 import type { FastifyInstance } from 'fastify';
-import type { ConversionSource } from '../db/historyStore.js';
+import type { ConversionSource, HistoryStore } from '../db/historyStore.js';
 import type { ConversionService } from '../services/conversionService.js';
+import { parseSubmission } from '../validation/submission.js';
 
 const SOURCES: ReadonlySet<string> = new Set(['web', 'extension']);
 
@@ -13,7 +15,7 @@ export interface ConvertRequestBody {
   source: ConversionSource;
 }
 
-export function registerApiRoutes(app: FastifyInstance, service: ConversionService): void {
+export function registerApiRoutes(app: FastifyInstance, service: ConversionService, store: HistoryStore): void {
   app.post('/api/convert', async (request, reply) => {
     const body = request.body;
     if (typeof body !== 'object' || body === null) {
@@ -36,5 +38,30 @@ export function registerApiRoutes(app: FastifyInstance, service: ConversionServi
     request.breadcrumb.form = outcome.result.form;
     request.breadcrumb.state = outcome.result.state;
     return reply.code(200).send({ id: outcome.id, createdAt: outcome.createdAt, result: outcome.result });
+  });
+
+  app.post<{ Params: { id: string } }>('/api/history/:id/validate', async (request, reply) => {
+    const id = /^\d+$/.test(request.params.id) ? Number(request.params.id) : undefined;
+    const row = id === undefined ? undefined : store.getById(id);
+    if (row === undefined) {
+      return reply.code(404).send({ reason: 'not_found', message: `There is no history entry ${request.params.id}.` });
+    }
+    if (row.state === null || row.state === 'Verified') {
+      return reply.code(409).send({ reason: 'not_validatable', message: 'Only Derived, Inferred and Unresolved entries can be validated.' });
+    }
+    const parsed = parseSubmission(request.body);
+    if (!parsed.ok) {
+      return reply.code(400).send({ reason: 'invalid_request', message: parsed.error });
+    }
+    if (parsed.value.previousState !== row.state) {
+      return reply.code(409).send({ reason: 'state_mismatch', message: `The entry is ${row.state}, not ${parsed.value.previousState}.` });
+    }
+    const validation = store.addValidation(row.id, parsed.value);
+    if (row.form !== null) {
+      request.breadcrumb.form = row.form;
+    }
+    request.breadcrumb.state = 'Verified';
+    request.log.info({ id: row.id, previousState: row.state, graphItemId: validation.verified.graph.itemId }, 'history entry validated');
+    return reply.code(200).send({ ok: true, id: row.id, validation });
   });
 }

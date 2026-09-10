@@ -1,8 +1,10 @@
 /**
- * Data access for conversion history (BC-029, BC-030, BC-032 to BC-035).
- * Routes and pages talk to HistoryStore only; SQL lives here.
+ * Data access for conversion history (BC-029, BC-030, BC-032 to BC-035)
+ * and validation upgrades (BC-040). Routes and pages talk to HistoryStore
+ * only; SQL lives here.
  */
 import type { ConfidenceState, ParseResult } from '@breadcrumb/parser';
+import type { ValidationRecord, ValidationSubmission, VerifiedResult } from '../validation/types.js';
 import { isBusyError, type Database } from './connection.js';
 
 export type ConversionSource = 'web' | 'extension';
@@ -12,6 +14,7 @@ export interface ConversionRow {
   createdAt: string;
   source: ConversionSource;
   input: string;
+  /** The state the parser produced; null for a kept failure. */
   state: ConfidenceState | null;
   failureReason: string | null;
   form: string | null;
@@ -26,6 +29,13 @@ export interface ConversionRow {
   fileName: string | null;
   result: ParseResult;
   parserVersion: string;
+  /** The newest validation, when the row has been upgraded to Verified. */
+  validation: ValidationRecord | null;
+}
+
+/** Verified when a validation exists, otherwise the parser's state. */
+export function effectiveState(row: Pick<ConversionRow, 'state' | 'validation'>): ConfidenceState | null {
+  return row.validation !== null ? 'Verified' : row.state;
 }
 
 export interface NewConversion {
@@ -36,12 +46,12 @@ export interface NewConversion {
   createdAt?: string;
 }
 
-/** Filters for list, count, export and search (BC-032, BC-033). All optional; combined with AND. */
+/** Filters for list, count, export and search (BC-032, BC-033, BC-040). All optional; combined with AND. */
 export interface HistoryFilters {
-  /** Case insensitive substring over input, path, folder URL, file URL and file name. */
+  /** Case insensitive substring over input, path, folder URL, file URL and file name (verified values included). */
   q?: string;
-  /** One confidence state, or `failed` for kept failures. */
-  state?: ConfidenceState | 'failed';
+  /** One confidence state (Verified includes validated rows), `failed` for kept failures, or `upgraded` for rows validated from Inferred or Unresolved. */
+  state?: ConfidenceState | 'failed' | 'upgraded';
   /** Inclusive start date, `YYYY-MM-DD` (UTC). */
   from?: string;
   /** Inclusive end date, `YYYY-MM-DD` (UTC). */
@@ -76,6 +86,8 @@ export interface HistoryStore {
   all(filters?: HistoryFilters): ConversionRow[];
   /** Deletes the given ids; returns how many rows were removed. */
   delete(ids: readonly number[]): number;
+  /** Appends a validation to a conversion. Throws when the conversion does not exist. */
+  addValidation(conversionId: number, submission: ValidationSubmission): ValidationRecord;
 }
 
 interface DbRow {
@@ -97,14 +109,29 @@ interface DbRow {
   file_name: string | null;
   result_json: string;
   parser_version: string;
+  v_id: number | null;
+  v_previous_state: string | null;
+  v_verified_json: string | null;
 }
 
 const COLUMNS =
-  'id, created_at, source, input, state, failure_reason, form, method_text, host, tenant, site_path, library, path, folder_url, file_url, file_name, result_json, parser_version';
+  'c.id, c.created_at, c.source, c.input, c.state, c.failure_reason, c.form, c.method_text, c.host, c.tenant, c.site_path, c.library, c.path, c.folder_url, c.file_url, c.file_name, c.result_json, c.parser_version, v.id AS v_id, v.previous_state AS v_previous_state, v.verified_json AS v_verified_json';
+
+/** Conversions joined with each row's newest validation, if any. */
+const FROM = 'FROM conversions c LEFT JOIN validations v ON v.id = (SELECT MAX(id) FROM validations WHERE conversion_id = c.id)';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function toRow(r: DbRow): ConversionRow {
+  let validation: ValidationRecord | null = null;
+  if (r.v_id !== null && r.v_verified_json !== null && r.v_previous_state !== null) {
+    validation = {
+      id: r.v_id,
+      conversionId: r.id,
+      previousState: r.v_previous_state as ValidationRecord['previousState'],
+      verified: JSON.parse(r.v_verified_json) as VerifiedResult,
+    };
+  }
   return {
     id: r.id,
     createdAt: r.created_at,
@@ -124,6 +151,7 @@ function toRow(r: DbRow): ConversionRow {
     fileName: r.file_name,
     result: JSON.parse(r.result_json) as ParseResult,
     parserVersion: r.parser_version,
+    validation,
   };
 }
 
@@ -138,35 +166,46 @@ function whereClause(filters: HistoryFilters = {}): { sql: string; params: Array
   const q = filters.q?.trim();
   if (q !== undefined && q !== '') {
     const pattern = likePattern(q);
-    clauses.push(
-      "(input LIKE ? ESCAPE '\\' OR path LIKE ? ESCAPE '\\' OR folder_url LIKE ? ESCAPE '\\' OR file_url LIKE ? ESCAPE '\\' OR file_name LIKE ? ESCAPE '\\')",
-    );
-    params.push(pattern, pattern, pattern, pattern, pattern);
+    const columns = ['c.input', 'c.path', 'c.folder_url', 'c.file_url', 'c.file_name', 'v.path', 'v.folder_url', 'v.file_url', 'v.file_name'];
+    clauses.push(`(${columns.map((col) => `${col} LIKE ? ESCAPE '\\'`).join(' OR ')})`);
+    for (let i = 0; i < columns.length; i++) {
+      params.push(pattern);
+    }
   }
-  if (filters.state === 'failed') {
-    clauses.push('state IS NULL');
-  } else if (filters.state !== undefined) {
-    clauses.push('state = ?');
-    params.push(filters.state);
+  switch (filters.state) {
+    case undefined:
+      break;
+    case 'failed':
+      clauses.push('c.state IS NULL');
+      break;
+    case 'upgraded':
+      clauses.push("v.previous_state IN ('Inferred', 'Unresolved')");
+      break;
+    case 'Verified':
+      clauses.push("(c.state = 'Verified' OR v.id IS NOT NULL)");
+      break;
+    default:
+      clauses.push('c.state = ? AND v.id IS NULL');
+      params.push(filters.state);
   }
   if (filters.from !== undefined && DATE.test(filters.from)) {
-    clauses.push('created_at >= ?');
+    clauses.push('c.created_at >= ?');
     params.push(`${filters.from}T00:00:00.000Z`);
   }
   if (filters.to !== undefined && DATE.test(filters.to)) {
     const next = new Date(`${filters.to}T00:00:00.000Z`);
     next.setUTCDate(next.getUTCDate() + 1);
-    clauses.push('created_at < ?');
+    clauses.push('c.created_at < ?');
     params.push(next.toISOString());
   }
   if (filters.source !== undefined) {
-    clauses.push('source = ?');
+    clauses.push('c.source = ?');
     params.push(filters.source);
   }
   const host = filters.host?.trim();
   if (host !== undefined && host !== '') {
     const pattern = likePattern(host);
-    clauses.push("(host LIKE ? ESCAPE '\\' OR tenant LIKE ? ESCAPE '\\')");
+    clauses.push("(c.host LIKE ? ESCAPE '\\' OR c.tenant LIKE ? ESCAPE '\\')");
     params.push(pattern, pattern);
   }
   return { sql: clauses.length === 0 ? '' : ` WHERE ${clauses.join(' AND ')}`, params };
@@ -255,7 +294,7 @@ export class SqliteHistoryStore implements HistoryStore {
   }
 
   getById(id: number): ConversionRow | undefined {
-    const r = this.#db.prepare(`SELECT ${COLUMNS} FROM conversions WHERE id = ?`).get(id) as DbRow | undefined;
+    const r = this.#db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE c.id = ?`).get(id) as DbRow | undefined;
     return r === undefined ? undefined : toRow(r);
   }
 
@@ -266,21 +305,21 @@ export class SqliteHistoryStore implements HistoryStore {
     const page = Math.min(Math.max(1, Math.floor(options.page)), pageCount);
     const where = whereClause(options.filters);
     const rows = this.#db
-      .prepare(`SELECT ${COLUMNS} FROM conversions${where.sql} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
+      .prepare(`SELECT ${COLUMNS} ${FROM}${where.sql} ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`)
       .all(...where.params, pageSize, (page - 1) * pageSize) as unknown as DbRow[];
     return { rows: rows.map(toRow), total, page, pageSize, pageCount };
   }
 
   count(filters?: HistoryFilters): number {
     const where = whereClause(filters);
-    const r = this.#db.prepare(`SELECT COUNT(*) AS n FROM conversions${where.sql}`).get(...where.params) as { n: number };
+    const r = this.#db.prepare(`SELECT COUNT(*) AS n ${FROM}${where.sql}`).get(...where.params) as { n: number };
     return r.n;
   }
 
   all(filters?: HistoryFilters): ConversionRow[] {
     const where = whereClause(filters);
     const rows = this.#db
-      .prepare(`SELECT ${COLUMNS} FROM conversions${where.sql} ORDER BY created_at DESC, id DESC`)
+      .prepare(`SELECT ${COLUMNS} ${FROM}${where.sql} ORDER BY c.created_at DESC, c.id DESC`)
       .all(...where.params) as unknown as DbRow[];
     return rows.map(toRow);
   }
@@ -293,5 +332,36 @@ export class SqliteHistoryStore implements HistoryStore {
     const placeholders = valid.map(() => '?').join(', ');
     const result = this.#db.prepare(`DELETE FROM conversions WHERE id IN (${placeholders})`).run(...valid);
     return Number(result.changes);
+  }
+
+  addValidation(conversionId: number, submission: ValidationSubmission): ValidationRecord {
+    const row = this.getById(conversionId);
+    if (row === undefined) {
+      throw new Error(`Conversion ${conversionId} does not exist`);
+    }
+    const v = submission.verified;
+    const result = this.#db
+      .prepare(
+        `INSERT INTO validations (conversion_id, validated_at, previous_state, graph_item_id, drive_id, site_id, list_item_unique_id, web_url, path, folder_url, file_url, file_name, library, method_text, verified_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        conversionId,
+        v.validatedAt,
+        submission.previousState,
+        v.graph.itemId,
+        v.graph.driveId,
+        v.graph.siteId ?? null,
+        v.graph.listItemUniqueId ?? null,
+        v.graph.webUrl ?? null,
+        v.path,
+        v.folderUrl,
+        v.fileUrl ?? null,
+        v.components.fileName ?? null,
+        v.components.library,
+        v.methodText,
+        JSON.stringify(v),
+      );
+    return { id: Number(result.lastInsertRowid), conversionId, previousState: submission.previousState, verified: v };
   }
 }

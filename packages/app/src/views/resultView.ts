@@ -1,9 +1,12 @@
 /**
- * Renders a parser result (BC-023, BC-025, BC-026). Used identically by the
- * conversion page and the history detail page (BC-031).
+ * Renders a parser result (BC-023, BC-025, BC-026) and, once validated, the
+ * Verified result with the original beneath it (BC-037, BC-040). Used
+ * identically by the conversion page and the history detail page (BC-031).
  */
 import type { Component, ConfidenceState, ParseFailure, ParseSuccess } from '@breadcrumb/parser';
-import { html, type Markup } from './html.js';
+import type { ValidationRecord, VerifiedResult } from '../validation/types.js';
+import { formatTime } from './format.js';
+import { Markup, html } from './html.js';
 
 /** Each state has a distinct symbol so it is never conveyed by colour alone (BC-028). */
 const STATE_SYMBOLS: Record<ConfidenceState, string> = {
@@ -26,9 +29,11 @@ const WRAPPER_LABELS: Record<string, string> = {
   shortlink: 'short link (expanded by the server)',
 };
 
-/** Shown beneath an Unresolved result until authenticated validation (M3) ships. */
-export const UNRESOLVED_NEXT_STEP =
-  'Authenticated validation is not yet available in this version. The result has been kept in history with its Unresolved state, so it can be validated later.';
+export const UNRESOLVED_NEXT_STEP_CONFIGURED =
+  'Sign in to Microsoft and use the Validate with Microsoft Graph button to resolve it. The result is kept in history with its Unresolved state until then.';
+
+export const UNRESOLVED_NEXT_STEP_UNCONFIGURED =
+  'Authenticated validation is not configured on this server, so this stays Unresolved. The result is kept in history and can be validated once sign in is set up.';
 
 export function stateBadge(state: ConfidenceState): Markup {
   return html`<span class="badge badge-${state.toLowerCase()}" title="${STATE_HELP[state]}"><span aria-hidden="true">${STATE_SYMBOLS[state]}</span> ${state}</span>`;
@@ -37,6 +42,8 @@ export function stateBadge(state: ConfidenceState): Markup {
 function inferredMarker(component: Component<unknown> | undefined): Markup | '' {
   return component?.flag === 'Inferred' ? html` <span class="marker-inferred">inferred</span>` : '';
 }
+
+const confirmedMarker = html` <span class="marker-confirmed">confirmed</span>`;
 
 function copyButton(value: string, label: string): Markup {
   return html`<button type="button" class="copy" data-copy="${value}" aria-label="Copy ${label}">Copy</button>`;
@@ -105,12 +112,82 @@ function extras(result: ParseSuccess): Markup {
   }`;
 }
 
-export function renderResult(result: ParseSuccess): Markup {
+export interface ResultViewOptions {
+  /** History entry id; enables the validate control and embeds the result for the browser. */
+  id?: number;
+  /** Newest validation of the entry, when it has been upgraded. */
+  validation?: ValidationRecord | null;
+  /** Whether Microsoft sign in is configured on this server. */
+  authConfigured?: boolean;
+}
+
+/** The validate control, hidden until the browser confirms a signed in account (BC-036). */
+function validateControl(result: ParseSuccess, id: number): Markup {
+  return html`<div class="validate" data-validate-id="${id}" data-previous-state="${result.state}" hidden>
+      <script type="application/json" class="result-json">${new Markup(JSON.stringify(result).replaceAll('<', '\\u003c'))}</script>
+      <button type="button" class="validate-button">Validate with Microsoft Graph</button>
+      <p class="validate-status" role="status" aria-live="polite"></p>
+    </div>`;
+}
+
+function wasMarker(correction: { was: string } | undefined, kind: string): Markup | '' {
+  return correction === undefined ? '' : html`<div class="was">was ${kind} as <code>${correction.was === '' ? '(root site)' : correction.was}</code></div>`;
+}
+
+function renderVerified(result: ParseSuccess, validation: ValidationRecord): Markup {
+  const v: VerifiedResult = validation.verified;
+  const c = v.components;
+  const previousKind = validation.previousState === 'Inferred' ? 'inferred' : validation.previousState === 'Unresolved' ? 'unresolved, unknown' : 'derived';
+  return html`<section class="result result-verified" aria-labelledby="result-heading">
+    <div class="result-head">
+      <h2 id="result-heading">Result</h2>
+      ${stateBadge('Verified')}
+      <span class="marker-upgraded">upgraded from ${validation.previousState}</span>
+      <span class="form-name">form: <code>${result.form}</code></span>
+    </div>
+    <dl class="result-rows">
+      ${valueRow('Path', 'path', v.path, false)}
+      ${valueRow('Folder URL', 'folder-url', v.folderUrl, true)}
+      ${v.fileUrl !== undefined ? valueRow('File URL', 'file-url', v.fileUrl, true) : ''}
+    </dl>
+    <h3>Components</h3>
+    <dl class="components">
+      <div><dt>Tenant</dt><dd><code>${c.tenant}</code>${confirmedMarker}</dd></div>
+      <div><dt>Host</dt><dd><code>${c.host}</code>${confirmedMarker}</dd></div>
+      <div><dt>Site</dt><dd>${c.sitePath === '' ? html`<em>(root site)</em>` : html`<code>${c.sitePath}</code>`}${confirmedMarker}${wasMarker(v.corrections.sitePath, previousKind)}</dd></div>
+      <div><dt>Document library</dt><dd><code>${c.library}</code>${confirmedMarker}${wasMarker(v.corrections.library, previousKind)}</dd></div>
+      <div><dt>Folder chain</dt><dd>${
+        c.folders.length === 0 ? html`<em>(library root)</em>` : html`<ol class="folder-chain">${c.folders.map((f) => html`<li><code>${f}</code></li>`)}</ol>`
+      }${confirmedMarker}${wasMarker(v.corrections.folders, previousKind)}</dd></div>
+      ${c.fileName !== undefined ? html`<div><dt>File name</dt><dd><code>${c.fileName}</code>${confirmedMarker}${wasMarker(v.corrections.fileName, previousKind)}</dd></div>` : ''}
+    </dl>
+    ${
+      v.identifierCheck !== undefined
+        ? html`<p class="id-check ${v.identifierCheck.matches ? 'id-match' : 'id-mismatch'}"><strong>Document id check:</strong> the link's id <code>${v.identifierCheck.linkValue}</code> ${
+            v.identifierCheck.matches ? 'matches' : 'does not match'
+          } the item's list item unique id <code>${v.identifierCheck.graphValue}</code>.</p>`
+        : ''
+    }
+    <p class="method"><strong>How this was obtained:</strong> ${v.methodText} Confirmed at <time datetime="${v.validatedAt}">${formatTime(v.validatedAt)}</time>. Graph item <code>${v.graph.itemId}</code> in drive <code>${v.graph.driveId}</code>. Calls: ${v.calls.join(', ')}.</p>
+    <details class="original">
+      <summary>Original best effort result (${validation.previousState})</summary>
+      ${result.state !== 'Unresolved' && result.path !== undefined ? html`<p>Path: <code>${result.path}</code></p>` : ''}
+      ${componentRows(result)}
+      <p class="method"><strong>Original method:</strong> ${result.method.text}</p>
+    </details>
+  </section>`;
+}
+
+export function renderResult(result: ParseSuccess, options: ResultViewOptions = {}): Markup {
+  if (options.validation !== undefined && options.validation !== null) {
+    return renderVerified(result, options.validation);
+  }
   const head = html`<div class="result-head">
       <h2 id="result-heading">Result</h2>
       ${stateBadge(result.state)}
       <span class="form-name">form: <code>${result.form}</code></span>
     </div>`;
+  const validate = options.id !== undefined && result.state !== 'Verified' && options.authConfigured ? validateControl(result, options.id) : '';
 
   if (result.state === 'Unresolved') {
     return html`<section class="result result-unresolved" aria-labelledby="result-heading">
@@ -120,7 +197,8 @@ export function renderResult(result: ParseSuccess): Markup {
     <h3>Components read from the link</h3>
     ${componentRows(result)}
     ${extras(result)}
-    <p class="next-step"><strong>Next step:</strong> ${UNRESOLVED_NEXT_STEP}</p>
+    <p class="next-step"><strong>Next step:</strong> ${options.authConfigured ? UNRESOLVED_NEXT_STEP_CONFIGURED : UNRESOLVED_NEXT_STEP_UNCONFIGURED}</p>
+    ${validate}
   </section>`;
   }
 
@@ -135,6 +213,7 @@ export function renderResult(result: ParseSuccess): Markup {
     ${componentRows(result)}
     ${extras(result)}
     <p class="method"><strong>How this was obtained:</strong> ${result.method.text}</p>
+    ${validate}
   </section>`;
 }
 

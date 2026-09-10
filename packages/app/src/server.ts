@@ -13,6 +13,7 @@ import { registerHealthRoute } from './routes/health.js';
 import { registerPageRoutes } from './routes/pages.js';
 import { createConversionService } from './services/conversionService.js';
 import { DEFAULT_MAX_HOPS, createShortLinkExpander, type ShortLinkExpander } from './services/shortLinkExpander.js';
+import type { ViewContext } from './views/layout.js';
 
 export interface ServerDeps {
   config: AppConfig;
@@ -61,9 +62,10 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     expander,
     log: { warn: (obj, msg) => app.log.warn(obj, msg) },
   });
+  const context: ViewContext = { auth: deps.config.auth };
   registerHealthRoute(app, deps.db, deps.config.databasePath);
-  registerApiRoutes(app, service);
-  registerPageRoutes(app, service, deps.store);
+  registerApiRoutes(app, service, deps.store);
+  registerPageRoutes(app, service, deps.store, context);
 
   app.setErrorHandler((error: unknown, request, reply) => {
     const e = (typeof error === 'object' && error !== null ? error : {}) as { statusCode?: unknown; message?: unknown };

@@ -5,7 +5,7 @@
 import type { ConfidenceState } from '@breadcrumb/parser';
 import type { ConversionSource, HistoryFilters } from '../db/historyStore.js';
 
-const STATES = new Set<string>(['Verified', 'Derived', 'Inferred', 'Unresolved', 'failed']);
+const STATES = new Set<string>(['Verified', 'Derived', 'Inferred', 'Unresolved', 'failed', 'upgraded']);
 const SOURCES = new Set<string>(['web', 'extension']);
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -21,7 +21,7 @@ export function parseFilters(query: Query): HistoryFilters {
   const q = first(query['q']);
   if (q !== undefined && q !== '') filters.q = q;
   const state = first(query['state']);
-  if (state !== undefined && STATES.has(state)) filters.state = state as ConfidenceState | 'failed';
+  if (state !== undefined && STATES.has(state)) filters.state = state as ConfidenceState | 'failed' | 'upgraded';
   const from = first(query['from']);
   if (from !== undefined && DATE.test(from)) filters.from = from;
   const to = first(query['to']);

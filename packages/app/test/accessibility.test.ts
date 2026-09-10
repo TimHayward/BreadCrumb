@@ -58,6 +58,35 @@ describe('accessibility (BC-028)', () => {
     expect(await seriousViolations((await postForm(ctx.app, '/history/delete', { ids: ['1', '2'] })).body)).toEqual([]);
   });
 
+  it('sign in header and a Verified entry have no critical or serious axe issues', async () => {
+    const auth = { tenantId: '11111111-1111-4111-8111-111111111111', clientId: '22222222-2222-4222-8222-222222222222', scopes: ['Files.Read.All'] };
+    const configured = await createTestServer({ config: { auth } });
+    await postForm(configured.app, '/convert', { link: 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf' });
+    expect(await seriousViolations((await configured.app.inject({ method: 'GET', url: '/history/1' })).body)).toEqual([]);
+    await configured.app.inject({
+      method: 'POST',
+      url: '/api/history/1/validate',
+      payload: {
+        previousState: 'Inferred',
+        verified: {
+          path: '/sites/SiteA/Lib/Folder/Report.pdf',
+          folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder',
+          fileUrl: 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf',
+          components: { tenant: 'contoso', host: 'contoso.sharepoint.com', sitePath: '/sites/SiteA', library: 'Lib', folders: ['Folder'], fileName: 'Report.pdf' },
+          corrections: {},
+          graph: { driveId: 'b!lib', itemId: '01ITEM' },
+          validatedAt: '2026-09-10T18:00:00.000Z',
+          calls: ['/sites/contoso.sharepoint.com:/sites/SiteA'],
+          methodText: 'Confirmed by Microsoft Graph.',
+        },
+      },
+    });
+    expect(await seriousViolations((await configured.app.inject({ method: 'GET', url: '/history/1?validated=1' })).body)).toEqual([]);
+    expect(await seriousViolations((await configured.app.inject({ method: 'GET', url: '/history' })).body)).toEqual([]);
+    await configured.app.close();
+    configured.db.close();
+  });
+
   it('state badges carry a symbol as well as text, so state is never colour alone', async () => {
     const body = (await postForm(ctx.app, '/convert', { link: WORKED_EXAMPLE })).body;
     expect(body).toMatch(/<span class="badge badge-derived"[^>]*><span aria-hidden="true">◆<\/span> Derived<\/span>/);

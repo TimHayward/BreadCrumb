@@ -1,12 +1,25 @@
-import type { ConversionRow, HistoryFilters, Page } from '../db/historyStore.js';
+import { effectiveState, type ConversionRow, type HistoryFilters, type Page } from '../db/historyStore.js';
 import { filtersToQuery, hasFilters } from '../routes/filters.js';
 import { formatTime, truncate } from './format.js';
 import { html, type Markup } from './html.js';
-import { layout } from './layout.js';
+import { layout, type ViewContext } from './layout.js';
 import { renderFailure, renderResult, stateBadge } from './resultView.js';
 
 function rowState(row: ConversionRow): Markup {
-  return row.state === null ? html`<span class="badge badge-failure"><span aria-hidden="true">✕</span> failed</span>` : stateBadge(row.state);
+  const state = effectiveState(row);
+  if (state === null) {
+    return html`<span class="badge badge-failure"><span aria-hidden="true">✕</span> failed</span>`;
+  }
+  const upgraded = row.validation !== null ? html` <span class="marker-upgraded">upgraded from ${row.validation.previousState}</span>` : '';
+  return html`${stateBadge(state)}${upgraded}`;
+}
+
+function rowPath(row: ConversionRow): Markup {
+  const path = row.validation?.verified.path ?? row.path;
+  if (path !== null) {
+    return html`<code>${path}</code>`;
+  }
+  return html`<em>${row.state === null ? `failed: ${row.failureReason ?? ''}` : 'path not known'}</em>`;
 }
 
 function option(value: string, label: string, selected: string | undefined): Markup {
@@ -24,6 +37,7 @@ function filterForm(filters: HistoryFilters): Markup {
         <select id="state" name="state">
           ${option('', 'Any', filters.state)}
           ${option('Verified', 'Verified', filters.state)}
+          ${option('upgraded', 'Upgraded to Verified', filters.state)}
           ${option('Derived', 'Derived', filters.state)}
           ${option('Inferred', 'Inferred', filters.state)}
           ${option('Unresolved', 'Unresolved', filters.state)}
@@ -61,6 +75,7 @@ export interface HistoryListOptions {
   page: Page<ConversionRow>;
   filters: HistoryFilters;
   deleted?: number;
+  context: ViewContext;
 }
 
 export function renderHistoryListPage(options: HistoryListOptions): string {
@@ -98,7 +113,7 @@ export function renderHistoryListPage(options: HistoryListOptions): string {
             <td class="select"><input type="checkbox" name="ids" value="${row.id}" aria-label="Select entry ${row.id}"></td>
             <td><a href="/history/${row.id}"><time datetime="${row.createdAt}">${formatTime(row.createdAt)}</time></a></td>
             <td class="input" title="${row.input}"><code>${truncate(row.input, 72)}</code></td>
-            <td class="path">${row.path === null ? html`<em>${row.state === null ? `failed: ${row.failureReason ?? ''}` : 'path not known'}</em>` : html`<code>${row.path}</code>`}</td>
+            <td class="path">${rowPath(row)}</td>
             <td>${rowState(row)}</td>
             <td>${row.source}</td>
           </tr>`,
@@ -111,9 +126,10 @@ export function renderHistoryListPage(options: HistoryListOptions): string {
     </form>`;
   }
 
+  const exportQuery = filtersToQuery(filters) === '' ? '' : `?${filtersToQuery(filters)}`;
   const exportLinks = html`<p class="export">Export ${hasFilters(filters) ? 'the matching entries' : 'everything'} as
-      <a href="/history/export.csv${filtersToQuery(filters) === '' ? '' : `?${filtersToQuery(filters)}`}">CSV</a> or
-      <a href="/history/export.json${filtersToQuery(filters) === '' ? '' : `?${filtersToQuery(filters)}`}">JSON</a>.</p>`;
+      <a href="/history/export.csv${exportQuery}">CSV</a> or
+      <a href="/history/export.json${exportQuery}">JSON</a>.</p>`;
 
   const body = html`<h1>History</h1>
     <p class="lede">Every conversion, newest first.</p>
@@ -124,18 +140,31 @@ export function renderHistoryListPage(options: HistoryListOptions): string {
     ${page.total > 0 ? pager : ''}
     ${table}
     ${page.total > page.pageSize ? pager : ''}`;
-  return layout({ title: `History · page ${page.page}`, active: 'history', body });
+  return layout({ title: `History · page ${page.page}`, active: 'history', body, context: options.context });
 }
 
-export function renderHistoryDetailPage(row: ConversionRow): string {
+export interface HistoryDetailOptions {
+  row: ConversionRow;
+  context: ViewContext;
+  /** Set after a validation just landed, to announce it. */
+  validated?: boolean;
+}
+
+export function renderHistoryDetailPage(options: HistoryDetailOptions): string {
+  const { row, context } = options;
   const body = html`<h1>History entry ${row.id}</h1>
+    ${options.validated ? html`<p class="flash" role="status">Validated with Microsoft Graph. The result below is Verified; the original best effort result is kept beneath it.</p>` : ''}
     <dl class="meta">
       <div><dt>Converted</dt><dd><time datetime="${row.createdAt}">${formatTime(row.createdAt)}</time></dd></div>
       <div><dt>Source</dt><dd>${row.source}</dd></div>
       <div><dt>Parser version</dt><dd><code>${row.parserVersion}</code></dd></div>
       <div><dt>Input</dt><dd><code class="wrap">${row.input}</code></dd></div>
     </dl>
-    ${row.result.ok ? renderResult(row.result) : renderFailure(row.result)}
+    ${
+      row.result.ok
+        ? renderResult(row.result, { id: row.id, validation: row.validation, authConfigured: context.auth !== undefined })
+        : renderFailure(row.result)
+    }
     <div class="detail-actions">
       <a href="/history">Back to history</a>
       <form method="post" action="/history/delete" class="inline">
@@ -144,12 +173,13 @@ export function renderHistoryDetailPage(row: ConversionRow): string {
         <button type="submit" class="danger">Delete this entry</button>
       </form>
     </div>`;
-  return layout({ title: `History entry ${row.id}`, active: 'history', body });
+  return layout({ title: `History entry ${row.id}`, active: 'history', body, context });
 }
 
 export interface DeleteConfirmOptions {
   rows: ConversionRow[];
   returnTo: string;
+  context: ViewContext;
 }
 
 export function renderDeleteConfirmPage(options: DeleteConfirmOptions): string {
@@ -166,10 +196,10 @@ export function renderDeleteConfirmPage(options: DeleteConfirmOptions): string {
       <button type="submit" class="danger">Delete</button>
       <a class="button-link" href="${options.returnTo}">Cancel</a>
     </form>`;
-  return layout({ title: 'Confirm delete', active: 'history', body });
+  return layout({ title: 'Confirm delete', active: 'history', body, context: options.context });
 }
 
-export function renderNotFoundPage(what: string): string {
+export function renderNotFoundPage(what: string, context: ViewContext): string {
   const body = html`<h1>Not found</h1><p>${what}</p><p><a href="/history">Back to history</a></p>`;
-  return layout({ title: 'Not found', body });
+  return layout({ title: 'Not found', body, context });
 }

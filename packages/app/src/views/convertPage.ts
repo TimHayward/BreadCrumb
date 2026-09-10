@@ -1,19 +1,21 @@
 import type { ConversionOutcome } from '../services/conversionService.js';
 import { html } from './html.js';
-import { layout } from './layout.js';
+import { layout, type ViewContext } from './layout.js';
 import { renderFailure, renderResult } from './resultView.js';
 
 export interface ConvertPageOptions {
   input: string;
   outcome?: ConversionOutcome;
+  context: ViewContext;
 }
 
 export function renderConvertPage(options: ConvertPageOptions): string {
   const outcome = options.outcome;
+  const authConfigured = options.context.auth !== undefined;
   let resultMarkup = html``;
   if (outcome !== undefined) {
     resultMarkup = outcome.ok
-      ? html`${renderResult(outcome.result)}
+      ? html`${renderResult(outcome.result, { id: outcome.id, authConfigured })}
       <p class="saved">Saved to history as <a href="/history/${outcome.id}">entry ${outcome.id}</a>.</p>`
       : renderFailure(outcome.failure, outcome.id !== undefined ? { keptAs: outcome.id } : { keepInput: options.input });
   }
@@ -27,5 +29,5 @@ export function renderConvertPage(options: ConvertPageOptions): string {
     <div id="result-region" aria-live="polite">
       ${resultMarkup}
     </div>`;
-  return layout({ title: 'Convert', active: 'convert', body });
+  return layout({ title: 'Convert', active: 'convert', body, context: options.context });
 }

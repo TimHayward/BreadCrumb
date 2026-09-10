@@ -11,3 +11,5 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+packages/app/public/validate.js
+packages/app/public/validate.js.map

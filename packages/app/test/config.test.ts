@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ConfigError, DEFAULTS, loadConfig } from '../src/config.js';
 
+const TENANT = '11111111-1111-4111-8111-111111111111';
+const CLIENT = '22222222-2222-4222-8222-222222222222';
+
 describe('loadConfig (BC-005)', () => {
   it('uses documented defaults and logs each one when nothing is set', () => {
     const lines: string[] = [];
@@ -13,6 +16,7 @@ describe('loadConfig (BC-005)', () => {
       'config: LOG_REDACT_LINKS not set, using "false"',
       'config: SHORTLINK_EXPANSION_ENABLED not set, using "false"',
       'config: SHORTLINK_TIMEOUT_MS not set, using "5000"',
+      'config: AUTH_TENANT_ID and AUTH_CLIENT_ID not set, authenticated validation is not configured',
     ]);
   });
 
@@ -26,6 +30,9 @@ describe('loadConfig (BC-005)', () => {
         LOG_REDACT_LINKS: 'true',
         SHORTLINK_EXPANSION_ENABLED: 'yes',
         SHORTLINK_TIMEOUT_MS: '2500',
+        AUTH_TENANT_ID: TENANT.toUpperCase(),
+        AUTH_CLIENT_ID: CLIENT,
+        AUTH_SCOPES: 'Files.Read.All',
       },
       (l) => lines.push(l),
     );
@@ -36,8 +43,16 @@ describe('loadConfig (BC-005)', () => {
       redactLinks: true,
       shortLinkExpansionEnabled: true,
       shortLinkTimeoutMs: 2500,
+      auth: { tenantId: TENANT, clientId: CLIENT, scopes: ['Files.Read.All'] },
     });
     expect(lines).toEqual([]);
+  });
+
+  it('defaults the scopes when only the tenant and client are set (BC-036)', () => {
+    const lines: string[] = [];
+    const config = loadConfig({ AUTH_TENANT_ID: TENANT, AUTH_CLIENT_ID: CLIENT }, (l) => lines.push(l));
+    expect(config.auth).toEqual({ tenantId: TENANT, clientId: CLIENT, scopes: ['Files.Read.All', 'Sites.Read.All'] });
+    expect(lines).toContain('config: AUTH_SCOPES not set, using "Files.Read.All Sites.Read.All"');
   });
 
   it.each([
@@ -58,5 +73,20 @@ describe('loadConfig (BC-005)', () => {
       expect((error as ConfigError).message).toContain(name);
       expect((error as ConfigError).message).toContain(value);
     }
+  });
+
+  it('requires AUTH_TENANT_ID and AUTH_CLIENT_ID together and as GUIDs', () => {
+    const variableOf = (env: Record<string, string>): string => {
+      try {
+        loadConfig(env, () => {});
+      } catch (error) {
+        return (error as ConfigError).variable;
+      }
+      return 'no error';
+    };
+    expect(variableOf({ AUTH_TENANT_ID: TENANT })).toBe('AUTH_CLIENT_ID');
+    expect(variableOf({ AUTH_CLIENT_ID: CLIENT })).toBe('AUTH_TENANT_ID');
+    expect(variableOf({ AUTH_TENANT_ID: 'contoso', AUTH_CLIENT_ID: CLIENT })).toBe('AUTH_TENANT_ID');
+    expect(variableOf({ AUTH_TENANT_ID: TENANT, AUTH_CLIENT_ID: 'not-a-guid' })).toBe('AUTH_CLIENT_ID');
   });
 });

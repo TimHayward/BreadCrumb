@@ -86,7 +86,7 @@ describe('pages', () => {
       expect(response.body).toContain('What was recognised:');
       expect(response.body).toContain('cannot be decoded without signing in');
       expect(response.body).not.toContain('<dt id="path-label">');
-      expect(response.body).toContain('Authenticated validation is not yet available in this version.');
+      expect(response.body).toContain('Authenticated validation is not configured on this server');
       expect(response.body).toContain('<strong>SiteA</strong>');
       expect(ctx.store.getById(1)?.state).toBe('Unresolved');
     });
