@@ -13,6 +13,11 @@ The authenticated validation code (BC-036 to BC-041) is complete and covered by 
    $env:AUTH_TENANT_ID = '<tenant guid>'; $env:AUTH_CLIENT_ID = '<client guid>'; pnpm dev
    ```
    The log shows `authenticated validation configured`. Open `http://localhost:3000/`.
+   For a diagnosed run add `$env:CLIENT_LOG = 'true'` before `pnpm dev`: the browser then posts its sign in, MSAL and Graph events to the server log, so nobody needs the browser console.
+
+   Troubleshooting sign in:
+   - **AADSTS9002326** ("Cross-origin token redemption is permitted only for the 'Single-Page Application' client-type"): the redirect URI is registered under the Web platform. Remove it there and add it under Single-page application (or move it from `web.redirectUris` to `spa.redirectUris` in the manifest).
+   - **Popup opens and closes but nothing happens**: an old `validate.js` may be cached; press Ctrl+Shift+R once.
 6. In the browser console run `localStorage.setItem('breadcrumb:debug', '1')` so every Graph request and response is logged. Those logs, anonymised, become the replay fixtures under `packages/app/test/fixtures/graph/`.
 7. Have test files ready: one in a normal library under `/sites/<Site>/<Lib>/<Folder>/`, one in the default library ("Documents" shown, `Shared Documents` in the URL), one in a subsite, one in OneDrive for Business. Make a `/:x:/s/` sharing link for one, plus `/g/` and `/t/` links if the tenant emits them, and a link created by another user.
 
