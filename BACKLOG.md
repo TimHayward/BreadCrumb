@@ -165,15 +165,6 @@ As a signed in user, I want token based sharing links resolved, so that Unresolv
 
 Priority: Must. Size: M. Depends on: BC-036, BC-011, BC-040.
 
-#### BC-039 Resolve sourcedoc and UniqueId GUIDs
-
-As a signed in user, I want `Doc.aspx` and `UniqueId` links resolved, so that a document GUID becomes a folder.
-
-- Given an Unresolved result from BC-012 or BC-013 carrying a GUID, When validate is chosen, Then the item is looked up by the method proven in spike S5 and the result becomes Verified.
-- Given the lookup method from S5 returns nothing, When validation completes, Then the result stays Unresolved with a message that the document id could not be resolved in this site.
-
-Priority: Should. Size: M. Depends on: BC-036, BC-012, BC-040. Blocked by spike S5.
-
 #### BC-041 Graph failures are reported honestly
 
 As a signed in user, I want Graph errors shown plainly, so that I know whether to retry, ask for consent or give up.
@@ -266,7 +257,7 @@ Progress evidence at the boundary: the fixture corpus report showing one pass pe
 
 ### M3 Authenticated validation
 
-Stories: BC-036, BC-037, BC-038, BC-039, BC-041.
+Stories: BC-036, BC-037, BC-038, BC-041.
 
 Demonstrable outcome: a user signs in against the personal test tenant, validates an Inferred result whose library boundary was guessed wrongly, sees it corrected and upgraded to Verified, and sees the "was inferred as" record beneath it. An Unresolved sharing token resolves to a Verified path. The history list shows which rows were upgraded. Signing out removes the token and the default no sign in path is unchanged.
 

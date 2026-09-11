@@ -480,3 +480,16 @@ Priority: Must. Size: M. Depends on: BC-006, BC-007, BC-024.
 **Note:** the copy control was confirmed in a real browser on 2026-09-11 ("Folder URL copied to clipboard" on a Verified entry, served from localhost); the remaining criteria are covered by the page tests.
 
 **Completed:** 2026-09-11 · a72c6ab
+
+#### BC-039 Resolve sourcedoc and UniqueId GUIDs
+
+As a signed in user, I want `Doc.aspx` and `UniqueId` links resolved, so that a document GUID becomes a folder.
+
+- Given an Unresolved result from BC-012 or BC-013 carrying a GUID, When validate is chosen, Then the item is looked up by the method proven in spike S5 and the result becomes Verified.
+- Given the lookup method from S5 returns nothing, When validation completes, Then the result stays Unresolved with a message that the document id could not be resolved in this site.
+
+Priority: Should. Size: M. Depends on: BC-036, BC-012, BC-040. Blocked by spike S5.
+
+**Note:** proven on the test tenant on 2026-09-11. Graph's shares endpoint resolves both a `Doc.aspx`/`doc2.aspx` sourcedoc link and a `download.aspx?UniqueId=` link directly (spike S5); search by unique id and by file name remain as replay-tested fallbacks, and the not-found message names every attempt.
+
+**Completed:** 2026-09-11 · 0c507d0
