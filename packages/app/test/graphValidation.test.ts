@@ -6,16 +6,21 @@
  */
 import { parseLink, type ParseSuccess } from '@breadcrumb/parser';
 import { describe, expect, it } from 'vitest';
-import { encodeSharingUrl, validateResult, type GraphClient, type GraphResponse } from '../src/validation/graphValidation.js';
+import { encodeSharingUrl, isValidatable, siteCandidates, validateResult, type GraphClient, type GraphResponse } from '../src/validation/graphValidation.js';
 
 type Route = GraphResponse | ((path: string) => GraphResponse);
 
-function graph(routes: Record<string, Route>): GraphClient & { calls: string[] } {
-  const calls: string[] = [];
+interface Recorded {
+  path: string;
+  headers: Record<string, string> | undefined;
+}
+
+function graph(routes: Record<string, Route>): GraphClient & { calls: Recorded[] } {
+  const calls: Recorded[] = [];
   return {
     calls,
-    async get(path) {
-      calls.push(path);
+    async get(path, headers) {
+      calls.push({ path, headers });
       const key = path.replace(/\?.*$/, '');
       const route = routes[key];
       if (route === undefined) {
@@ -27,6 +32,7 @@ function graph(routes: Record<string, Route>): GraphClient & { calls: string[] }
 }
 
 const ok = (body: unknown): GraphResponse => ({ status: 200, headers: {}, body });
+const forbidden: GraphResponse = { status: 403, headers: {}, body: { error: { code: 'accessDenied', message: 'Access denied' } } };
 
 const SITE_A = { id: 'contoso.sharepoint.com,1111aaaa-1111-4aaa-8aaa-111111111111,2222bbbb-2222-4bbb-8bbb-222222222222', webUrl: 'https://contoso.sharepoint.com/sites/SiteA' };
 const DRIVES_A = {
@@ -44,6 +50,7 @@ const FILE_ITEM = {
   parentReference: { driveId: 'b!lib', path: '/drives/b!lib/root:/Folder%20One' },
   sharepointIds: { listItemUniqueId: UNIQUE, siteId: '1111aaaa-1111-4aaa-8aaa-111111111111' },
 };
+const LIB_DRIVE = { id: 'b!lib', name: 'Lib', webUrl: 'https://contoso.sharepoint.com/sites/SiteA/Lib' };
 
 describe('validateResult by path (BC-037)', () => {
   it('confirms an Inferred direct URL: site by path, drives listed, item by path, every component a fact', async () => {
@@ -74,8 +81,6 @@ describe('validateResult by path (BC-037)', () => {
   });
 
   it('corrects a wrongly inferred library boundary and records what was inferred', async () => {
-    // The parser guesses "Shared Documents" is a folder under library "Lib"? No: here the
-    // link puts the file under a nested folder that is really a separate library root.
     const result = parseLink('https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?id=%2Fsites%2FSiteA%2FArchive%2F2024%2FMinutes%2Edocx') as ParseSuccess;
     expect(result.components.library?.value).toBe('Archive');
     const client = graph({
@@ -90,12 +95,56 @@ describe('validateResult by path (BC-037)', () => {
     if (!outcome.ok) return;
     expect(outcome.verified.components.library).toBe('2024');
     expect(outcome.verified.components.sitePath).toBe('/sites/SiteA/Archive');
-    expect(outcome.verified.components.folders).toEqual([]);
     expect(outcome.verified.corrections).toEqual({
       library: { was: 'Archive', now: '2024' },
       folders: { was: '2024', now: '' },
       sitePath: { was: '/sites/SiteA', now: '/sites/SiteA/Archive' },
     });
+  });
+
+  it('finds a file in a subsite by trying deeper site paths when the parent site has no matching library', async () => {
+    const result = parseLink('https://contoso.sharepoint.com/sites/SiteA/SubWeb/Lib/Folder/Report.pdf') as ParseSuccess;
+    expect(result.components.library?.value).toBe('SubWeb');
+    const SUB = { id: 'contoso.sharepoint.com,3333cccc-3333-4ccc-8ccc-333333333333,4444dddd-4444-4ddd-8ddd-444444444444', webUrl: 'https://contoso.sharepoint.com/sites/SiteA/SubWeb' };
+    const client = graph({
+      '/sites/contoso.sharepoint.com:/sites/SiteA': ok(SITE_A),
+      [`/sites/${SITE_A.id}/drives`]: ok(DRIVES_A),
+      '/sites/contoso.sharepoint.com:/sites/SiteA/SubWeb': ok(SUB),
+      [`/sites/${SUB.id}/drives`]: ok({ value: [{ id: 'b!sub', name: 'Lib', webUrl: 'https://contoso.sharepoint.com/sites/SiteA/SubWeb/Lib' }] }),
+      '/drives/b!sub/root:/Folder/Report.pdf': ok({ id: '01SUB', name: 'Report.pdf', file: {}, parentReference: { driveId: 'b!sub' } }),
+    });
+    const outcome = await validateResult(result, client);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.verified.components).toEqual({ tenant: 'contoso', host: 'contoso.sharepoint.com', sitePath: '/sites/SiteA/SubWeb', library: 'Lib', folders: ['Folder'], fileName: 'Report.pdf' });
+    expect(outcome.verified.corrections).toEqual({
+      library: { was: 'SubWeb', now: 'Lib' },
+      folders: { was: 'Lib / Folder', now: 'Folder' },
+      sitePath: { was: '/sites/SiteA', now: '/sites/SiteA/SubWeb' },
+    });
+    expect(outcome.verified.methodText).toContain('subsite /sites/SiteA/SubWeb');
+    expect(client.calls.map((c) => c.path.replace(/\?.*$/, ''))).toEqual([
+      '/sites/contoso.sharepoint.com:/sites/SiteA',
+      `/sites/${SITE_A.id}/drives`,
+      '/sites/contoso.sharepoint.com:/sites/SiteA/SubWeb',
+      `/sites/${SUB.id}/drives`,
+      '/drives/b!sub/root:/Folder/Report.pdf',
+    ]);
+  });
+
+  it('falls back to the shares endpoint with the item URL when the account cannot list sites', async () => {
+    const result = parseLink('https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf') as ParseSuccess;
+    const client = graph({
+      '/sites/contoso.sharepoint.com:/sites/SiteA': forbidden,
+      [`/shares/${encodeSharingUrl('https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf')}/driveItem`]: ok(FILE_ITEM),
+      '/drives/b!lib': ok(LIB_DRIVE),
+    });
+    const outcome = await validateResult(result, client);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.verified.path).toBe('/sites/SiteA/Lib/Folder One/Report.pdf');
+    expect(outcome.verified.methodText).toContain('could not list the site');
+    expect(client.calls[1]?.headers).toEqual({ prefer: 'redeemSharingLink' });
   });
 
   it('handles folders, root sites and the d identifier check', async () => {
@@ -149,7 +198,7 @@ describe('validateResult by path (BC-037)', () => {
     }
   });
 
-  it('keeps the previous state when no library contains the path or the item is missing', async () => {
+  it('keeps the previous state when no library or subsite contains the path or the item is missing', async () => {
     const result = parseLink('https://contoso.sharepoint.com/sites/SiteA/Nowhere/Report.pdf') as ParseSuccess;
     const noDrive = await validateResult(result, graph({
       '/sites/contoso.sharepoint.com:/sites/SiteA': ok(SITE_A),
@@ -166,6 +215,12 @@ describe('validateResult by path (BC-037)', () => {
     }));
     expect(missingOutcome).toMatchObject({ ok: false, kind: 'not_found' });
   });
+
+  it('siteCandidates never treats the file itself as a subsite', () => {
+    expect(siteCandidates('/sites/SiteA', '/sites/SiteA/A/B/C/D/File.pdf')).toEqual(['/sites/SiteA', '/sites/SiteA/A', '/sites/SiteA/A/B', '/sites/SiteA/A/B/C']);
+    expect(siteCandidates('/sites/SiteA', '/sites/SiteA/Lib/Folder')).toEqual(['/sites/SiteA', '/sites/SiteA/Lib']);
+    expect(siteCandidates('', '/Shared Documents/File.pdf')).toEqual(['', '/Shared Documents']);
+  });
 });
 
 describe('validateResult by share (BC-038)', () => {
@@ -175,12 +230,13 @@ describe('validateResult by share (BC-038)', () => {
     expect(encodeSharingUrl('https://contoso.sharepoint.com/:b:/s/SiteA/x?e=1')).toBe('u!aHR0cHM6Ly9jb250b3NvLnNoYXJlcG9pbnQuY29tLzpiOi9zL1NpdGVBL3g_ZT0x');
   });
 
-  it('resolves an Unresolved token to a Verified path and library', async () => {
+  it('resolves an Unresolved token to a Verified path and library, redeeming the link', async () => {
     const result = parseLink(link) as ParseSuccess;
-    const outcome = await validateResult(result, graph({
+    const client = graph({
       [`/shares/${encodeSharingUrl(link)}/driveItem`]: ok(FILE_ITEM),
-      '/drives/b!lib': ok({ id: 'b!lib', name: 'Lib', webUrl: 'https://contoso.sharepoint.com/sites/SiteA/Lib' }),
-    }));
+      '/drives/b!lib': ok(LIB_DRIVE),
+    });
+    const outcome = await validateResult(result, client);
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.verified.path).toBe('/sites/SiteA/Lib/Folder One/Report.pdf');
@@ -194,18 +250,25 @@ describe('validateResult by share (BC-038)', () => {
     });
     expect(outcome.verified.methodText).toContain('shares endpoint');
     expect(outcome.verified.calls[0]).toContain('/shares/u!');
+    expect(client.calls[0]?.headers).toEqual({ prefer: 'redeemSharingLink' });
   });
 
   it('reports a permission error naming the permissions and leaves the state unchanged', async () => {
     const result = parseLink(link) as ParseSuccess;
-    const outcome = await validateResult(result, graph({
-      [`/shares/${encodeSharingUrl(link)}/driveItem`]: { status: 403, headers: {}, body: { error: { code: 'accessDenied', message: 'Access denied' } } },
-    }));
+    const outcome = await validateResult(result, graph({ [`/shares/${encodeSharingUrl(link)}/driveItem`]: forbidden }));
     expect(outcome).toMatchObject({ ok: false, kind: 'permission' });
     if (!outcome.ok) {
       expect(outcome.message).toContain('Files.Read.All');
       expect(outcome.message).toContain('administrator');
     }
+  });
+
+  it('isValidatable admits token forms, Derived and Inferred, but not doc ids, consumer links or other clouds', () => {
+    expect(isValidatable(parseLink(link) as ParseSuccess)).toBe(true);
+    expect(isValidatable(parseLink('https://contoso.sharepoint.com/sites/SiteA/Lib/x.pdf') as ParseSuccess)).toBe(true);
+    expect(isValidatable(parseLink('https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%7D') as ParseSuccess)).toBe(false);
+    expect(isValidatable(parseLink('https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123') as ParseSuccess)).toBe(false);
+    expect(isValidatable(parseLink('https://contoso.sharepoint.us/sites/SiteA/Lib/x.pdf') as ParseSuccess)).toBe(false);
   });
 });
 

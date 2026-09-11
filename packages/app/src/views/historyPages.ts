@@ -131,9 +131,18 @@ export function renderHistoryListPage(options: HistoryListOptions): string {
       <a href="/history/export.csv${exportQuery}">CSV</a> or
       <a href="/history/export.json${exportQuery}">JSON</a>.</p>`;
 
+  const validateAll =
+    options.context.auth !== undefined
+      ? html`<div id="validate-all" class="validate-all" hidden>
+      <button type="button">Validate all Unresolved</button>
+      <span class="note" role="status" aria-live="polite"></span>
+    </div>`
+      : '';
+
   const body = html`<h1>History</h1>
     <p class="lede">Every conversion, newest first.</p>
     ${options.deleted !== undefined ? html`<p class="flash" role="status">${options.deleted} ${options.deleted === 1 ? 'entry' : 'entries'} deleted.</p>` : ''}
+    ${validateAll}
     ${filterForm(filters)}
     ${count}
     ${exportLinks}

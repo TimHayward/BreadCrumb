@@ -30,7 +30,7 @@ const WRAPPER_LABELS: Record<string, string> = {
 };
 
 export const UNRESOLVED_NEXT_STEP_CONFIGURED =
-  'Sign in to Microsoft and use the Validate with Microsoft Graph button to resolve it. The result is kept in history with its Unresolved state until then.';
+  'Sign in to Microsoft: sharing links resolve automatically once you are signed in, and the Validate with Microsoft Graph button does the same on demand. The result is kept in history with its Unresolved state until then.';
 
 export const UNRESOLVED_NEXT_STEP_UNCONFIGURED =
   'Authenticated validation is not configured on this server, so this stays Unresolved. The result is kept in history and can be validated once sign in is set up.';
@@ -121,9 +121,13 @@ export interface ResultViewOptions {
   authConfigured?: boolean;
 }
 
+/** Unresolved forms the browser resolves on its own once signed in (token sharing links). */
+const AUTO_VALIDATE_FORMS: ReadonlySet<string> = new Set(['sharing-token/s', 'sharing-token/g', 'sharing-token/t', 'guest-access']);
+
 /** The validate control, hidden until the browser confirms a signed in account (BC-036). */
 function validateControl(result: ParseSuccess, id: number): Markup {
-  return html`<div class="validate" data-validate-id="${id}" data-previous-state="${result.state}" hidden>
+  const auto = result.state === 'Unresolved' && AUTO_VALIDATE_FORMS.has(result.form);
+  return html`<div class="validate" data-validate-id="${id}" data-previous-state="${result.state}"${auto ? html` data-auto="1"` : ''} hidden>
       <script type="application/json" class="result-json">${new Markup(JSON.stringify(result).replaceAll('<', '\\u003c'))}</script>
       <button type="button" class="validate-button">Validate with Microsoft Graph</button>
       <p class="validate-status" role="status" aria-live="polite"></p>

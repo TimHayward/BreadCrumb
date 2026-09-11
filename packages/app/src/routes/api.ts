@@ -6,6 +6,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ConversionSource, HistoryStore } from '../db/historyStore.js';
 import type { ConversionService } from '../services/conversionService.js';
+import { isValidatable } from '../validation/graphValidation.js';
 import { parseSubmission } from '../validation/submission.js';
 
 const SOURCES: ReadonlySet<string> = new Set(['web', 'extension']);
@@ -38,6 +39,18 @@ export function registerApiRoutes(app: FastifyInstance, service: ConversionServi
     request.breadcrumb.form = outcome.result.form;
     request.breadcrumb.state = outcome.result.state;
     return reply.code(200).send({ id: outcome.id, createdAt: outcome.createdAt, result: outcome.result });
+  });
+
+  /** Unresolved entries the browser can resolve, newest first, for "Validate all" (BC-038). */
+  app.get<{ Querystring: { limit?: string } }>('/api/history/validatable', async (request, reply) => {
+    const requested = Number.parseInt(request.query.limit ?? '100', 10);
+    const limit = Number.isInteger(requested) && requested > 0 ? Math.min(requested, 500) : 100;
+    const entries = store
+      .all({ state: 'Unresolved' })
+      .filter((row) => row.result.ok && isValidatable(row.result))
+      .slice(0, limit)
+      .map((row) => ({ id: row.id, previousState: row.state, result: row.result }));
+    return reply.send({ entries });
   });
 
   app.post<{ Params: { id: string } }>('/api/history/:id/validate', async (request, reply) => {

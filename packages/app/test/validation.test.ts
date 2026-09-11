@@ -46,7 +46,51 @@ describe('sign in control (BC-036)', () => {
     expect(converted.body).toContain('<div class="validate" data-validate-id="1" data-previous-state="Inferred" hidden>');
     expect(converted.body).toContain('Validate with Microsoft Graph');
     const unresolved = await postForm(ctx.app, '/convert', { link: TOKEN_LINK });
-    expect(unresolved.body).toContain('Sign in to Microsoft and use the Validate with Microsoft Graph button');
+    expect(unresolved.body).toContain('sharing links resolve automatically once you are signed in');
+    expect(unresolved.body).toContain('<div class="validate" data-validate-id="2" data-previous-state="Unresolved" data-auto="1" hidden>');
+    const history = await ctx.app.inject({ method: 'GET', url: '/history' });
+    expect(history.body).toContain('<div id="validate-all" class="validate-all" hidden>');
+    await ctx.app.close();
+    ctx.db.close();
+  });
+
+  it('marks only token sharing links for automatic validation', async () => {
+    const ctx = await createTestServer({ config: { auth: AUTH } });
+    const doc = await postForm(ctx.app, '/convert', {
+      link: 'https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%7D&file=Plan.docx',
+    });
+    expect(doc.body).toContain('data-previous-state="Unresolved" hidden>');
+    expect(doc.body).not.toContain('data-auto');
+    const unconfigured = await createTestServer();
+    const plain = await postForm(unconfigured.app, '/convert', { link: TOKEN_LINK });
+    expect(plain.body).not.toContain('data-auto');
+    expect((await unconfigured.app.inject({ method: 'GET', url: '/history' })).body).not.toContain('validate-all');
+    await ctx.app.close();
+    ctx.db.close();
+    await unconfigured.app.close();
+    unconfigured.db.close();
+  });
+});
+
+describe('GET /api/history/validatable (BC-038 validate all)', () => {
+  it('lists Unresolved entries the browser can resolve, newest first, skipping validated rows and doc ids', async () => {
+    const ctx = await createTestServer({ config: { auth: AUTH } });
+    await postForm(ctx.app, '/convert', { link: TOKEN_LINK });
+    await ctx.app.inject({ method: 'POST', url: '/api/convert', payload: { link: 'https://contoso.sharepoint.com/:f:/t/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd', source: 'extension' } });
+    await postForm(ctx.app, '/convert', { link: 'https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%7D' });
+    await postForm(ctx.app, '/convert', { link: INFERRED_LINK });
+    await ctx.app.inject({
+      method: 'POST',
+      url: '/api/history/2/validate',
+      payload: submission('Unresolved', { path: '/sites/SiteA/Lib/Folder', folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder', components: { tenant: 'contoso', host: 'contoso.sharepoint.com', sitePath: '/sites/SiteA', library: 'Lib', folders: ['Folder'] }, corrections: {} }),
+    });
+    const response = await ctx.app.inject({ method: 'GET', url: '/api/history/validatable' });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { entries: Array<{ id: number; previousState: string; result: { form: string } }> };
+    expect(body.entries.map((e) => e.id)).toEqual([1]);
+    expect(body.entries[0]).toMatchObject({ previousState: 'Unresolved', result: { form: 'sharing-token/s' } });
+    const limited = await ctx.app.inject({ method: 'GET', url: '/api/history/validatable?limit=0' });
+    expect((limited.json() as { entries: unknown[] }).entries).toHaveLength(1);
     await ctx.app.close();
     ctx.db.close();
   });

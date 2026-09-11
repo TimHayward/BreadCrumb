@@ -30,7 +30,9 @@ const TYPE_CODES: Record<string, string> = {
   i: 'image',
   u: 'file',
   t: 'text file',
-  li: 'list',
+  l: 'list',
+  li: 'list item',
+  fl: 'Loop component',
 };
 
 export function itemTypeFromCode(code: string): string {

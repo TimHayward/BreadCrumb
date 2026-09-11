@@ -16,7 +16,7 @@ export interface GraphResponse {
 
 /** Performs a GET against Graph v1.0; `path` starts with `/` and excludes the host. */
 export interface GraphClient {
-  get(path: string): Promise<GraphResponse>;
+  get(path: string, headers?: Record<string, string>): Promise<GraphResponse>;
 }
 
 export type ValidationFailureKind = 'not_found' | 'permission' | 'throttled' | 'auth' | 'unsupported' | 'error';
@@ -27,6 +27,26 @@ export type ValidationOutcome =
 
 /** Delegated permissions requested at sign in. Spike S2 may narrow these. */
 export const DEFAULT_SCOPES = ['Files.Read.All', 'Sites.Read.All'];
+
+/** Forms the validator can resolve from an Unresolved state, through the shares endpoint. */
+export const SHARE_RESOLVABLE_FORMS: ReadonlySet<string> = new Set(['sharing-token/s', 'sharing-token/g', 'sharing-token/t', 'guest-access']);
+
+/** True when the validator can do something with this result. */
+export function isValidatable(result: Pick<ParseSuccess, 'state' | 'form' | 'cloud'>): boolean {
+  if (result.state === 'Verified' || result.cloud !== 'global') {
+    return false;
+  }
+  if (result.state === 'Unresolved') {
+    return SHARE_RESOLVABLE_FORMS.has(result.form);
+  }
+  return true;
+}
+
+/** How many segments beyond the parser's site path to try as subsites (BC-037). */
+const MAX_SUBSITE_DEPTH = 3;
+
+/** Asks Graph to grant the signed in user the link's permission on first use, as clicking the link would. */
+const REDEEM_HEADERS = { prefer: 'redeemSharingLink' };
 
 interface GraphSite {
   id: string;
@@ -85,9 +105,9 @@ function decodedPathOf(url: string): string {
   }
 }
 
-async function call<T>(graph: GraphClient, path: string, calls: string[]): Promise<T> {
+async function call<T>(graph: GraphClient, path: string, calls: string[], headers?: Record<string, string>): Promise<T> {
   calls.push(path.replace(/\?.*$/, ''));
-  const response = await graph.get(path);
+  const response = await graph.get(path, headers);
   if (response.status >= 200 && response.status < 300) {
     return response.body as T;
   }
@@ -190,6 +210,38 @@ function buildVerified(
   return verified;
 }
 
+/** From a driveItem returned by Graph, fetch its drive and build the Verified result. */
+async function verifyFromItem(result: ParseSuccess, item: GraphItem, graph: GraphClient, calls: string[], describe: (kind: string, library: string) => string): Promise<ValidationOutcome> {
+  const driveId = item.parentReference?.driveId;
+  if (driveId === undefined) {
+    return { ok: false, kind: 'error', message: 'Graph returned the item without its drive, so its library cannot be named.', calls };
+  }
+  const drive = await call<GraphDrive>(graph, `/drives/${driveId}?$select=id,name,webUrl`, calls);
+  const parentPath = item.parentReference?.path ?? '';
+  const afterRoot = parentPath.includes('root:') ? parentPath.slice(parentPath.indexOf('root:') + 'root:'.length) : '';
+  const relativeFolder = decodeURIComponent(afterRoot)
+    .split('/')
+    .filter((s) => s !== '');
+  const kind = item.folder !== undefined ? 'folder' : 'file';
+  const methodText = describe(kind, drive.name ?? drive.webUrl);
+  return { ok: true, verified: buildVerified(result, drive, item, relativeFolder, item.sharepointIds?.siteId, calls, methodText) };
+}
+
+/** Site paths to try: the parser's, then up to three segments deeper, so subsites resolve (BC-037). */
+export function siteCandidates(sitePath: string, path: string): string[] {
+  const after = path
+    .slice(sitePath.length)
+    .split('/')
+    .filter((s) => s !== '');
+  // The last segment is the file or the target folder; a subsite cannot be it.
+  const usable = after.slice(0, -1);
+  const candidates = [sitePath];
+  for (let depth = 1; depth <= Math.min(MAX_SUBSITE_DEPTH, usable.length); depth++) {
+    candidates.push(`${sitePath}/${usable.slice(0, depth).join('/')}`);
+  }
+  return candidates;
+}
+
 /** Derived and Inferred results: site by path, drives listed, item by path (BC-037). */
 async function validateByPath(result: ParseSuccess, graph: GraphClient, calls: string[]): Promise<ValidationOutcome> {
   const host = result.components.host.value;
@@ -198,37 +250,60 @@ async function validateByPath(result: ParseSuccess, graph: GraphClient, calls: s
   if (path === undefined) {
     return { ok: false, kind: 'unsupported', message: 'This result has no path to confirm.', calls };
   }
-  const site = await call<GraphSite>(graph, sitePath === '' ? `/sites/${host}` : `/sites/${host}:${encodeSegments(sitePath)}`, calls);
-  const drives = await call<{ value: GraphDrive[] }>(graph, `/sites/${site.id}/drives?$select=id,name,webUrl`, calls);
   const lowerPath = path.toLowerCase();
-  let drive: GraphDrive | undefined;
-  let drivePath = '';
-  for (const candidate of drives.value) {
-    const candidatePath = decodedPathOf(candidate.webUrl);
-    const lower = candidatePath.toLowerCase();
-    if ((lowerPath === lower || lowerPath.startsWith(`${lower}/`)) && candidatePath.length > drivePath.length) {
-      drive = candidate;
-      drivePath = candidatePath;
+  let librariesSeen = 0;
+  let lastSiteUrl: string | undefined;
+
+  for (const candidate of siteCandidates(sitePath, path)) {
+    let site: GraphSite;
+    try {
+      site = await call<GraphSite>(graph, candidate === '' ? `/sites/${host}` : `/sites/${host}:${encodeSegments(candidate)}`, calls);
+    } catch (error) {
+      if (error instanceof GraphError && error.kind === 'not_found') {
+        continue;
+      }
+      if (error instanceof GraphError && error.kind === 'permission' && candidate === sitePath) {
+        return await validateByPathThroughShares(result, graph, calls, error.message);
+      }
+      throw error;
     }
+    lastSiteUrl = site.webUrl;
+    const drives = await call<{ value: GraphDrive[] }>(graph, `/sites/${site.id}/drives?$select=id,name,webUrl`, calls);
+    librariesSeen += drives.value.length;
+    let drive: GraphDrive | undefined;
+    let drivePath = '';
+    for (const found of drives.value) {
+      const foundPath = decodedPathOf(found.webUrl);
+      const lower = foundPath.toLowerCase();
+      if ((lowerPath === lower || lowerPath.startsWith(`${lower}/`)) && foundPath.length > drivePath.length) {
+        drive = found;
+        drivePath = foundPath;
+      }
+    }
+    if (drive === undefined) {
+      continue;
+    }
+    const relative = path.slice(drivePath.length).replace(/^\//, '');
+    const itemPath = relative === '' ? `/drives/${drive.id}/root?${ITEM_SELECT}` : `/drives/${drive.id}/root:/${encodeSegments(relative)}?${ITEM_SELECT}`;
+    const item = await call<GraphItem>(graph, itemPath, calls);
+    const relativeFolder = relative.split('/').filter((s) => s !== '').slice(0, -1);
+    const isFolder = item.folder !== undefined;
+    const subsiteNote = candidate === sitePath ? '' : ` The site turned out to be the subsite ${candidate}.`;
+    const methodText = `Confirmed by Microsoft Graph: the site was resolved by path, its document libraries were listed and "${drive.name ?? drive.webUrl}" contains the path, and the ${
+      isFolder ? 'folder' : 'file'
+    } was fetched by path within that library.${subsiteNote}`;
+    return { ok: true, verified: buildVerified(result, drive, item, relativeFolder, site.id, calls, methodText) };
   }
-  if (drive === undefined) {
-    return {
-      ok: false,
-      kind: 'not_found',
-      message: `None of the ${drives.value.length} document libraries in ${site.webUrl} contains this path, so Graph could not find the item.`,
-      calls,
-    };
-  }
-  const relative = path.slice(drivePath.length).replace(/^\//, '');
-  const itemPath = relative === '' ? `/drives/${drive.id}/root?${ITEM_SELECT}` : `/drives/${drive.id}/root:/${encodeSegments(relative)}?${ITEM_SELECT}`;
-  const item = await call<GraphItem>(graph, itemPath, calls);
-  const relativeSegments = relative.split('/').filter((s) => s !== '');
-  const relativeFolder = relativeSegments.slice(0, -1);
-  const isFolder = item.folder !== undefined;
-  const methodText = `Confirmed by Microsoft Graph: the site was resolved by path, its document libraries were listed and "${drive.name ?? drive.webUrl}" contains the path, and the ${
-    isFolder ? 'folder' : 'file'
-  } was fetched by path within that library.`;
-  return { ok: true, verified: buildVerified(result, drive, item, isFolder ? relativeFolder : relativeFolder, site.id, calls, methodText) };
+
+  return {
+    ok: false,
+    kind: 'not_found',
+    message:
+      lastSiteUrl === undefined
+        ? 'Graph could not find a site at this path, so it could not find the item.'
+        : `None of the ${librariesSeen} document libraries in ${lastSiteUrl}${librariesSeen > 0 ? ' (or its subsites)' : ''} contains this path, so Graph could not find the item.`,
+    calls,
+  };
 }
 
 /** Encodes a sharing URL for the `/shares/{id}` endpoint: `u!` plus unpadded base64url. */
@@ -242,23 +317,36 @@ export function encodeSharingUrl(url: string): string {
   return `u!${btoa(binary).replace(/=+$/, '').replaceAll('+', '-').replaceAll('/', '_')}`;
 }
 
+/**
+ * Fallback for accounts that can read files but not enumerate sites: the
+ * shares endpoint accepts any item URL the user can open (BC-037, S2).
+ */
+async function validateByPathThroughShares(result: ParseSuccess, graph: GraphClient, calls: string[], reason: string): Promise<ValidationOutcome> {
+  const url = result.fileUrl ?? result.folderUrl;
+  if (url === undefined) {
+    return { ok: false, kind: 'permission', message: reason, calls };
+  }
+  const item = await call<GraphItem>(graph, `/shares/${encodeSharingUrl(url)}/driveItem?${ITEM_SELECT}`, calls, REDEEM_HEADERS);
+  return verifyFromItem(
+    result,
+    item,
+    graph,
+    calls,
+    (kind, library) =>
+      `Confirmed by Microsoft Graph: the account could not list the site, so the item URL was submitted to the shares endpoint, which returned the ${kind} and its library "${library}".`,
+  );
+}
+
 /** Unresolved sharing token links: the shares endpoint (BC-038). */
 async function validateByShare(result: ParseSuccess, graph: GraphClient, calls: string[]): Promise<ValidationOutcome> {
-  const item = await call<GraphItem>(graph, `/shares/${encodeSharingUrl(result.original)}/driveItem?${ITEM_SELECT}`, calls);
-  const driveId = item.parentReference?.driveId;
-  if (driveId === undefined) {
-    return { ok: false, kind: 'error', message: 'Graph returned the shared item without its drive, so its library cannot be named.', calls };
-  }
-  const drive = await call<GraphDrive>(graph, `/drives/${driveId}?$select=id,name,webUrl`, calls);
-  const parentPath = item.parentReference?.path ?? '';
-  const afterRoot = parentPath.includes('root:') ? parentPath.slice(parentPath.indexOf('root:') + 'root:'.length) : '';
-  const relativeFolder = decodeURIComponent(afterRoot)
-    .split('/')
-    .filter((s) => s !== '');
-  const methodText = `Confirmed by Microsoft Graph: the sharing link was submitted to the shares endpoint, which returned the ${
-    item.folder !== undefined ? 'folder' : 'file'
-  } and its library "${drive.name ?? drive.webUrl}".`;
-  return { ok: true, verified: buildVerified(result, drive, item, relativeFolder, item.sharepointIds?.siteId, calls, methodText) };
+  const item = await call<GraphItem>(graph, `/shares/${encodeSharingUrl(result.original)}/driveItem?${ITEM_SELECT}`, calls, REDEEM_HEADERS);
+  return verifyFromItem(
+    result,
+    item,
+    graph,
+    calls,
+    (kind, library) => `Confirmed by Microsoft Graph: the sharing link was submitted to the shares endpoint, which returned the ${kind} and its library "${library}".`,
+  );
 }
 
 /**
@@ -275,7 +363,7 @@ export async function validateResult(result: ParseSuccess, graph: GraphClient): 
       return { ok: false, kind: 'unsupported', message: 'Authenticated validation covers the global Microsoft cloud only in this version.', calls };
     }
     if (result.state === 'Unresolved') {
-      if (result.form.startsWith('sharing-token/') || result.form === 'guest-access') {
+      if (SHARE_RESOLVABLE_FORMS.has(result.form)) {
         return await validateByShare(result, graph, calls);
       }
       if (result.form === 'doc-aspx' || result.form === 'layouts-unique-id') {
