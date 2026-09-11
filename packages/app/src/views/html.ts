@@ -52,6 +52,18 @@ export function html(strings: TemplateStringsArray, ...values: unknown[]): Marku
   return new Markup(out);
 }
 
+/**
+ * A long URL as text with line break opportunities after each `/`, encoded
+ * space, `?` and `&`, so it wraps at segment boundaries rather than mid-word.
+ * <wbr> adds no characters, so selecting and copying the text is unaffected.
+ */
+export function breakableUrl(url: string): Markup {
+  const schemeEnd = url.indexOf('://');
+  const head = schemeEnd === -1 ? '' : url.slice(0, schemeEnd + 3);
+  const rest = schemeEnd === -1 ? url : url.slice(schemeEnd + 3);
+  return new Markup(escapeHtml(head) + escapeHtml(rest).replace(/(\/|%20|\?|&amp;)/g, '$1<wbr>'));
+}
+
 /** Marks a string as already safe markup. Use only for constant fragments. */
 export function raw(markup: string): Markup {
   return new Markup(markup);

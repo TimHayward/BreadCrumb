@@ -7,7 +7,7 @@ import type { Component, ConfidenceState, ParseFailure, ParseSuccess } from '@br
 import { UNRESOLVED_VALIDATABLE_FORMS, isValidatable } from '../validation/graphValidation.js';
 import type { ValidationRecord, VerifiedResult } from '../validation/types.js';
 import { formatTime } from './format.js';
-import { Markup, html } from './html.js';
+import { Markup, breakableUrl, html } from './html.js';
 
 /** Each state has a distinct symbol so it is never conveyed by colour alone (BC-028). */
 const STATE_SYMBOLS: Record<ConfidenceState, string> = {
@@ -52,7 +52,7 @@ function copyButton(value: string, label: string): Markup {
 
 function valueRow(label: string, id: string, value: string, link: boolean): Markup {
   const content = link
-    ? html`<a href="${value}" target="_blank" rel="noopener noreferrer">${value}</a>`
+    ? html`<a href="${value}" target="_blank" rel="noopener noreferrer">${breakableUrl(value)}</a>`
     : html`<code>${value}</code>`;
   return html`<div class="row">
       <dt id="${id}-label">${label}</dt>

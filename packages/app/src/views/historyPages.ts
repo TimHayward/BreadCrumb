@@ -1,7 +1,7 @@
 import { effectiveState, type ConversionRow, type HistoryFilters, type Page } from '../db/historyStore.js';
 import { filtersToQuery, hasFilters } from '../routes/filters.js';
 import { formatTime, truncate } from './format.js';
-import { html, type Markup } from './html.js';
+import { breakableUrl, html, type Markup } from './html.js';
 import { layout, type ViewContext } from './layout.js';
 import { renderFailure, renderResult, stateBadge } from './resultView.js';
 
@@ -167,7 +167,7 @@ export function renderHistoryDetailPage(options: HistoryDetailOptions): string {
       <div><dt>Converted</dt><dd><time datetime="${row.createdAt}">${formatTime(row.createdAt)}</time></dd></div>
       <div><dt>Source</dt><dd>${row.source}</dd></div>
       <div><dt>Parser version</dt><dd><code>${row.parserVersion}</code></dd></div>
-      <div><dt>Input</dt><dd><code class="wrap">${row.input}</code></dd></div>
+      <div><dt>Input</dt><dd><code class="wrap">${breakableUrl(row.input)}</code></dd></div>
     </dl>
     ${
       row.result.ok

@@ -46,6 +46,9 @@ describe('pages', () => {
       expect(body).toContain(`href="${WORKED_EXAMPLE_FOLDER_URL}" target="_blank" rel="noopener noreferrer"`);
       expect(body).toContain(`href="${WORKED_EXAMPLE_FILE_URL}" target="_blank" rel="noopener noreferrer"`);
       expect(body).toContain(`data-copy="${WORKED_EXAMPLE_PATH}"`);
+      expect(body).toContain(`data-copy="${WORKED_EXAMPLE_FOLDER_URL}"`);
+      // Link text wraps at segment and space boundaries; the href and the copied value stay exact.
+      expect(body).toContain('>https://848.sharepoint.com/<wbr>sites/<wbr>848Technical/<wbr>Projects/<wbr>Projects%20<wbr>WIP/<wbr>');
       expect(body).toMatch(/class="badge badge-derived"[^>]*>.*Derived<\/span>/s);
       expect(body).not.toContain('marker-inferred');
       expect(body).toContain('Saved to history as <a href="/history/1">');
