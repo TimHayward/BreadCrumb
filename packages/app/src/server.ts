@@ -70,9 +70,16 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     expander,
     log: { warn: (obj, msg) => app.log.warn(obj, msg) },
   });
-  const context: ViewContext = { auth: deps.config.auth };
+  const context: ViewContext = { auth: deps.config.auth, clientLog: deps.config.clientLog };
   registerHealthRoute(app, deps.db, deps.config.databasePath);
   registerApiRoutes(app, service, deps.store);
+  if (deps.config.clientLog) {
+    // Local diagnostics only (CLIENT_LOG=true): the browser reports sign in and Graph events here.
+    app.post('/api/client-log', { bodyLimit: 64 * 1024 }, async (request, reply) => {
+      request.log.info({ client: request.body }, 'client');
+      return reply.code(204).send();
+    });
+  }
   registerPageRoutes(app, service, deps.store, context);
 
   app.setErrorHandler((error: unknown, request, reply) => {

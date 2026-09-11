@@ -33,6 +33,9 @@ export function registerPageRoutes(app: FastifyInstance, service: ConversionServ
     return reply.type(HTML).send(renderConvertPage({ input: '', context }));
   });
 
+  // Reloading or bookmarking the result page asks for GET /convert; send it to the form.
+  app.get('/convert', async (_request, reply) => reply.redirect('/', 303));
+
   app.post('/convert', async (request, reply) => {
     const body = (request.body ?? {}) as Record<string, unknown>;
     const link = typeof body['link'] === 'string' ? body['link'] : '';

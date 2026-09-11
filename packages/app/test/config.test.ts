@@ -16,6 +16,7 @@ describe('loadConfig (BC-005)', () => {
       'config: LOG_REDACT_LINKS not set, using "false"',
       'config: SHORTLINK_EXPANSION_ENABLED not set, using "false"',
       'config: SHORTLINK_TIMEOUT_MS not set, using "5000"',
+      'config: CLIENT_LOG not set, using "false"',
       'config: AUTH_TENANT_ID and AUTH_CLIENT_ID not set, authenticated validation is not configured',
     ]);
   });
@@ -30,6 +31,7 @@ describe('loadConfig (BC-005)', () => {
         LOG_REDACT_LINKS: 'true',
         SHORTLINK_EXPANSION_ENABLED: 'yes',
         SHORTLINK_TIMEOUT_MS: '2500',
+        CLIENT_LOG: 'true',
         AUTH_TENANT_ID: TENANT.toUpperCase(),
         AUTH_CLIENT_ID: CLIENT,
         AUTH_SCOPES: 'Files.Read.All',
@@ -43,6 +45,7 @@ describe('loadConfig (BC-005)', () => {
       redactLinks: true,
       shortLinkExpansionEnabled: true,
       shortLinkTimeoutMs: 2500,
+      clientLog: true,
       auth: { tenantId: TENANT, clientId: CLIENT, scopes: ['Files.Read.All'] },
     });
     expect(lines).toEqual([]);

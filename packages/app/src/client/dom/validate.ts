@@ -1,27 +1,67 @@
 /**
- * Browser side of authenticated validation (BC-036, BC-037, BC-038, BC-041).
- * Bundled by esbuild into public/validate.js and loaded only when the server
- * is configured for sign in. Tokens live in MSAL's sessionStorage cache and
+ * Browser side of authenticated validation (BC-036 to BC-041). Bundled by
+ * esbuild into public/validate.js and loaded only when the server is
+ * configured for sign in. Tokens live in MSAL's sessionStorage cache and
  * never reach the server (decision D3, invariant 15).
  *
- * Token sharing links validate automatically once signed in; other results
- * keep an explicit button; the history page can validate every Unresolved
- * entry in one go.
+ * Unresolved links the validator can attempt (sharing tokens, document ids)
+ * validate automatically once signed in; other results keep an explicit
+ * button; the history page can validate every Unresolved entry in one go.
+ *
+ * Diagnostics: with `localStorage['breadcrumb:debug'] = '1'` every event is
+ * logged to the console; when the server runs with CLIENT_LOG=true the same
+ * events are posted to the server log. Tokens are never included.
  */
-import { InteractionRequiredAuthError, PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
+import { InteractionRequiredAuthError, LogLevel, PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
 import { broadcastResponseToMainFrame } from '@azure/msal-browser/redirect-bridge';
 import type { ParseSuccess } from '@breadcrumb/parser';
 import { validateResult, type GraphClient, type ValidationOutcome } from '../../validation/graphValidation.js';
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
-const DEBUG = safeStorage(() => window.localStorage.getItem('breadcrumb:debug') === '1');
+const MAX_LOGGED_BODY = 8000;
 
-function safeStorage<T>(read: () => T, fallback?: T): T | undefined {
+function safeStorage<T>(read: () => T): T | undefined {
   try {
     return read();
   } catch {
-    return fallback;
+    return undefined;
   }
+}
+
+const DEBUG = safeStorage(() => window.localStorage.getItem('breadcrumb:debug') === '1') === true;
+const CLIENT_LOG = document.body.dataset['clientLog'] === '1';
+
+/** Records a diagnostic event: console when debugging, server log when CLIENT_LOG is on. */
+function trace(event: string, detail: Record<string, unknown> = {}): void {
+  if (DEBUG || CLIENT_LOG) {
+    console.info(`[breadcrumb] ${event}`, detail);
+  }
+  if (!CLIENT_LOG) {
+    return;
+  }
+  try {
+    void fetch('/api/client-log', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ event, detail, page: window.location.pathname, popup: window.opener !== null, at: new Date().toISOString() }),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // Diagnostics must never break the page.
+  }
+}
+
+function describeError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    const e = error as Error & { errorCode?: string; subError?: string };
+    return { name: e.name, errorCode: e.errorCode, subError: e.subError, message: e.message };
+  }
+  return { message: String(error) };
+}
+
+function truncated(body: unknown): unknown {
+  const text = JSON.stringify(body);
+  return text !== undefined && text.length > MAX_LOGGED_BODY ? `${text.slice(0, MAX_LOGGED_BODY)}… (${text.length} characters)` : body;
 }
 
 function byId<T extends HTMLElement>(id: string): T | null {
@@ -36,10 +76,15 @@ function announce(text: string): void {
   }
 }
 
-interface ValidatableEntry {
-  id: number;
-  previousState: string;
-  result: ParseSuccess;
+/** A visible status line under the header for sign in progress and problems. */
+function setAuthStatus(text: string, kind: 'ok' | 'problem' = 'problem'): void {
+  const status = byId('auth-status');
+  if (status !== null) {
+    status.textContent = text;
+    status.dataset['kind'] = kind;
+    status.hidden = text === '';
+  }
+  announce(text);
 }
 
 /** True when this page is the redirect target of a sign in popup or silent iframe. */
@@ -48,22 +93,34 @@ function isAuthResponse(): boolean {
   return carries(new URLSearchParams(window.location.hash.replace(/^#/, ''))) || carries(new URLSearchParams(window.location.search));
 }
 
+interface ValidatableEntry {
+  id: number;
+  previousState: string;
+  result: ParseSuccess;
+}
+
 async function main(): Promise<void> {
   const { authTenant, authClient, authScopes } = document.body.dataset;
   if (authTenant === undefined || authClient === undefined) {
     return;
   }
+
   // MSAL 5: the sign in popup lands back on this page (the registered redirect
   // URI) and must hand the response to the opener through the redirect bridge,
   // because the Microsoft sign in page cuts the opener link.
   if (isAuthResponse()) {
+    const keys = [...new URLSearchParams(window.location.hash.replace(/^#/, '')).keys(), ...new URLSearchParams(window.location.search).keys()];
+    trace('redirect-page', { responseKeys: keys });
     try {
       await broadcastResponseToMainFrame();
+      trace('redirect-bridge-ok');
     } catch (error) {
-      document.body.prepend(`Sign in could not complete: ${error instanceof Error ? error.message : String(error)}`);
+      trace('redirect-bridge-error', describeError(error));
+      setAuthStatus(`Sign in could not complete: ${error instanceof Error ? error.message : String(error)}`);
     }
     return;
   }
+
   const scopes = (authScopes ?? '').split(/\s+/).filter((s) => s !== '');
   const msal = new PublicClientApplication({
     auth: {
@@ -72,8 +129,25 @@ async function main(): Promise<void> {
       redirectUri: `${window.location.origin}/`,
     },
     cache: { cacheLocation: 'sessionStorage' },
+    system: {
+      loggerOptions: {
+        logLevel: DEBUG || CLIENT_LOG ? LogLevel.Info : LogLevel.Error,
+        piiLoggingEnabled: false,
+        loggerCallback: (level, message) => {
+          if (DEBUG || CLIENT_LOG) {
+            trace('msal', { level: LogLevel[level], message });
+          }
+        },
+      },
+    },
   });
-  await msal.initialize();
+  try {
+    await msal.initialize();
+  } catch (error) {
+    trace('msal-initialize-error', describeError(error));
+    setAuthStatus(`Microsoft sign in could not start: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
 
   const panel = byId('auth');
   const accountLabel = byId('auth-account');
@@ -86,6 +160,13 @@ async function main(): Promise<void> {
   }
 
   const account = (): AccountInfo | null => msal.getActiveAccount() ?? msal.getAllAccounts()[0] ?? null;
+  trace('init', {
+    origin: window.location.origin,
+    accounts: msal.getAllAccounts().length,
+    validateBlocks: validateBlocks.length,
+    autoBlocks: validateBlocks.filter((b) => b.dataset['auto'] === '1').length,
+    scopes,
+  });
 
   function render(): void {
     const current = account();
@@ -108,10 +189,13 @@ async function main(): Promise<void> {
       throw new Error('Sign in first.');
     }
     try {
-      return (await msal.acquireTokenSilent({ scopes, account: current })).accessToken;
+      const result = await msal.acquireTokenSilent({ scopes, account: current });
+      trace('token-ok', { scopes: result.scopes, expiresOn: result.expiresOn?.toISOString() });
+      return result.accessToken;
     } catch (error) {
+      trace('token-silent-error', describeError(error));
       if (error instanceof InteractionRequiredAuthError) {
-        announce('Your sign in has expired. Please sign in again.');
+        setAuthStatus('Your sign in has expired or needs consent. Please sign in again.');
         const result = await msal.acquireTokenPopup({ scopes, account: current });
         msal.setActiveAccount(result.account);
         return result.accessToken;
@@ -142,9 +226,7 @@ async function main(): Promise<void> {
       } catch {
         body = null;
       }
-      if (DEBUG) {
-        console.info('[breadcrumb] graph', { method, path, requestHeaders: extraHeaders, requestBody, status: response.status, headers, body });
-      }
+      trace('graph', { method, path, requestHeaders: extraHeaders, requestBody, status: response.status, requestId: headers['request-id'], body: truncated(body) });
       return { status: response.status, headers, body };
     };
     return {
@@ -153,10 +235,14 @@ async function main(): Promise<void> {
     };
   }
 
+  type EntryOutcome = ValidationOutcome | { ok: false; kind: 'server'; message: string; calls: string[] };
+
   /** Validates one entry with Graph and records it on the server. */
-  async function validateEntry(entry: ValidatableEntry): Promise<ValidationOutcome | { ok: false; kind: 'server'; message: string; calls: string[] }> {
+  async function validateEntry(entry: ValidatableEntry): Promise<EntryOutcome> {
+    trace('validate-start', { id: entry.id, form: entry.result.form, state: entry.result.state });
     const outcome = await validateResult(entry.result, graphClient(await acquireToken()));
     if (!outcome.ok) {
+      trace('validate-outcome', { id: entry.id, ok: false, kind: outcome.kind, message: outcome.message, calls: outcome.calls });
       return outcome;
     }
     const response = await fetch(`/api/history/${entry.id}/validate`, {
@@ -166,8 +252,10 @@ async function main(): Promise<void> {
     });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { message?: string };
+      trace('validate-record-error', { id: entry.id, status: response.status, message: body.message });
       return { ok: false, kind: 'server', message: `Graph confirmed the item but the server did not record it: ${body.message ?? response.status}.`, calls: outcome.verified.calls };
     }
+    trace('validate-outcome', { id: entry.id, ok: true, path: outcome.verified.path, method: outcome.verified.methodText, calls: outcome.verified.calls });
     return outcome;
   }
 
@@ -187,7 +275,9 @@ async function main(): Promise<void> {
     }, 1000);
   }
 
-  // Per result blocks: explicit button, or automatic for token links.
+  const runners = new Map<HTMLElement, () => Promise<void>>();
+
+  // Per result blocks: explicit button, or automatic for links the validator can attempt.
   for (const block of validateBlocks) {
     const button = block.querySelector<HTMLButtonElement>('.validate-button');
     const status = block.querySelector<HTMLElement>('.validate-status');
@@ -206,10 +296,11 @@ async function main(): Promise<void> {
     const run = async (): Promise<void> => {
       button.disabled = true;
       status.textContent = 'Asking Microsoft Graph…';
-      let outcome: Awaited<ReturnType<typeof validateEntry>>;
+      let outcome: EntryOutcome;
       try {
         outcome = await validateEntry(entry);
       } catch (error) {
+        trace('validate-error', { id, ...describeError(error) });
         status.textContent = `Could not get a sign in token: ${error instanceof Error ? error.message : String(error)}. The result is unchanged.`;
         button.disabled = false;
         return;
@@ -226,13 +317,30 @@ async function main(): Promise<void> {
       status.textContent = 'Verified. Reloading…';
       window.location.href = `/history/${id}?validated=1`;
     };
-
+    runners.set(block, run);
     button.addEventListener('click', () => void run());
+  }
 
-    const autoKey = `breadcrumb:auto:${id}`;
-    if (block.dataset['auto'] === '1' && account() !== null && safeStorage(() => window.sessionStorage.getItem(autoKey)) !== '1') {
-      safeStorage(() => window.sessionStorage.setItem(autoKey, '1'));
-      status.textContent = 'Resolving this link with Microsoft Graph…';
+  /** Starts automatic validation for blocks that ask for it, once per entry per session. */
+  function autoValidate(): void {
+    if (account() === null) {
+      if (runners.size > 0) trace('auto-skip', { reason: 'not signed in' });
+      return;
+    }
+    for (const [block, run] of runners) {
+      if (block.dataset['auto'] !== '1') {
+        continue;
+      }
+      const id = block.dataset['validateId'];
+      const key = `breadcrumb:auto:${id}`;
+      if (safeStorage(() => window.sessionStorage.getItem(key)) === '1') {
+        trace('auto-skip', { id, reason: 'already attempted this session; use the button to retry' });
+        continue;
+      }
+      safeStorage(() => window.sessionStorage.setItem(key, '1'));
+      trace('auto-start', { id });
+      const status = block.querySelector<HTMLElement>('.validate-status');
+      if (status !== null) status.textContent = 'Resolving this link with Microsoft Graph…';
       void run();
     }
   }
@@ -254,6 +362,7 @@ async function main(): Promise<void> {
           button.disabled = false;
           return;
         }
+        trace('validate-all-start', { count: entries.length });
         if (entries.length === 0) {
           status.textContent = 'Nothing to validate: no Unresolved sharing or document links in history.';
           button.disabled = false;
@@ -263,10 +372,11 @@ async function main(): Promise<void> {
         let failed = 0;
         for (const [index, entry] of entries.entries()) {
           status.textContent = `Validating ${index + 1} of ${entries.length} (${resolved} resolved, ${failed} not resolved)…`;
-          let outcome: Awaited<ReturnType<typeof validateEntry>>;
+          let outcome: EntryOutcome;
           try {
             outcome = await validateEntry(entry);
           } catch (error) {
+            trace('validate-error', { id: entry.id, ...describeError(error) });
             status.textContent = `Stopped: ${error instanceof Error ? error.message : String(error)}. ${resolved} resolved so far.`;
             button.disabled = false;
             return;
@@ -287,6 +397,7 @@ async function main(): Promise<void> {
             }
           }
         }
+        trace('validate-all-done', { resolved, failed });
         status.textContent = `Done: ${resolved} resolved, ${failed} could not be resolved. Reloading…`;
         window.setTimeout(() => window.location.reload(), 800);
       });
@@ -294,19 +405,21 @@ async function main(): Promise<void> {
   }
 
   signIn.addEventListener('click', async () => {
+    trace('signin-click');
+    setAuthStatus('Signing in: complete the Microsoft window that opened…', 'ok');
     try {
       const result = await msal.loginPopup({ scopes, prompt: 'select_account' });
       msal.setActiveAccount(result.account);
+      trace('signin-ok', { scopes: result.scopes, tenant: result.tenantId });
+      setAuthStatus('');
     } catch (error) {
-      announce(`Sign in did not complete: ${error instanceof Error ? error.message : String(error)}`);
+      trace('signin-error', describeError(error));
+      const detail = describeError(error);
+      setAuthStatus(`Sign in did not complete: ${String(detail['message'] ?? detail['errorCode'] ?? 'unknown error')}`);
     }
     render();
-    // A page opened before signing in may hold a token link waiting to be resolved.
-    for (const block of validateBlocks) {
-      if (block.dataset['auto'] === '1' && account() !== null) {
-        block.querySelector<HTMLButtonElement>('.validate-button')?.click();
-      }
-    }
+    // A page opened before signing in may hold links waiting to be resolved.
+    autoValidate();
   });
 
   signOut.addEventListener('click', async () => {
@@ -314,10 +427,15 @@ async function main(): Promise<void> {
     await msal.clearCache();
     msal.setActiveAccount(null);
     render();
-    announce('Signed out. Validation controls are hidden until you sign in again.');
+    trace('signout');
+    setAuthStatus('Signed out. Validation controls are hidden until you sign in again.', 'ok');
   });
 
   render();
+  autoValidate();
 }
 
-void main();
+void main().catch((error: unknown) => {
+  trace('main-error', describeError(error));
+  setAuthStatus(`The sign in script failed: ${error instanceof Error ? error.message : String(error)}`);
+});

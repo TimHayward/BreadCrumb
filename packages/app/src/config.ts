@@ -28,6 +28,12 @@ export interface AppConfig {
   shortLinkExpansionEnabled: boolean;
   /** Timeout for one short link expansion request, in milliseconds. */
   shortLinkTimeoutMs: number;
+  /**
+   * Diagnostic switch for local sign in runs: the browser posts its sign in
+   * and Graph events (never tokens) to the server log. Off by default because
+   * the events carry file names from the tenant.
+   */
+  clientLog: boolean;
   /** Set only when both AUTH_TENANT_ID and AUTH_CLIENT_ID are present. */
   auth?: AuthConfig;
 }
@@ -41,6 +47,7 @@ export const DEFAULTS: Readonly<Omit<AppConfig, 'auth'>> = {
   redactLinks: false,
   shortLinkExpansionEnabled: false,
   shortLinkTimeoutMs: 5000,
+  clientLog: false,
 };
 
 export class ConfigError extends Error {
@@ -143,6 +150,7 @@ export function loadConfig(env: Env = process.env, log: (line: string) => void =
       log,
     ),
     shortLinkTimeoutMs: read(env, 'SHORTLINK_TIMEOUT_MS', DEFAULTS.shortLinkTimeoutMs, parseInteger('SHORTLINK_TIMEOUT_MS', 100, 60000), log),
+    clientLog: read(env, 'CLIENT_LOG', DEFAULTS.clientLog, parseBoolean('CLIENT_LOG'), log),
   };
   const auth = parseAuth(env, log);
   if (auth !== undefined) {

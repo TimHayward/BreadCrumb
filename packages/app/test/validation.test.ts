@@ -75,6 +75,33 @@ describe('sign in control (BC-036)', () => {
   });
 });
 
+describe('local sign in diagnostics (CLIENT_LOG)', () => {
+  it('accepts client events and flags the page only when enabled', async () => {
+    const off = await createTestServer({ config: { auth: AUTH } });
+    expect((await off.app.inject({ method: 'POST', url: '/api/client-log', payload: { event: 'x' } })).statusCode).toBe(404);
+    expect((await off.app.inject({ method: 'GET', url: '/' })).body).not.toContain('data-client-log');
+    await off.app.close();
+    off.db.close();
+
+    const on = await createTestServer({ config: { auth: AUTH, clientLog: true } });
+    expect((await on.app.inject({ method: 'POST', url: '/api/client-log', payload: { event: 'signin-click' } })).statusCode).toBe(204);
+    const page = (await on.app.inject({ method: 'GET', url: '/' })).body;
+    expect(page).toContain('data-client-log="1"');
+    expect(page).toContain('<p id="auth-status" class="auth-status" role="status" aria-live="polite" hidden></p>');
+    await on.app.close();
+    on.db.close();
+  });
+
+  it('redirects a reload of the result page (GET /convert) to the form', async () => {
+    const ctx = await createTestServer();
+    const response = await ctx.app.inject({ method: 'GET', url: '/convert' });
+    expect(response.statusCode).toBe(303);
+    expect(response.headers['location']).toBe('/');
+    await ctx.app.close();
+    ctx.db.close();
+  });
+});
+
 describe('GET /api/history/validatable (BC-038 validate all)', () => {
   it('lists Unresolved entries the browser can resolve, newest first, skipping validated rows', async () => {
     const ctx = await createTestServer({ config: { auth: AUTH } });

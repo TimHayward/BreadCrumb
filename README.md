@@ -45,6 +45,7 @@ Every setting is an environment variable with a documented default. Nothing is r
 | `SHORTLINK_TIMEOUT_MS` | `5000` | No | Timeout for one short link request. |
 | `AUTH_TENANT_ID` | unset | Only with `AUTH_CLIENT_ID` | Entra tenant id (GUID) for optional Microsoft sign in. When both auth variables are unset the sign in control is hidden and a log line says validation is not configured. Setting one without the other stops the process. |
 | `AUTH_CLIENT_ID` | unset | Only with `AUTH_TENANT_ID` | Application (client) id of the public client registration described under "Authenticated validation". |
+| `CLIENT_LOG` | `false` | No | Local diagnostics for sign in runs. When `true` (and auth is configured), the browser posts its sign in, MSAL and Graph events to the server log. Tokens are never sent, but events include file names and paths from the tenant, so leave it off on a shared host. |
 | `AUTH_SCOPES` | `Files.Read.All Sites.Read.All` | No | Delegated Graph permissions requested at sign in, space separated. Spike S2 may narrow this. |
 | `BREADCRUMB_BIND` | `127.0.0.1` | No | Compose only. Host interface the published port binds to. |
 | `BREADCRUMB_PUBLISH_PORT` | `3000` | No | Compose only. Host port mapped to the container's `PORT`. |
