@@ -13,21 +13,44 @@ type Route = GraphResponse | ((path: string) => GraphResponse);
 interface Recorded {
   path: string;
   headers: Record<string, string> | undefined;
+  body?: unknown;
 }
 
-function graph(routes: Record<string, Route>): GraphClient & { calls: Recorded[] } {
+const notFound = (key: string): GraphResponse => ({ status: 404, headers: {}, body: { error: { code: 'itemNotFound', message: `no route for ${key}` } } });
+
+/**
+ * A replaying Graph client. GET routes are keyed by path without the query;
+ * search routes are keyed by the KQL query string sent to POST /search/query.
+ */
+function graph(routes: Record<string, Route>, searches?: Record<string, GraphResponse>): GraphClient & { calls: Recorded[] } {
   const calls: Recorded[] = [];
-  return {
+  const client: GraphClient & { calls: Recorded[] } = {
     calls,
     async get(path, headers) {
       calls.push({ path, headers });
       const key = path.replace(/\?.*$/, '');
       const route = routes[key];
       if (route === undefined) {
-        return { status: 404, headers: {}, body: { error: { code: 'itemNotFound', message: `no route for ${key}` } } };
+        return notFound(key);
       }
       return typeof route === 'function' ? route(path) : route;
     },
+  };
+  if (searches !== undefined) {
+    client.post = async (path, body, headers) => {
+      calls.push({ path: `POST ${path}`, headers, body });
+      const query = (body as { requests: Array<{ query: { queryString: string } }> }).requests[0]?.query.queryString ?? '';
+      return searches[query] ?? { status: 200, headers: {}, body: { value: [{ hitsContainers: [{ hits: [] }] }] } };
+    };
+  }
+  return client;
+}
+
+function searchHits(...hits: Array<{ id: string; driveId: string }>): GraphResponse {
+  return {
+    status: 200,
+    headers: {},
+    body: { value: [{ hitsContainers: [{ hits: hits.map((h) => ({ resource: { id: h.id, parentReference: { driveId: h.driveId } } })) }] }] },
   };
 }
 
@@ -263,12 +286,107 @@ describe('validateResult by share (BC-038)', () => {
     }
   });
 
-  it('isValidatable admits token forms, Derived and Inferred, but not doc ids, consumer links or other clouds', () => {
+  it('fetches the item again when the shares response omits its folder, instead of guessing the library root', async () => {
+    const result = parseLink(link) as ParseSuccess;
+    const withoutPath = { ...FILE_ITEM, webUrl: `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${UNIQUE}%7D`, parentReference: { driveId: 'b!lib' } };
+    const client = graph({
+      [`/shares/${encodeSharingUrl(link)}/driveItem`]: ok(withoutPath),
+      '/drives/b!lib': ok(LIB_DRIVE),
+      '/drives/b!lib/items/01ITEM': ok({ id: '01ITEM', name: 'Report.pdf', parentReference: { driveId: 'b!lib', path: '/drives/b!lib/root:/Folder%20One' } }),
+    });
+    const outcome = await validateResult(result, client);
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) expect(outcome.verified.path).toBe('/sites/SiteA/Lib/Folder One/Report.pdf');
+  });
+
+  it('refuses to claim a path when Graph never says which folder the item is in', async () => {
+    const result = parseLink(link) as ParseSuccess;
+    const withoutPath = { ...FILE_ITEM, webUrl: `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${UNIQUE}%7D`, parentReference: { driveId: 'b!lib' } };
+    const outcome = await validateResult(result, graph({
+      [`/shares/${encodeSharingUrl(link)}/driveItem`]: ok(withoutPath),
+      '/drives/b!lib': ok(LIB_DRIVE),
+      '/drives/b!lib/items/01ITEM': ok({ id: '01ITEM', name: 'Report.pdf', parentReference: { driveId: 'b!lib' } }),
+    }));
+    expect(outcome).toMatchObject({ ok: false, kind: 'error' });
+    if (!outcome.ok) expect(outcome.message).toContain('did not say which folder');
+  });
+
+  it('isValidatable admits token and document id forms, Derived and Inferred, but not consumer links or other clouds', () => {
     expect(isValidatable(parseLink(link) as ParseSuccess)).toBe(true);
     expect(isValidatable(parseLink('https://contoso.sharepoint.com/sites/SiteA/Lib/x.pdf') as ParseSuccess)).toBe(true);
-    expect(isValidatable(parseLink('https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%7D') as ParseSuccess)).toBe(false);
+    expect(isValidatable(parseLink('https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%7D') as ParseSuccess)).toBe(true);
     expect(isValidatable(parseLink('https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123') as ParseSuccess)).toBe(false);
     expect(isValidatable(parseLink('https://contoso.sharepoint.us/sites/SiteA/Lib/x.pdf') as ParseSuccess)).toBe(false);
+  });
+});
+
+describe('validateResult by document id (BC-039, spike S5)', () => {
+  const GUID = UNIQUE.toUpperCase();
+  const docLink = `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${GUID}%7D&file=Report.pdf&action=edit&mobileredirect=true&DefaultItemOpen=1`;
+  const doc = () => parseLink(docLink) as ParseSuccess;
+
+  it('resolves through the shares endpoint when Graph accepts the Doc.aspx link itself', async () => {
+    const client = graph({
+      [`/shares/${encodeSharingUrl(docLink)}/driveItem`]: ok(FILE_ITEM),
+      '/drives/b!lib': ok(LIB_DRIVE),
+    });
+    const outcome = await validateResult(doc(), client);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.verified.path).toBe('/sites/SiteA/Lib/Folder One/Report.pdf');
+    expect(outcome.verified.methodText).toContain("unique id matches the link's document id");
+    expect(outcome.verified.identifierCheck).toEqual({ linkValue: GUID, graphValue: UNIQUE, matches: true });
+    expect(outcome.verified.corrections).toEqual({});
+  });
+
+  it('falls back to searching for the unique id and fetches the hit to confirm it', async () => {
+    const client = graph(
+      { '/drives/b!lib/items/01ITEM': ok(FILE_ITEM), '/drives/b!lib': ok(LIB_DRIVE) },
+      { [`UniqueId:${GUID}`]: searchHits({ id: '01ITEM', driveId: 'b!lib' }) },
+    );
+    const outcome = await validateResult(doc(), client);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.verified.methodText).toContain("a search for the link's document id found the file");
+    expect(outcome.verified.calls).toEqual([
+      `/shares/${encodeSharingUrl(docLink)}/driveItem`,
+      'POST /search/query',
+      '/drives/b!lib/items/01ITEM',
+      '/drives/b!lib',
+    ]);
+  });
+
+  it('ignores hits with a different unique id and then searches by file name within the site', async () => {
+    const other = { ...FILE_ITEM, id: '01OTHER', sharepointIds: { listItemUniqueId: '99999999-9999-4999-8999-999999999999' } };
+    const client = graph(
+      { '/drives/b!lib/items/01OTHER': ok(other), '/drives/b!lib/items/01ITEM': ok(FILE_ITEM), '/drives/b!lib': ok(LIB_DRIVE) },
+      {
+        [`UniqueId:${GUID}`]: searchHits({ id: '01OTHER', driveId: 'b!lib' }),
+        'filename:"Report.pdf" path:"https://contoso.sharepoint.com/sites/SiteA"': searchHits({ id: '01OTHER', driveId: 'b!lib' }, { id: '01ITEM', driveId: 'b!lib' }),
+      },
+    );
+    const outcome = await validateResult(doc(), client);
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) expect(outcome.verified.methodText).toContain('a search for the file name in /sites/SiteA found the file');
+  });
+
+  it('stays Unresolved with every attempt named when nothing matches', async () => {
+    const outcome = await validateResult(doc(), graph({}, {}));
+    expect(outcome).toMatchObject({ ok: false, kind: 'not_found' });
+    if (!outcome.ok) {
+      expect(outcome.message).toContain(`Graph could not find document ${GUID}`);
+      expect(outcome.message).toContain('the shares endpoint answered');
+      expect(outcome.message).toContain("search for the link's document id found 0 items");
+      expect(outcome.message).toContain('search for the file name in /sites/SiteA found 0 items');
+    }
+  });
+
+  it('works without search when the client cannot POST, and stops at once on an expired token', async () => {
+    expect(await validateResult(doc(), graph({}))).toMatchObject({ ok: false, kind: 'not_found' });
+    const expired = await validateResult(doc(), graph({
+      [`/shares/${encodeSharingUrl(docLink)}/driveItem`]: { status: 401, headers: {}, body: { error: { code: 'InvalidAuthenticationToken', message: 'expired' } } },
+    }, {}));
+    expect(expired).toMatchObject({ ok: false, kind: 'auth' });
   });
 });
 
@@ -291,8 +409,6 @@ describe('Graph failures are reported honestly (BC-041)', () => {
   });
 
   it('unsupported cases say why', async () => {
-    const doc = parseLink('https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%7D&file=Plan.docx') as ParseSuccess;
-    expect(await validateResult(doc, graph({}))).toMatchObject({ ok: false, kind: 'unsupported' });
     const sovereign = parseLink('https://contoso.sharepoint.us/sites/SiteA/Lib/Report.pdf') as ParseSuccess;
     expect(await validateResult(sovereign, graph({}))).toMatchObject({ ok: false, kind: 'unsupported' });
     const consumer = parseLink('https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123') as ParseSuccess;

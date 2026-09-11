@@ -1,9 +1,9 @@
 /**
  * Validates a best effort parser result against Microsoft Graph (BC-037,
- * BC-038, BC-041). Pure: it takes a GraphClient and returns an outcome, so it
- * runs unchanged in the browser bundle and in Node tests with recorded
- * responses. Graph is called from the browser (decision D3), never from the
- * server.
+ * BC-038, BC-039, BC-041). Pure: it takes a GraphClient and returns an
+ * outcome, so it runs unchanged in the browser bundle and in Node tests with
+ * recorded responses. Graph is called from the browser (decision D3), never
+ * from the server.
  */
 import type { ParseSuccess } from '@breadcrumb/parser';
 import type { Correction, VerifiedComponents, VerifiedResult } from './types.js';
@@ -14,9 +14,11 @@ export interface GraphResponse {
   body: unknown;
 }
 
-/** Performs a GET against Graph v1.0; `path` starts with `/` and excludes the host. */
+/** Talks to Graph v1.0; `path` starts with `/` and excludes the host. */
 export interface GraphClient {
   get(path: string, headers?: Record<string, string>): Promise<GraphResponse>;
+  /** Needed only for search (document id links). */
+  post?(path: string, body: unknown, headers?: Record<string, string>): Promise<GraphResponse>;
 }
 
 export type ValidationFailureKind = 'not_found' | 'permission' | 'throttled' | 'auth' | 'unsupported' | 'error';
@@ -28,8 +30,14 @@ export type ValidationOutcome =
 /** Delegated permissions requested at sign in. Spike S2 may narrow these. */
 export const DEFAULT_SCOPES = ['Files.Read.All', 'Sites.Read.All'];
 
-/** Forms the validator can resolve from an Unresolved state, through the shares endpoint. */
+/** Unresolved forms resolved through the shares endpoint (BC-038). */
 export const SHARE_RESOLVABLE_FORMS: ReadonlySet<string> = new Set(['sharing-token/s', 'sharing-token/g', 'sharing-token/t', 'guest-access']);
+
+/** Unresolved forms that carry only a document id (BC-039). */
+export const DOCUMENT_ID_FORMS: ReadonlySet<string> = new Set(['doc-aspx', 'layouts-unique-id']);
+
+/** Every Unresolved form the validator attempts. */
+export const UNRESOLVED_VALIDATABLE_FORMS: ReadonlySet<string> = new Set([...SHARE_RESOLVABLE_FORMS, ...DOCUMENT_ID_FORMS]);
 
 /** True when the validator can do something with this result. */
 export function isValidatable(result: Pick<ParseSuccess, 'state' | 'form' | 'cloud'>): boolean {
@@ -37,13 +45,16 @@ export function isValidatable(result: Pick<ParseSuccess, 'state' | 'form' | 'clo
     return false;
   }
   if (result.state === 'Unresolved') {
-    return SHARE_RESOLVABLE_FORMS.has(result.form);
+    return UNRESOLVED_VALIDATABLE_FORMS.has(result.form);
   }
   return true;
 }
 
 /** How many segments beyond the parser's site path to try as subsites (BC-037). */
 const MAX_SUBSITE_DEPTH = 3;
+
+/** Search hits checked per query before giving up on it. */
+const MAX_SEARCH_HITS = 10;
 
 /** Asks Graph to grant the signed in user the link's permission on first use, as clicking the link would. */
 const REDEEM_HEADERS = { prefer: 'redeemSharingLink' };
@@ -69,6 +80,10 @@ interface GraphItem {
   file?: unknown;
 }
 
+interface SearchResponse {
+  value?: Array<{ hitsContainers?: Array<{ hits?: Array<{ resource?: { id?: string; parentReference?: { driveId?: string } } }> }> }>;
+}
+
 const ITEM_SELECT = '$select=id,name,webUrl,parentReference,sharepointIds,folder,file';
 
 class GraphError extends Error {
@@ -80,6 +95,11 @@ class GraphError extends Error {
     this.kind = kind;
     this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+/** Errors that stop a validation outright rather than letting it try another route. */
+function isFatal(error: unknown): boolean {
+  return !(error instanceof GraphError) || error.kind === 'auth' || error.kind === 'throttled';
 }
 
 function errorMessage(body: unknown): string | undefined {
@@ -105,9 +125,7 @@ function decodedPathOf(url: string): string {
   }
 }
 
-async function call<T>(graph: GraphClient, path: string, calls: string[], headers?: Record<string, string>): Promise<T> {
-  calls.push(path.replace(/\?.*$/, ''));
-  const response = await graph.get(path, headers);
+function toResult<T>(response: GraphResponse): T {
   if (response.status >= 200 && response.status < 300) {
     return response.body as T;
   }
@@ -132,12 +150,40 @@ async function call<T>(graph: GraphClient, path: string, calls: string[], header
   throw new GraphError('error', `Graph answered ${response.status}${detail ? ` (${detail})` : ''}.`);
 }
 
+async function call<T>(graph: GraphClient, path: string, calls: string[], headers?: Record<string, string>): Promise<T> {
+  calls.push(path.replace(/\?.*$/, ''));
+  return toResult<T>(await graph.get(path, headers));
+}
+
+async function callPost<T>(graph: GraphClient, path: string, body: unknown, calls: string[]): Promise<T> {
+  if (graph.post === undefined) {
+    throw new GraphError('unsupported', 'This Graph client cannot send POST requests.');
+  }
+  calls.push(`POST ${path}`);
+  return toResult<T>(await graph.post(path, body));
+}
+
 function normaliseId(value: string): string {
   return value.toLowerCase().replace(/[^0-9a-f]/g, '');
 }
 
+function sameId(a: string | undefined, b: string | undefined): boolean {
+  return a !== undefined && b !== undefined && normaliseId(a) === normaliseId(b);
+}
+
 function correction(was: string | undefined, now: string): Correction | undefined {
   return was !== undefined && was !== now ? { was, now } : undefined;
+}
+
+/** The link's own document id, if it carries one: `d` on sharing links, or a GUID on Doc.aspx and UniqueId links. */
+function linkDocumentId(result: ParseSuccess): { linkValue: string; normalised: string } | undefined {
+  const d = result.identifiers.find((i) => i.kind === 'd');
+  if (d !== undefined) {
+    // `d` is a type letter followed by the GUID without dashes, e.g. w1a2b…
+    return { linkValue: d.value, normalised: normaliseId(d.value.replace(/^[a-z]/i, '')) };
+  }
+  const guid = result.identifiers.find((i) => i.kind === 'sourcedoc' || i.kind === 'uniqueId');
+  return guid === undefined ? undefined : { linkValue: guid.value, normalised: normaliseId(guid.value) };
 }
 
 function buildVerified(
@@ -201,30 +247,79 @@ function buildVerified(
   if (!isFolder) {
     verified.fileUrl = `https://${host}${encodeSegments(path)}`;
   }
-  const d = result.identifiers.find((i) => i.kind === 'd');
+  const linkId = linkDocumentId(result);
   const unique = item.sharepointIds?.listItemUniqueId;
-  if (d !== undefined && unique !== undefined) {
-    const linkId = normaliseId(d.value.replace(/^[a-z]/i, ''));
-    verified.identifierCheck = { linkValue: d.value, graphValue: unique, matches: linkId === normaliseId(unique) };
+  if (linkId !== undefined && unique !== undefined) {
+    verified.identifierCheck = { linkValue: linkId.linkValue, graphValue: unique, matches: linkId.normalised === normaliseId(unique) };
   }
   return verified;
 }
 
+/**
+ * The item's folder chain below its library. Graph often omits
+ * `parentReference.path` on items reached through the shares endpoint, so
+ * the item is fetched again by drive and id; failing that, the folder is read
+ * from `webUrl` when it lies under the library. If none of these work the
+ * validation fails rather than guessing the library root.
+ */
+async function folderChain(item: GraphItem, drive: GraphDrive, graph: GraphClient, calls: string[]): Promise<string[] | undefined> {
+  const fromPath = (path: string | undefined): string[] | undefined => {
+    if (path === undefined || !path.includes('root:')) {
+      return undefined;
+    }
+    return decodeURIComponent(path.slice(path.indexOf('root:') + 'root:'.length))
+      .split('/')
+      .filter((s) => s !== '');
+  };
+  const direct = fromPath(item.parentReference?.path);
+  if (direct !== undefined) {
+    return direct;
+  }
+  try {
+    const again = await call<GraphItem>(graph, `/drives/${drive.id}/items/${item.id}?$select=id,name,parentReference`, calls);
+    const refetched = fromPath(again.parentReference?.path);
+    if (refetched !== undefined) {
+      return refetched;
+    }
+  } catch (error) {
+    if (isFatal(error)) throw error;
+  }
+  if (item.webUrl !== undefined) {
+    const itemPath = decodedPathOf(item.webUrl);
+    const drivePath = decodedPathOf(drive.webUrl);
+    if (itemPath.toLowerCase().startsWith(`${drivePath.toLowerCase()}/`)) {
+      const segments = itemPath.slice(drivePath.length).split('/').filter((s) => s !== '');
+      return segments.slice(0, -1);
+    }
+  }
+  return undefined;
+}
+
 /** From a driveItem returned by Graph, fetch its drive and build the Verified result. */
-async function verifyFromItem(result: ParseSuccess, item: GraphItem, graph: GraphClient, calls: string[], describe: (kind: string, library: string) => string): Promise<ValidationOutcome> {
+async function verifyFromItem(
+  result: ParseSuccess,
+  item: GraphItem,
+  graph: GraphClient,
+  calls: string[],
+  describe: (kind: string, library: string) => string,
+): Promise<ValidationOutcome> {
   const driveId = item.parentReference?.driveId;
   if (driveId === undefined) {
     return { ok: false, kind: 'error', message: 'Graph returned the item without its drive, so its library cannot be named.', calls };
   }
   const drive = await call<GraphDrive>(graph, `/drives/${driveId}?$select=id,name,webUrl`, calls);
-  const parentPath = item.parentReference?.path ?? '';
-  const afterRoot = parentPath.includes('root:') ? parentPath.slice(parentPath.indexOf('root:') + 'root:'.length) : '';
-  const relativeFolder = decodeURIComponent(afterRoot)
-    .split('/')
-    .filter((s) => s !== '');
+  const relativeFolder = await folderChain(item, drive, graph, calls);
+  if (relativeFolder === undefined) {
+    return {
+      ok: false,
+      kind: 'error',
+      message: `Graph found "${item.name}" in library "${drive.name ?? drive.webUrl}" but did not say which folder it is in, so the path is left unconfirmed.`,
+      calls,
+    };
+  }
   const kind = item.folder !== undefined ? 'folder' : 'file';
   const methodText = describe(kind, drive.name ?? drive.webUrl);
-  return { ok: true, verified: buildVerified(result, drive, item, relativeFolder, item.sharepointIds?.siteId, calls, methodText) };
+  return { ok: true, verified: buildVerified(result, drive, item, relativeFolder, item.sharepointIds?.siteId ?? item.parentReference?.siteId, calls, methodText) };
 }
 
 /** Site paths to try: the parser's, then up to three segments deeper, so subsites resolve (BC-037). */
@@ -350,6 +445,105 @@ async function validateByShare(result: ParseSuccess, graph: GraphClient, calls: 
 }
 
 /**
+ * Doc.aspx and UniqueId links (BC-039, spike S5): the link names a document
+ * only by its unique id. Routes tried in order, and a candidate counts only
+ * when its list item unique id equals the link's:
+ *   1. the link itself through the shares endpoint;
+ *   2. a search for the unique id;
+ *   3. a search for the file name within the site, when the link names the file.
+ */
+async function validateByDocumentId(result: ParseSuccess, graph: GraphClient, calls: string[]): Promise<ValidationOutcome> {
+  const linkId = linkDocumentId(result);
+  if (linkId === undefined) {
+    return { ok: false, kind: 'unsupported', message: 'The link carries no document id to look up.', calls };
+  }
+  const guid = linkId.linkValue;
+  const host = result.components.host.value;
+  const sitePath = result.components.sitePath?.value ?? '';
+  const fileName = result.components.fileName?.value;
+  const attempts: string[] = [];
+  let lastKind: ValidationFailureKind = 'not_found';
+
+  try {
+    const item = await call<GraphItem>(graph, `/shares/${encodeSharingUrl(result.original)}/driveItem?${ITEM_SELECT}`, calls, REDEEM_HEADERS);
+    const unique = item.sharepointIds?.listItemUniqueId;
+    if (unique === undefined || normaliseId(unique) === linkId.normalised) {
+      return verifyFromItem(
+        result,
+        item,
+        graph,
+        calls,
+        (kind, library) =>
+          `Confirmed by Microsoft Graph: the link was submitted to the shares endpoint, which returned the ${kind} and its library "${library}"${
+            unique === undefined ? '' : ", and its unique id matches the link's document id"
+          }.`,
+      );
+    }
+    attempts.push('the shares endpoint returned a different document');
+  } catch (error) {
+    if (isFatal(error)) throw error;
+    const e = error as GraphError;
+    lastKind = e.kind;
+    attempts.push(`the shares endpoint answered: ${e.message}`);
+  }
+
+  if (graph.post === undefined) {
+    return { ok: false, kind: lastKind, message: `Graph could not resolve document ${guid}: ${attempts.join('; ')}.`, calls };
+  }
+
+  const queries: Array<{ query: string; label: string }> = [{ query: `UniqueId:${guid}`, label: "the link's document id" }];
+  if (fileName !== undefined) {
+    queries.push({ query: `filename:"${fileName}" path:"https://${host}${sitePath}"`, label: `the file name in ${sitePath === '' ? 'the root site' : sitePath}` });
+  }
+
+  for (const { query, label } of queries) {
+    let response: SearchResponse;
+    try {
+      response = await callPost<SearchResponse>(
+        graph,
+        '/search/query',
+        { requests: [{ entityTypes: ['driveItem'], query: { queryString: query }, from: 0, size: MAX_SEARCH_HITS }] },
+        calls,
+      );
+    } catch (error) {
+      if (isFatal(error)) throw error;
+      const e = error as GraphError;
+      lastKind = e.kind === 'not_found' ? lastKind : e.kind;
+      attempts.push(`search for ${label} answered: ${e.message}`);
+      continue;
+    }
+    const hits = (response.value ?? []).flatMap((v) => v.hitsContainers ?? []).flatMap((c) => c.hits ?? []).slice(0, MAX_SEARCH_HITS);
+    for (const hit of hits) {
+      const id = hit.resource?.id;
+      const driveId = hit.resource?.parentReference?.driveId;
+      if (id === undefined || driveId === undefined) {
+        continue;
+      }
+      let item: GraphItem;
+      try {
+        item = await call<GraphItem>(graph, `/drives/${driveId}/items/${id}?${ITEM_SELECT}`, calls);
+      } catch (error) {
+        if (isFatal(error)) throw error;
+        continue;
+      }
+      if (sameId(item.sharepointIds?.listItemUniqueId, guid)) {
+        return verifyFromItem(
+          result,
+          item,
+          graph,
+          calls,
+          (kind, library) =>
+            `Confirmed by Microsoft Graph: a search for ${label} found the ${kind} in library "${library}", and its unique id matches the link's document id.`,
+        );
+      }
+    }
+    attempts.push(`search for ${label} found ${hits.length} ${hits.length === 1 ? 'item' : 'items'}, none with this document id`);
+  }
+
+  return { ok: false, kind: lastKind === 'permission' ? 'permission' : 'not_found', message: `Graph could not find document ${guid}: ${attempts.join('; ')}.`, calls };
+}
+
+/**
  * Validates one parser result. Never throws: every Graph failure becomes an
  * outcome with a kind the page can act on (BC-041).
  */
@@ -366,13 +560,8 @@ export async function validateResult(result: ParseSuccess, graph: GraphClient): 
       if (SHARE_RESOLVABLE_FORMS.has(result.form)) {
         return await validateByShare(result, graph, calls);
       }
-      if (result.form === 'doc-aspx' || result.form === 'layouts-unique-id') {
-        return {
-          ok: false,
-          kind: 'unsupported',
-          message: 'Resolving a document by its id alone awaits spike S5; this link stays Unresolved for now.',
-          calls,
-        };
+      if (DOCUMENT_ID_FORMS.has(result.form)) {
+        return await validateByDocumentId(result, graph, calls);
       }
       return { ok: false, kind: 'unsupported', message: 'This link form cannot be validated in this version.', calls };
     }

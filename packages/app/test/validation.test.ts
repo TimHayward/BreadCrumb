@@ -54,13 +54,16 @@ describe('sign in control (BC-036)', () => {
     ctx.db.close();
   });
 
-  it('marks only token sharing links for automatic validation', async () => {
+  it('marks Unresolved links the validator can attempt for automatic validation, and offers nothing it cannot validate', async () => {
     const ctx = await createTestServer({ config: { auth: AUTH } });
     const doc = await postForm(ctx.app, '/convert', {
       link: 'https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%7D&file=Plan.docx',
     });
-    expect(doc.body).toContain('data-previous-state="Unresolved" hidden>');
-    expect(doc.body).not.toContain('data-auto');
+    expect(doc.body).toContain('data-previous-state="Unresolved" data-auto="1" hidden>');
+    const consumer = await postForm(ctx.app, '/convert', { link: 'https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123' });
+    expect(consumer.body).not.toContain('class="validate"');
+    const sovereign = await postForm(ctx.app, '/convert', { link: 'https://contoso.sharepoint.us/sites/SiteA/Lib/Report.pdf' });
+    expect(sovereign.body).not.toContain('class="validate"');
     const unconfigured = await createTestServer();
     const plain = await postForm(unconfigured.app, '/convert', { link: TOKEN_LINK });
     expect(plain.body).not.toContain('data-auto');
@@ -73,7 +76,7 @@ describe('sign in control (BC-036)', () => {
 });
 
 describe('GET /api/history/validatable (BC-038 validate all)', () => {
-  it('lists Unresolved entries the browser can resolve, newest first, skipping validated rows and doc ids', async () => {
+  it('lists Unresolved entries the browser can resolve, newest first, skipping validated rows', async () => {
     const ctx = await createTestServer({ config: { auth: AUTH } });
     await postForm(ctx.app, '/convert', { link: TOKEN_LINK });
     await ctx.app.inject({ method: 'POST', url: '/api/convert', payload: { link: 'https://contoso.sharepoint.com/:f:/t/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd', source: 'extension' } });
@@ -87,10 +90,11 @@ describe('GET /api/history/validatable (BC-038 validate all)', () => {
     const response = await ctx.app.inject({ method: 'GET', url: '/api/history/validatable' });
     expect(response.statusCode).toBe(200);
     const body = response.json() as { entries: Array<{ id: number; previousState: string; result: { form: string } }> };
-    expect(body.entries.map((e) => e.id)).toEqual([1]);
-    expect(body.entries[0]).toMatchObject({ previousState: 'Unresolved', result: { form: 'sharing-token/s' } });
-    const limited = await ctx.app.inject({ method: 'GET', url: '/api/history/validatable?limit=0' });
-    expect((limited.json() as { entries: unknown[] }).entries).toHaveLength(1);
+    expect(body.entries.map((e) => e.id)).toEqual([3, 1]);
+    expect(body.entries[0]).toMatchObject({ previousState: 'Unresolved', result: { form: 'doc-aspx' } });
+    expect(body.entries[1]).toMatchObject({ previousState: 'Unresolved', result: { form: 'sharing-token/s' } });
+    const limited = await ctx.app.inject({ method: 'GET', url: '/api/history/validatable?limit=1' });
+    expect((limited.json() as { entries: Array<{ id: number }> }).entries.map((e) => e.id)).toEqual([3]);
     await ctx.app.close();
     ctx.db.close();
   });

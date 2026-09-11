@@ -4,6 +4,7 @@
  * identically by the conversion page and the history detail page (BC-031).
  */
 import type { Component, ConfidenceState, ParseFailure, ParseSuccess } from '@breadcrumb/parser';
+import { UNRESOLVED_VALIDATABLE_FORMS, isValidatable } from '../validation/graphValidation.js';
 import type { ValidationRecord, VerifiedResult } from '../validation/types.js';
 import { formatTime } from './format.js';
 import { Markup, html } from './html.js';
@@ -121,12 +122,10 @@ export interface ResultViewOptions {
   authConfigured?: boolean;
 }
 
-/** Unresolved forms the browser resolves on its own once signed in (token sharing links). */
-const AUTO_VALIDATE_FORMS: ReadonlySet<string> = new Set(['sharing-token/s', 'sharing-token/g', 'sharing-token/t', 'guest-access']);
-
 /** The validate control, hidden until the browser confirms a signed in account (BC-036). */
 function validateControl(result: ParseSuccess, id: number): Markup {
-  const auto = result.state === 'Unresolved' && AUTO_VALIDATE_FORMS.has(result.form);
+  // Unresolved links the validator can attempt (sharing tokens, document ids) resolve on their own once signed in.
+  const auto = result.state === 'Unresolved' && UNRESOLVED_VALIDATABLE_FORMS.has(result.form);
   return html`<div class="validate" data-validate-id="${id}" data-previous-state="${result.state}"${auto ? html` data-auto="1"` : ''} hidden>
       <script type="application/json" class="result-json">${new Markup(JSON.stringify(result).replaceAll('<', '\\u003c'))}</script>
       <button type="button" class="validate-button">Validate with Microsoft Graph</button>
@@ -191,7 +190,7 @@ export function renderResult(result: ParseSuccess, options: ResultViewOptions = 
       ${stateBadge(result.state)}
       <span class="form-name">form: <code>${result.form}</code></span>
     </div>`;
-  const validate = options.id !== undefined && result.state !== 'Verified' && options.authConfigured ? validateControl(result, options.id) : '';
+  const validate = options.id !== undefined && options.authConfigured && isValidatable(result) ? validateControl(result, options.id) : '';
 
   if (result.state === 'Unresolved') {
     return html`<section class="result result-unresolved" aria-labelledby="result-heading">

@@ -9,6 +9,7 @@
  * entry in one go.
  */
 import { InteractionRequiredAuthError, PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
+import { broadcastResponseToMainFrame } from '@azure/msal-browser/redirect-bridge';
 import type { ParseSuccess } from '@breadcrumb/parser';
 import { validateResult, type GraphClient, type ValidationOutcome } from '../../validation/graphValidation.js';
 
@@ -41,9 +42,26 @@ interface ValidatableEntry {
   result: ParseSuccess;
 }
 
+/** True when this page is the redirect target of a sign in popup or silent iframe. */
+function isAuthResponse(): boolean {
+  const carries = (params: URLSearchParams): boolean => params.has('state') && (params.has('code') || params.has('error'));
+  return carries(new URLSearchParams(window.location.hash.replace(/^#/, ''))) || carries(new URLSearchParams(window.location.search));
+}
+
 async function main(): Promise<void> {
   const { authTenant, authClient, authScopes } = document.body.dataset;
   if (authTenant === undefined || authClient === undefined) {
+    return;
+  }
+  // MSAL 5: the sign in popup lands back on this page (the registered redirect
+  // URI) and must hand the response to the opener through the redirect bridge,
+  // because the Microsoft sign in page cuts the opener link.
+  if (isAuthResponse()) {
+    try {
+      await broadcastResponseToMainFrame();
+    } catch (error) {
+      document.body.prepend(`Sign in could not complete: ${error instanceof Error ? error.message : String(error)}`);
+    }
     return;
   }
   const scopes = (authScopes ?? '').split(/\s+/).filter((s) => s !== '');
@@ -103,26 +121,35 @@ async function main(): Promise<void> {
   }
 
   function graphClient(token: string): GraphClient {
+    const send = async (method: 'GET' | 'POST', path: string, requestBody: unknown, extraHeaders: Record<string, string>) => {
+      const response = await fetch(`${GRAPH_BASE}${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: 'application/json',
+          ...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
+          ...extraHeaders,
+        },
+        ...(method === 'POST' ? { body: JSON.stringify(requestBody) } : {}),
+      });
+      const headers: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        headers[key.toLowerCase()] = value;
+      });
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        body = null;
+      }
+      if (DEBUG) {
+        console.info('[breadcrumb] graph', { method, path, requestHeaders: extraHeaders, requestBody, status: response.status, headers, body });
+      }
+      return { status: response.status, headers, body };
+    };
     return {
-      async get(path, extraHeaders = {}) {
-        const response = await fetch(`${GRAPH_BASE}${path}`, {
-          headers: { authorization: `Bearer ${token}`, accept: 'application/json', ...extraHeaders },
-        });
-        const headers: Record<string, string> = {};
-        response.headers.forEach((value, key) => {
-          headers[key.toLowerCase()] = value;
-        });
-        let body: unknown = null;
-        try {
-          body = await response.json();
-        } catch {
-          body = null;
-        }
-        if (DEBUG) {
-          console.info('[breadcrumb] graph', { path, requestHeaders: extraHeaders, status: response.status, headers, body });
-        }
-        return { status: response.status, headers, body };
-      },
+      get: (path, extraHeaders = {}) => send('GET', path, undefined, extraHeaders),
+      post: (path, requestBody, extraHeaders = {}) => send('POST', path, requestBody, extraHeaders),
     };
   }
 
@@ -205,7 +232,7 @@ async function main(): Promise<void> {
     const autoKey = `breadcrumb:auto:${id}`;
     if (block.dataset['auto'] === '1' && account() !== null && safeStorage(() => window.sessionStorage.getItem(autoKey)) !== '1') {
       safeStorage(() => window.sessionStorage.setItem(autoKey, '1'));
-      status.textContent = 'Sharing link detected: resolving with Microsoft Graph…';
+      status.textContent = 'Resolving this link with Microsoft Graph…';
       void run();
     }
   }
@@ -228,7 +255,7 @@ async function main(): Promise<void> {
           return;
         }
         if (entries.length === 0) {
-          status.textContent = 'Nothing to validate: no Unresolved sharing links in history.';
+          status.textContent = 'Nothing to validate: no Unresolved sharing or document links in history.';
           button.disabled = false;
           return;
         }
