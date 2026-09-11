@@ -28,7 +28,8 @@ Observed 2026-09-11: sign in by popup completes (MSAL 5 redirect bridge on `/`),
 - [x] Before signing in, convert a link: the page behaves exactly as before; the header's "Sign in to Microsoft" is the only difference.
 - [x] Sign in. Header shows "Signed in as …". DevTools → Application → Session Storage holds the MSAL entries; Local Storage and cookies do not. Network tab: only `graph.microsoft.com` requests carry `Authorization`.
 - [ ] Close the tab, open the site again: signed out.
-- [ ] Sign out with the header button: account label gone, validate controls hidden.
+- [x] Sign out with the header button: account label gone, validate controls hidden (2026-09-11).
+- [ ] Sign in again straight after signing out. On 2026-09-11 a popup left unfinished while the page reloaded left MSAL's `msal.interaction.status` record behind, so later clicks failed with `interaction_in_progress`; the page now overrides a record it did not create and ignores clicks while its own popup is open. Re-test.
 
 ## B2. Token links (BC-038, spike S2)
 
@@ -38,7 +39,9 @@ Observed 2026-09-11: sign in by popup completes (MSAL 5 redirect bridge on `/`),
 
 | Link variant | Result (state, HTTP status on `/shares`) | Scopes in use | Notes |
 |---|---|---|---|
-| `/:x:/s/SiteA/…` | | | |
+| `/:t:/s/SiteA/…` (2026-09-11) | Verified; `/shares` 200, then `/drives/{id}` 200 | `Files.Read.All Sites.Read.All` | Auto-validated on convert; folder path from `parentReference.path`. |
+| `/:w:/r/personal/…/_layouts/15/doc2.aspx?sourcedoc=…` (2026-09-11) | Verified; `/shares` 200 | same | Parser 0.2.0 mis-read this as a path through `_layouts`; fixed in 0.3.0. Resolved to a Documents folder inside the OneDrive library (Known Folder Move), library display name "OneDrive". |
+| `_layouts/15/download.aspx?UniqueId={guid}` (2026-09-11) | Verified; `/shares` 200 | same | The shares endpoint accepts this URL too; no search needed (closes BC-039). |
 | `/:x:/g/personal/…` on `-my` | | | |
 | `/:x:/t/SiteA/…` | | | |
 | Token created by another user | | | |

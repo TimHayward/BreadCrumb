@@ -160,6 +160,16 @@ async function main(): Promise<void> {
   }
 
   const account = (): AccountInfo | null => msal.getActiveAccount() ?? msal.getAllAccounts()[0] ?? null;
+
+  /**
+   * True while this page has a Microsoft popup open. MSAL records an
+   * interaction in sessionStorage; if a page is reloaded or closed while its
+   * popup is open, that record outlives it and every later sign in fails with
+   * interaction_in_progress. A page with no popup of its own therefore
+   * overrides the leftover record, and ignores clicks while its own is open.
+   */
+  let popupOpen = false;
+
   trace('init', {
     origin: window.location.origin,
     accounts: msal.getAllAccounts().length,
@@ -195,10 +205,19 @@ async function main(): Promise<void> {
     } catch (error) {
       trace('token-silent-error', describeError(error));
       if (error instanceof InteractionRequiredAuthError) {
-        setAuthStatus('Your sign in has expired or needs consent. Please sign in again.');
-        const result = await msal.acquireTokenPopup({ scopes, account: current });
-        msal.setActiveAccount(result.account);
-        return result.accessToken;
+        if (popupOpen) {
+          throw new Error('A Microsoft sign in window is already open; finish it first.');
+        }
+        setAuthStatus('Your sign in has expired or needs consent. Complete the Microsoft window that opened (it may be behind this one).');
+        popupOpen = true;
+        try {
+          const result = await msal.acquireTokenPopup({ scopes, account: current, overrideInteractionInProgress: true });
+          msal.setActiveAccount(result.account);
+          setAuthStatus('');
+          return result.accessToken;
+        } finally {
+          popupOpen = false;
+        }
       }
       throw error;
     }
@@ -405,17 +424,33 @@ async function main(): Promise<void> {
   }
 
   signIn.addEventListener('click', async () => {
+    if (popupOpen) {
+      trace('signin-click-ignored', { reason: 'popup already open on this page' });
+      setAuthStatus('A Microsoft sign in window is already open. Finish it there; it may be behind this window.', 'ok');
+      return;
+    }
     trace('signin-click');
-    setAuthStatus('Signing in: complete the Microsoft window that opened…', 'ok');
+    setAuthStatus('Signing in: complete the Microsoft window that opened. If you cannot see it, it may be behind this window.', 'ok');
+    popupOpen = true;
     try {
-      const result = await msal.loginPopup({ scopes, prompt: 'select_account' });
+      // Overrides only a record left by a page that no longer exists; this page has no popup open.
+      const result = await msal.loginPopup({ scopes, prompt: 'select_account', overrideInteractionInProgress: true });
       msal.setActiveAccount(result.account);
       trace('signin-ok', { scopes: result.scopes, tenant: result.tenantId });
       setAuthStatus('');
     } catch (error) {
       trace('signin-error', describeError(error));
       const detail = describeError(error);
-      setAuthStatus(`Sign in did not complete: ${String(detail['message'] ?? detail['errorCode'] ?? 'unknown error')}`);
+      const code = String(detail['errorCode'] ?? '');
+      const message =
+        code === 'user_cancelled'
+          ? 'Sign in was cancelled: the Microsoft window was closed.'
+          : code === 'popup_window_error'
+            ? 'The browser blocked the Microsoft sign in window. Allow pop-ups for this site and try again.'
+            : `Sign in did not complete: ${String(detail['message'] ?? code ?? 'unknown error')}`;
+      setAuthStatus(message);
+    } finally {
+      popupOpen = false;
     }
     render();
     // A page opened before signing in may hold links waiting to be resolved.
