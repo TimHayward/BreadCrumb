@@ -269,8 +269,11 @@ describe('pages', () => {
     });
   });
 
-  it('serves static assets', async () => {
-    expect((await ctx.app.inject({ method: 'GET', url: '/static/app.css' })).statusCode).toBe(200);
+  it('serves static assets that browsers revalidate on every load', async () => {
+    const css = await ctx.app.inject({ method: 'GET', url: '/static/app.css' });
+    expect(css.statusCode).toBe(200);
+    expect(css.headers['cache-control']).toBe('public, max-age=0');
+    expect(css.headers['etag']).toBeDefined();
     expect((await ctx.app.inject({ method: 'GET', url: '/static/app.js' })).statusCode).toBe(200);
   });
 });

@@ -57,7 +57,9 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   // No access control in v1 (R4): any origin on the private network may call the API.
   await app.register(cors, { origin: true, methods: ['GET', 'POST', 'OPTIONS'] });
   await app.register(formbody);
-  await app.register(fastifyStatic, { root: resolvePublicDir(), prefix: '/static/', cacheControl: true, maxAge: '1h' });
+  // max-age=0: browsers revalidate on every load (a cheap 304 on the LAN), so a
+  // new app.js, app.css or validate.js is never shadowed by a cached copy.
+  await app.register(fastifyStatic, { root: resolvePublicDir(), prefix: '/static/', cacheControl: true, maxAge: 0 });
 
   const expander =
     deps.expander ??
