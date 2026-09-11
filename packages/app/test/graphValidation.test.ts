@@ -4,6 +4,8 @@
  * hand, anonymised; recordings from the test tenant replace them once M3 is
  * exercised there.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { parseLink, type ParseSuccess } from '@breadcrumb/parser';
 import { describe, expect, it } from 'vitest';
 import { encodeSharingUrl, isValidatable, siteCandidates, validateResult, type GraphClient, type GraphResponse } from '../src/validation/graphValidation.js';
@@ -272,7 +274,7 @@ describe('validateResult by share (BC-038)', () => {
       fileName: 'Report.pdf',
     });
     expect(outcome.verified.methodText).toContain('shares endpoint');
-    expect(outcome.verified.calls[0]).toContain('/shares/u!');
+    expect(outcome.verified.calls[0]).toBe('/shares/u!…/driveItem');
     expect(client.calls[0]?.headers).toEqual({ prefer: 'redeemSharingLink' });
   });
 
@@ -320,6 +322,34 @@ describe('validateResult by share (BC-038)', () => {
   });
 });
 
+describe('recorded tenant responses (anonymised)', () => {
+  interface RecordedFixture {
+    title: string;
+    link: string;
+    responses: { shares: Record<string, unknown>; drive: Record<string, unknown> };
+    expected: { path: string; folderUrl: string; library: string; folders: string[]; listItemUniqueId: string; calls: string[]; methodIncludes: string };
+  }
+  const fixture = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures', 'graph', 'doc-aspx-via-shares.json'), 'utf8')) as RecordedFixture;
+
+  it(`${fixture.title}: file's own unique id is checked, not the parent folder's`, async () => {
+    const driveId = String(fixture.responses.drive['id']);
+    const outcome = await validateResult(parseLink(fixture.link) as ParseSuccess, graph({
+      [`/shares/${encodeSharingUrl(fixture.link)}/driveItem`]: ok(fixture.responses.shares),
+      [`/drives/${driveId}`]: ok(fixture.responses.drive),
+    }));
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.verified.path).toBe(fixture.expected.path);
+    expect(outcome.verified.folderUrl).toBe(fixture.expected.folderUrl);
+    expect(outcome.verified.components.library).toBe(fixture.expected.library);
+    expect(outcome.verified.components.folders).toEqual(fixture.expected.folders);
+    expect(outcome.verified.graph.listItemUniqueId).toBe(fixture.expected.listItemUniqueId);
+    expect(outcome.verified.identifierCheck?.matches).toBe(true);
+    expect(outcome.verified.calls).toEqual(fixture.expected.calls);
+    expect(outcome.verified.methodText).toContain(fixture.expected.methodIncludes);
+  });
+});
+
 describe('validateResult by document id (BC-039, spike S5)', () => {
   const GUID = UNIQUE.toUpperCase();
   const docLink = `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${GUID}%7D&file=Report.pdf&action=edit&mobileredirect=true&DefaultItemOpen=1`;
@@ -349,7 +379,7 @@ describe('validateResult by document id (BC-039, spike S5)', () => {
     if (!outcome.ok) return;
     expect(outcome.verified.methodText).toContain("a search for the link's document id found the file");
     expect(outcome.verified.calls).toEqual([
-      `/shares/${encodeSharingUrl(docLink)}/driveItem`,
+      '/shares/u!…/driveItem',
       'POST /search/query',
       '/drives/b!lib/items/01ITEM',
       '/drives/b!lib',

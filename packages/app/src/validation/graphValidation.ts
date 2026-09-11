@@ -150,8 +150,13 @@ function toResult<T>(response: GraphResponse): T {
   throw new GraphError('error', `Graph answered ${response.status}${detail ? ` (${detail})` : ''}.`);
 }
 
+/** The call as recorded with the validation: no query, and the encoded link (already the entry's input) elided. */
+function recordedPath(path: string): string {
+  return path.replace(/\?.*$/, '').replace(/\/shares\/u![A-Za-z0-9_-]+/, '/shares/u!…');
+}
+
 async function call<T>(graph: GraphClient, path: string, calls: string[], headers?: Record<string, string>): Promise<T> {
-  calls.push(path.replace(/\?.*$/, ''));
+  calls.push(recordedPath(path));
   return toResult<T>(await graph.get(path, headers));
 }
 
@@ -169,6 +174,19 @@ function normaliseId(value: string): string {
 
 function sameId(a: string | undefined, b: string | undefined): boolean {
   return a !== undefined && b !== undefined && normaliseId(a) === normaliseId(b);
+}
+
+/**
+ * How a library is named in method text: its display name, plus the URL
+ * segment when they differ (the default library shows as "Documents" but
+ * lives at "Shared Documents", which is what paths use).
+ */
+function libraryLabel(drive: GraphDrive): string {
+  const segment = decodedPathOf(drive.webUrl).split('/').filter((s) => s !== '').at(-1) ?? '';
+  if (drive.name === undefined || drive.name === '' || drive.name === segment) {
+    return `"${segment || drive.webUrl}"`;
+  }
+  return `"${drive.name}" (${segment} in the URL)`;
 }
 
 function correction(was: string | undefined, now: string): Correction | undefined {
@@ -313,12 +331,12 @@ async function verifyFromItem(
     return {
       ok: false,
       kind: 'error',
-      message: `Graph found "${item.name}" in library "${drive.name ?? drive.webUrl}" but did not say which folder it is in, so the path is left unconfirmed.`,
+      message: `Graph found "${item.name}" in library ${libraryLabel(drive)} but did not say which folder it is in, so the path is left unconfirmed.`,
       calls,
     };
   }
   const kind = item.folder !== undefined ? 'folder' : 'file';
-  const methodText = describe(kind, drive.name ?? drive.webUrl);
+  const methodText = describe(kind, libraryLabel(drive));
   return { ok: true, verified: buildVerified(result, drive, item, relativeFolder, item.sharepointIds?.siteId ?? item.parentReference?.siteId, calls, methodText) };
 }
 
@@ -384,7 +402,7 @@ async function validateByPath(result: ParseSuccess, graph: GraphClient, calls: s
     const relativeFolder = relative.split('/').filter((s) => s !== '').slice(0, -1);
     const isFolder = item.folder !== undefined;
     const subsiteNote = candidate === sitePath ? '' : ` The site turned out to be the subsite ${candidate}.`;
-    const methodText = `Confirmed by Microsoft Graph: the site was resolved by path, its document libraries were listed and "${drive.name ?? drive.webUrl}" contains the path, and the ${
+    const methodText = `Confirmed by Microsoft Graph: the site was resolved by path, its document libraries were listed and ${libraryLabel(drive)} contains the path, and the ${
       isFolder ? 'folder' : 'file'
     } was fetched by path within that library.${subsiteNote}`;
     return { ok: true, verified: buildVerified(result, drive, item, relativeFolder, site.id, calls, methodText) };
@@ -428,7 +446,7 @@ async function validateByPathThroughShares(result: ParseSuccess, graph: GraphCli
     graph,
     calls,
     (kind, library) =>
-      `Confirmed by Microsoft Graph: the account could not list the site, so the item URL was submitted to the shares endpoint, which returned the ${kind} and its library "${library}".`,
+      `Confirmed by Microsoft Graph: the account could not list the site, so the item URL was submitted to the shares endpoint, which returned the ${kind} and its library ${library}.`,
   );
 }
 
@@ -440,7 +458,7 @@ async function validateByShare(result: ParseSuccess, graph: GraphClient, calls: 
     item,
     graph,
     calls,
-    (kind, library) => `Confirmed by Microsoft Graph: the sharing link was submitted to the shares endpoint, which returned the ${kind} and its library "${library}".`,
+    (kind, library) => `Confirmed by Microsoft Graph: the sharing link was submitted to the shares endpoint, which returned the ${kind} and its library ${library}.`,
   );
 }
 
@@ -474,7 +492,7 @@ async function validateByDocumentId(result: ParseSuccess, graph: GraphClient, ca
         graph,
         calls,
         (kind, library) =>
-          `Confirmed by Microsoft Graph: the link was submitted to the shares endpoint, which returned the ${kind} and its library "${library}"${
+          `Confirmed by Microsoft Graph: the link was submitted to the shares endpoint, which returned the ${kind} and its library ${library}${
             unique === undefined ? '' : ", and its unique id matches the link's document id"
           }.`,
       );
@@ -533,7 +551,7 @@ async function validateByDocumentId(result: ParseSuccess, graph: GraphClient, ca
           graph,
           calls,
           (kind, library) =>
-            `Confirmed by Microsoft Graph: a search for ${label} found the ${kind} in library "${library}", and its unique id matches the link's document id.`,
+            `Confirmed by Microsoft Graph: a search for ${label} found the ${kind} in library ${library}, and its unique id matches the link's document id.`,
         );
       }
     }

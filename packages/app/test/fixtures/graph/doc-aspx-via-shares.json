@@ -1,0 +1,63 @@
+{
+  "title": "Doc.aspx sourcedoc link resolved through the shares endpoint (spike S5)",
+  "recorded": "2026-09-11 against the test tenant with Files.Read.All and Sites.Read.All; every name, id and hash anonymised, structure unchanged",
+  "notes": [
+    "The item's webUrl is itself a Doc.aspx URL, so the folder cannot be read from it.",
+    "parentReference carries its own sharepointIds with the parent folder's listItemUniqueId; the file's id is in the top level sharepointIds.",
+    "parentReference.path was present on this shares response."
+  ],
+  "link": "https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B5A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D%7D&file=Service%20Review.pptx&action=edit&mobileredirect=true&DefaultItemOpen=1",
+  "responses": {
+    "shares": {
+      "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(driveItem)/$entity",
+      "@odata.etag": "\"{5A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D},4\"",
+      "id": "01ITEMAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "name": "Service Review.pptx",
+      "parentReference": {
+        "driveType": "documentLibrary",
+        "driveId": "b!DRIVEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "id": "01PARENTAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "name": "Sub Folder",
+        "path": "/drives/b!DRIVEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/root:/Folder One/Sub Folder",
+        "sharepointIds": {
+          "listId": "11111111-2222-4333-8444-555555555555",
+          "listItemUniqueId": "9f8e7d6c-5b4a-4938-8271-605f4e3d2c1b",
+          "siteId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+          "siteUrl": "https://contoso.sharepoint.com/sites/SiteA",
+          "webId": "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
+        },
+        "siteId": "66666666-7777-4888-8999-aaaaaaaaaaaa"
+      },
+      "webUrl": "https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B5A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D%7D&file=Service%20Review.pptx&action=edit&mobileredirect=true",
+      "file": {
+        "fileExtension": ".pptx",
+        "hashes": { "quickXorHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAA=" },
+        "mimeType": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      },
+      "sharepointIds": {
+        "listId": "11111111-2222-4333-8444-555555555555",
+        "listItemId": "4201",
+        "listItemUniqueId": "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+        "siteId": "66666666-7777-4888-8999-aaaaaaaaaaaa",
+        "siteUrl": "https://contoso.sharepoint.com/sites/SiteA",
+        "tenantId": "00000000-1111-4222-8333-444444444444",
+        "webId": "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
+      }
+    },
+    "drive": {
+      "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#drives(id,name,webUrl)/$entity",
+      "id": "b!DRIVEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "name": "Documents",
+      "webUrl": "https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents"
+    }
+  },
+  "expected": {
+    "path": "/sites/SiteA/Shared Documents/Folder One/Sub Folder/Service Review.pptx",
+    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Folder%20One/Sub%20Folder",
+    "library": "Shared Documents",
+    "folders": ["Folder One", "Sub Folder"],
+    "listItemUniqueId": "5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "calls": ["/shares/u!…/driveItem", "/drives/b!DRIVEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    "methodIncludes": "library \"Documents\" (Shared Documents in the URL)"
+  }
+}

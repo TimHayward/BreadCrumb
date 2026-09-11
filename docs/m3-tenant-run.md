@@ -23,8 +23,10 @@ The authenticated validation code (BC-036 to BC-041) is complete and covered by 
 
 ## B1. Sign in (BC-036)
 
-- [ ] Before signing in, convert a link: the page behaves exactly as before; the header's "Sign in to Microsoft" is the only difference.
-- [ ] Sign in. Header shows "Signed in as …". DevTools → Application → Session Storage holds the MSAL entries; Local Storage and cookies do not. Network tab: only `graph.microsoft.com` requests carry `Authorization`.
+Observed 2026-09-11: sign in by popup completes (MSAL 5 redirect bridge on `/`), header shows the account, tokens carry `Files.Read.All Sites.Read.All User.Read`; a Doc.aspx link auto-validated to Verified straight after sign in.
+
+- [x] Before signing in, convert a link: the page behaves exactly as before; the header's "Sign in to Microsoft" is the only difference.
+- [x] Sign in. Header shows "Signed in as …". DevTools → Application → Session Storage holds the MSAL entries; Local Storage and cookies do not. Network tab: only `graph.microsoft.com` requests carry `Authorization`.
 - [ ] Close the tab, open the site again: signed out.
 - [ ] Sign out with the header button: account label gone, validate controls hidden.
 
@@ -74,8 +76,9 @@ With a `sourcedoc` GUID from a `Doc.aspx` link to one of the test files, and the
 
 | Attempt | Status and shape | Conclusion |
 |---|---|---|
-| lists → items/{guid}/driveItem | | |
-| search/query | | |
+| `GET /shares/{u!<Doc.aspx URL>}/driveItem` with `Prefer: redeemSharingLink` (2026-09-11) | 200. Full driveItem: `parentReference.path` present, top level `sharepointIds.listItemUniqueId` equals the `sourcedoc` GUID, `parentReference.sharepointIds` holds the parent folder's ids, `webUrl` is itself a Doc.aspx URL. Then `GET /drives/{id}` for the library. | **Works.** The shares endpoint accepts a Doc.aspx URL directly; no list or search call needed. Anonymised recording: `packages/app/test/fixtures/graph/doc-aspx-via-shares.json`. |
+| lists → items/{guid}/driveItem | Not needed. | |
+| search/query | Not needed for Doc.aspx; kept as the fallback route and covered by replay tests. | |
 
 If a call works, it is implemented in `graphValidation.ts` for forms `doc-aspx` and `layouts-unique-id` with a replay fixture, and BC-039 closes. Otherwise the written conclusion here closes S5 and the forms stay Unresolved in v1.
 
