@@ -454,3 +454,29 @@ As a user, I want to see which stored results were upgraded by validation, so th
 Priority: Must. Size: M. Depends on: BC-030, BC-036.
 
 **Completed:** 2026-09-10 · a93f940
+
+### Spike S5: resolving a document id
+
+| ID | Question | Timebox | Closing evidence | Blocks |
+|---|---|---|---|---|
+| S5 | How is a list item unique id from `sourcedoc` or `UniqueId` resolved to a driveItem through Graph, if at all? | Half a day | A working call sequence against the test tenant, or a written conclusion that Graph cannot do it and the form stays Unresolved in v1. | BC-039 |
+
+**Finding:** Graph resolves a `Doc.aspx?sourcedoc={guid}` link directly: `GET /shares/{u!base64url(link)}/driveItem` (with `Prefer: redeemSharingLink`) returned the file, its folder path and a top level `sharepointIds.listItemUniqueId` equal to the GUID, on the test tenant with delegated `Files.Read.All` and `Sites.Read.All`. No list lookup or search was needed; search by unique id and by file name within the site remain as fallbacks. Evidence: `docs/m3-tenant-run.md` (B5) and the anonymised recording `packages/app/test/fixtures/graph/doc-aspx-via-shares.json`.
+
+**Completed:** 2026-09-11 · a72c6ab
+
+#### BC-023 Paste and convert page
+
+As a user, I want to paste a link and see the path, folder URL, file URL and components, so that I can find the file's folder.
+
+- Given the conversion page, When the worked example link is pasted and submitted, Then the path, folder URL and file URL shown match the expected output in the brief and the state badge reads Derived.
+- Given any result, When it is rendered, Then the components (tenant, site, library, folder chain, file name) are listed, each Inferred component carries an "inferred" marker next to it, and the state badge shows exactly one of Verified, Derived, Inferred or Unresolved.
+- Given a result, When the copy control next to the path, folder URL or file URL is used, Then the clipboard holds that value exactly, and the folder and file URLs are also rendered as links that open in a new tab.
+- Given the input is submitted with the keyboard alone, When Enter is pressed in the input, Then conversion runs without needing the mouse.
+- Given a folder result (BC-019), When it is rendered, Then no file URL row is shown.
+
+Priority: Must. Size: M. Depends on: BC-006, BC-007, BC-024.
+
+**Note:** the copy control was confirmed in a real browser on 2026-09-11 ("Folder URL copied to clipboard" on a Verified entry, served from localhost); the remaining criteria are covered by the page tests.
+
+**Completed:** 2026-09-11 · a72c6ab

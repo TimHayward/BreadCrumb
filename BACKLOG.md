@@ -118,18 +118,6 @@ Priority: Must. Size: S. Depends on: BC-002.
 
 ### E3 Web conversion experience
 
-#### BC-023 Paste and convert page
-
-As a user, I want to paste a link and see the path, folder URL, file URL and components, so that I can find the file's folder.
-
-- Given the conversion page, When the worked example link is pasted and submitted, Then the path, folder URL and file URL shown match the expected output in the brief and the state badge reads Derived.
-- Given any result, When it is rendered, Then the components (tenant, site, library, folder chain, file name) are listed, each Inferred component carries an "inferred" marker next to it, and the state badge shows exactly one of Verified, Derived, Inferred or Unresolved.
-- Given a result, When the copy control next to the path, folder URL or file URL is used, Then the clipboard holds that value exactly, and the folder and file URLs are also rendered as links that open in a new tab.
-- Given the input is submitted with the keyboard alone, When Enter is pressed in the input, Then conversion runs without needing the mouse.
-- Given a folder result (BC-019), When it is rendered, Then no file URL row is shown.
-
-Priority: Must. Size: M. Depends on: BC-006, BC-007, BC-024.
-
 #### BC-027 Server side short link expansion
 
 As a user, I want `1drv.ms` short links to be expanded before parsing, so that the parser can see the real link.
@@ -258,7 +246,7 @@ Progress is reported only at the boundaries below. Each milestone is done when i
 
 ### M1 Walking skeleton
 
-Stories: BC-003, BC-023.
+Stories: BC-003.
 
 Demonstrable outcome: the repository is a TypeScript monorepo with the compose file at its root. The same compose file is deployed as a Portainer Git stack and runs under `docker compose up` locally (BC-003). The worked example link converts end to end on the deployed stack with a Derived state and appears in the history list. A conversion written before the image is rebuilt and the stack redeployed is still present afterwards, on a named volume separate from the container filesystem (BC-004).
 
@@ -307,7 +295,6 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 | S1 | What markup carries file citations in Copilot responses on `m365.cloud.microsoft` and `copilot.cloud.microsoft`, is it in the light DOM or inside shadow roots, which attribute holds the file URL, and what does the consumer host `copilot.microsoft.com` emit for web citations? | 2 days | An annotated DOM capture per host for a SharePoint file citation, a OneDrive file citation and a web citation, a note on shadow root depth, a list of stable attributes or roles to select on, and a redacted copy of each capture added to the extension test fixtures. | BC-043, BC-044, BC-046 |
 | S2 | Does the Graph shares endpoint with a `u!` base64url encoded link return a driveItem for `/s/`, `/g/` and `/t/` tokens and for `-my` host tokens, what is the minimum delegated permission, does it work for a token created by another user, does the legacy `guestaccess.aspx` form resolve, and does a personal site resolve by path? | 1 day | A table of link variant against result and HTTP status from the test tenant, with the exact permission set that succeeded and the smallest set that failed. Removes the [unverified] markers in matrix rows 3b, 3c, 3d, 6 and 8. | BC-038, BC-037 (personal site case) |
 | S3 | Which link forms does a modern tenant actually emit from its own copy link and share controls today: the SharePoint library "Copy link" for each audience option, OneDrive web, the Office desktop share dialogue, the Teams files tab, an Outlook attachment link, and a Copilot citation? Do `RootFolder`, `guestaccess.aspx` and the Safe Links `/ap/` variant still appear? What do `/g/` and `/t/` mean? | 1 day | One anonymised fixture per control and audience option added to the corpus (BC-022), and a note against each matrix row saying "emitted today", "legacy but seen" or "not observed". Removes the [unverified] markers in rows 1b, 3c, 3d, 8 and 10. | BC-022 completeness. Nothing in M1 or M2 is blocked. |
-| S5 | How is a list item unique id from `sourcedoc` or `UniqueId` resolved to a driveItem through Graph, if at all? | Half a day | A working call sequence against the test tenant, or a written conclusion that Graph cannot do it and the form stays Unresolved in v1. | BC-039 |
 | S6 | Can a Manifest V3 extension on an `https` Copilot page submit to an `http` API on a private network address from another machine? Which of the popup, service worker and content script may make the call, does Chrome's private network access restriction or mixed content blocking interfere, and what CORS headers does the API need? | 1 day | A test extension reaching a stub API from a second machine on the private network, in both Chrome and Edge, with a record of what was blocked and which context succeeded. Feeds decision D6. | BC-045, D6 |
 | S7 | How does a Portainer Git stack behave in practice: how are environment variables supplied, does "pull and redeploy" preserve named volumes, does removing the stack remove volumes, and does a private repository need stored credentials? Some of this is [unverified] from documentation alone. | Half a day | A runbook of the exact clicks, and a redeploy and a removal each followed by a check of the volume. | BC-003, BC-004 |
 | S8 | Does `1drv.ms` redirect to a parseable URL when fetched from a container without cookies, how many hops, and does the target vary by link type? | Half a day | A table of five short links against final URL and hop count, and the allow list of hosts contacted. | BC-027 |
