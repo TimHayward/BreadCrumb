@@ -1,6 +1,6 @@
 # M3 tenant run
 
-The authenticated validation code (BC-036 to BC-041) is complete and covered by tests that replay hand-written Graph responses. Token sharing links (`/:x:/s/…`, `/g/`, `/t/`, guest access) resolve automatically once a user is signed in, and the history page can validate every Unresolved entry in one action. What remains needs a real Entra tenant. This document is the protocol for doing that interactively (the user drives the browser and reports; the developer fixes code on `main` as findings arrive) and the record of what was observed. Its tables close spikes S2 and S5 and the open M3 stories.
+The authenticated validation code (BC-036 to BC-041) is complete and covered by tests that replay hand-written Graph responses. Token sharing links (`/:x:/s/…`, `/g/`, `/t/`, guest access) resolve automatically once a user is signed in, and the history page can verify every unverified entry in one action. What remains needs a real Entra tenant. This document is the protocol for doing that interactively (the user drives the browser and reports; the developer fixes code on `main` as findings arrive) and the record of what was observed. Its tables close spikes S2 and S5 and the open M3 stories.
 
 ## B0. Set up (once)
 
@@ -67,7 +67,7 @@ Observed 2026-09-11: sign in by popup completes (MSAL 5 redirect bridge on `/`),
 ## B4. Validate all (BC-038, extension submissions)
 
 - [ ] Submit two token links through the API with `source: extension` (the extension popup, or `curl -X POST http://localhost:3000/api/convert -H 'content-type: application/json' -d '{"link":"…","source":"extension"}'`).
-- [ ] Open History signed in → "Validate all Unresolved" → progress line → reload shows them Verified with "upgraded from Unresolved".
+- [ ] Open History signed in → "Verify all unverified" → progress line → reload shows them Verified with "upgraded from Unresolved".
 
 ## B5. Document ids (spike S5, BC-039)
 

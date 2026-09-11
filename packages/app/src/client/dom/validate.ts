@@ -4,9 +4,10 @@
  * configured for sign in. Tokens live in MSAL's sessionStorage cache and
  * never reach the server (decision D3, invariant 15).
  *
- * Unresolved links the validator can attempt (sharing tokens, document ids)
- * validate automatically once signed in; other results keep an explicit
- * button; the history page can validate every Unresolved entry in one go.
+ * Every result the validator can check (Derived, Inferred, and Unresolved
+ * sharing and document id links) verifies automatically once signed in, with
+ * the button kept for retries; the history page verifies every unverified
+ * entry in one go.
  *
  * Diagnostics: with `localStorage['breadcrumb:debug'] = '1'` every event is
  * logged to the console; when the server runs with CLIENT_LOG=true the same
@@ -364,14 +365,14 @@ async function main(): Promise<void> {
     }
   }
 
-  // History page: validate every Unresolved entry (BC-038, extension submissions).
+  // History page: verify every unverified entry Graph can check (extension submissions included).
   if (validateAll !== null) {
     const button = validateAll.querySelector<HTMLButtonElement>('button');
     const status = validateAll.querySelector<HTMLElement>('[role="status"]');
     if (button !== null && status !== null) {
       button.addEventListener('click', async () => {
         button.disabled = true;
-        status.textContent = 'Listing Unresolved entries…';
+        status.textContent = 'Listing unverified entries…';
         let entries: ValidatableEntry[];
         try {
           const response = await fetch('/api/history/validatable?limit=100');
@@ -383,7 +384,7 @@ async function main(): Promise<void> {
         }
         trace('validate-all-start', { count: entries.length });
         if (entries.length === 0) {
-          status.textContent = 'Nothing to validate: no Unresolved sharing or document links in history.';
+          status.textContent = 'Nothing to verify: every entry Graph can check is already Verified.';
           button.disabled = false;
           return;
         }
@@ -406,7 +407,7 @@ async function main(): Promise<void> {
             failed += 1;
             if (outcome.kind === 'throttled') {
               status.textContent = `Graph asked to slow down after ${resolved} resolved. ${outcome.message}`;
-              countdown(button, outcome.retryAfterSeconds ?? 30, 'Validate all Unresolved');
+              countdown(button, outcome.retryAfterSeconds ?? 30, 'Verify all unverified');
               return;
             }
             if (outcome.kind === 'auth') {

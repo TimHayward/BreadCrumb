@@ -41,13 +41,13 @@ export function registerApiRoutes(app: FastifyInstance, service: ConversionServi
     return reply.code(200).send({ id: outcome.id, createdAt: outcome.createdAt, result: outcome.result });
   });
 
-  /** Unresolved entries the browser can resolve, newest first, for "Validate all" (BC-038). */
+  /** Every unverified entry the browser can check with Graph, newest first, for "Verify all unverified". */
   app.get<{ Querystring: { limit?: string } }>('/api/history/validatable', async (request, reply) => {
     const requested = Number.parseInt(request.query.limit ?? '100', 10);
     const limit = Number.isInteger(requested) && requested > 0 ? Math.min(requested, 500) : 100;
     const entries = store
-      .all({ state: 'Unresolved' })
-      .filter((row) => row.result.ok && isValidatable(row.result))
+      .all()
+      .filter((row) => row.validation === null && row.result.ok && isValidatable(row.result))
       .slice(0, limit)
       .map((row) => ({ id: row.id, previousState: row.state, result: row.result }));
     return reply.send({ entries });

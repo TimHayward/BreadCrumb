@@ -134,7 +134,7 @@ export function renderHistoryListPage(options: HistoryListOptions): string {
   const validateAll =
     options.context.auth !== undefined
       ? html`<div id="validate-all" class="validate-all" hidden>
-      <button type="button">Validate all Unresolved</button>
+      <button type="button">Verify all unverified</button>
       <span class="note" role="status" aria-live="polite"></span>
     </div>`
       : '';

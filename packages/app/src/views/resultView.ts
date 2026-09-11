@@ -4,7 +4,7 @@
  * identically by the conversion page and the history detail page (BC-031).
  */
 import type { Component, ConfidenceState, ParseFailure, ParseSuccess } from '@breadcrumb/parser';
-import { UNRESOLVED_VALIDATABLE_FORMS, isValidatable } from '../validation/graphValidation.js';
+import { isValidatable } from '../validation/graphValidation.js';
 import type { ValidationRecord, VerifiedResult } from '../validation/types.js';
 import { formatTime } from './format.js';
 import { Markup, breakableUrl, html } from './html.js';
@@ -122,11 +122,14 @@ export interface ResultViewOptions {
   authConfigured?: boolean;
 }
 
-/** The validate control, hidden until the browser confirms a signed in account (BC-036). */
+/**
+ * The validate control, hidden until the browser confirms a signed in
+ * account (BC-036). It is rendered only for results the validator can check,
+ * and every one of them verifies on its own once signed in (data-auto); the
+ * button stays for retries.
+ */
 function validateControl(result: ParseSuccess, id: number): Markup {
-  // Unresolved links the validator can attempt (sharing tokens, document ids) resolve on their own once signed in.
-  const auto = result.state === 'Unresolved' && UNRESOLVED_VALIDATABLE_FORMS.has(result.form);
-  return html`<div class="validate" data-validate-id="${id}" data-previous-state="${result.state}"${auto ? html` data-auto="1"` : ''} hidden>
+  return html`<div class="validate" data-validate-id="${id}" data-previous-state="${result.state}" data-auto="1" hidden>
       <script type="application/json" class="result-json">${new Markup(JSON.stringify(result).replaceAll('<', '\\u003c'))}</script>
       <button type="button" class="validate-button">Validate with Microsoft Graph</button>
       <p class="validate-status" role="status" aria-live="polite"></p>

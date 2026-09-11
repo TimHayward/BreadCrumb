@@ -43,7 +43,7 @@ describe('sign in control (BC-036)', () => {
     expect(converted.body).toContain('id="auth"');
     expect(converted.body).toContain(`data-auth-tenant="${AUTH.tenantId}" data-auth-client="${AUTH.clientId}" data-auth-scopes="Files.Read.All Sites.Read.All"`);
     expect(converted.body).toContain('<script src="/static/validate.js" type="module">');
-    expect(converted.body).toContain('<div class="validate" data-validate-id="1" data-previous-state="Inferred" hidden>');
+    expect(converted.body).toContain('<div class="validate" data-validate-id="1" data-previous-state="Inferred" data-auto="1" hidden>');
     expect(converted.body).toContain('Validate with Microsoft Graph');
     const unresolved = await postForm(ctx.app, '/convert', { link: TOKEN_LINK });
     expect(unresolved.body).toContain('sharing links resolve automatically once you are signed in');
@@ -102,8 +102,8 @@ describe('local sign in diagnostics (CLIENT_LOG)', () => {
   });
 });
 
-describe('GET /api/history/validatable (BC-038 validate all)', () => {
-  it('lists Unresolved entries the browser can resolve, newest first, skipping validated rows', async () => {
+describe('GET /api/history/validatable (verify all unverified)', () => {
+  it('lists every unverified entry Graph can check, newest first, skipping validated rows', async () => {
     const ctx = await createTestServer({ config: { auth: AUTH } });
     await postForm(ctx.app, '/convert', { link: TOKEN_LINK });
     await ctx.app.inject({ method: 'POST', url: '/api/convert', payload: { link: 'https://contoso.sharepoint.com/:f:/t/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd', source: 'extension' } });
@@ -117,11 +117,12 @@ describe('GET /api/history/validatable (BC-038 validate all)', () => {
     const response = await ctx.app.inject({ method: 'GET', url: '/api/history/validatable' });
     expect(response.statusCode).toBe(200);
     const body = response.json() as { entries: Array<{ id: number; previousState: string; result: { form: string } }> };
-    expect(body.entries.map((e) => e.id)).toEqual([3, 1]);
-    expect(body.entries[0]).toMatchObject({ previousState: 'Unresolved', result: { form: 'doc-aspx' } });
-    expect(body.entries[1]).toMatchObject({ previousState: 'Unresolved', result: { form: 'sharing-token/s' } });
+    expect(body.entries.map((e) => e.id)).toEqual([4, 3, 1]);
+    expect(body.entries[0]).toMatchObject({ previousState: 'Inferred', result: { form: 'library-view' } });
+    expect(body.entries[1]).toMatchObject({ previousState: 'Unresolved', result: { form: 'doc-aspx' } });
+    expect(body.entries[2]).toMatchObject({ previousState: 'Unresolved', result: { form: 'sharing-token/s' } });
     const limited = await ctx.app.inject({ method: 'GET', url: '/api/history/validatable?limit=1' });
-    expect((limited.json() as { entries: Array<{ id: number }> }).entries.map((e) => e.id)).toEqual([3]);
+    expect((limited.json() as { entries: Array<{ id: number }> }).entries.map((e) => e.id)).toEqual([4]);
     await ctx.app.close();
     ctx.db.close();
   });
