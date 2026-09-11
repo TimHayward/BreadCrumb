@@ -1,0 +1,29 @@
+{
+  "title": "/:w:/r/ sharing link wrapping doc2.aspx?sourcedoc= on a personal site: a document id link, never a path through _layouts",
+  "row": "4",
+  "input": "https://contoso-my.sharepoint.com/:w:/r/personal/user_contoso_onmicrosoft_com/_layouts/15/doc2.aspx?sourcedoc=%7B0A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D%7D&file=Report%20-%20V2.2.docx&action=default&mobileredirect=true",
+  "expected": {
+    "ok": true,
+    "state": "Unresolved",
+    "form": "doc-aspx",
+    "method": {
+      "code": "doc-aspx/doc2",
+      "text": "Recognised a doc2.aspx link. The site and file name can be read from the link, but the document is identified only by its id, so the folder cannot be known without signing in."
+    },
+    "cloud": "global",
+    "components": {
+      "tenant": { "value": "contoso", "flag": "Derived" },
+      "host": { "value": "contoso-my.sharepoint.com", "flag": "Derived" },
+      "sitePath": { "value": "/personal/user_contoso_onmicrosoft_com", "flag": "Derived" },
+      "fileName": { "value": "Report - V2.2.docx", "flag": "Derived" }
+    },
+    "identifiers": [
+      { "kind": "sourcedoc", "value": "0A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D", "label": "document id (list item unique id) from sourcedoc", "flag": "Derived" }
+    ],
+    "hints": [
+      { "kind": "itemType", "value": "Word document", "label": "item type from the link prefix \":w:\"" },
+      { "kind": "owner", "value": "user@contoso.onmicrosoft.com", "label": "owner sign in name reversed from the personal site alias (a hint: underscores in the original name make it ambiguous)" }
+    ],
+    "wrappers": []
+  }
+}

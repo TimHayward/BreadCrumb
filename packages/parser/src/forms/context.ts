@@ -39,11 +39,15 @@ export function itemTypeFromCode(code: string): string {
   return TYPE_CODES[code.toLowerCase()] ?? `unknown type code ":${code}:"`;
 }
 
-/** Layouts page name from a decoded path such as `/sites/A/_layouts/15/Doc.aspx`, lower cased. */
-export function layoutsPage(pagePath: string): { sitePrefix: string; page: string } | undefined {
+/**
+ * Layouts page from a decoded path such as `/sites/A/_layouts/15/Doc.aspx`:
+ * `page` lower cased for matching, `pageName` as written for messages.
+ */
+export function layoutsPage(pagePath: string): { sitePrefix: string; page: string; pageName: string } | undefined {
   const match = /^(.*?)\/_layouts\/(?:\d+\/)?([^/]+\.aspx)$/i.exec(pagePath);
   if (match === null) {
     return undefined;
   }
-  return { sitePrefix: match[1] ?? '', page: (match[2] ?? '').toLowerCase() };
+  const pageName = match[2] ?? '';
+  return { sitePrefix: match[1] ?? '', page: pageName.toLowerCase(), pageName };
 }

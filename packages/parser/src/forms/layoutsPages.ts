@@ -25,8 +25,9 @@ export const layoutsPages: FormMatcher = (ctx) => {
   const sitePath = page.sitePrefix;
   const base = { host: ctx.host, original: ctx.original, wrappers: ctx.wrappers };
 
+  // Any Office web page carrying sourcedoc: Doc.aspx, Doc2.aspx, WopiFrame.aspx, WopiFrame2.aspx and kin.
   const sourceDoc = ctx.query.get('sourcedoc');
-  if ((page.page === 'doc.aspx' || page.page === 'wopiframe.aspx') && sourceDoc !== undefined) {
+  if (sourceDoc !== undefined) {
     const guid = GUID.exec(sourceDoc.trim())?.[1];
     if (guid === undefined) {
       return failure('truncated', { parameter: 'sourcedoc' }, 'The "sourcedoc" value is not a complete document id.');
@@ -37,7 +38,7 @@ export const layoutsPages: FormMatcher = (ctx) => {
       ...base,
       form: 'doc-aspx',
       methodCode: `doc-aspx/${page.page.replace('.aspx', '')}`,
-      methodText: `Recognised a ${page.page === 'doc.aspx' ? 'Doc.aspx' : 'WopiFrame.aspx'} link. The site${
+      methodText: `Recognised a ${page.pageName} link. The site${
         fileName === undefined ? '' : ' and file name'
       } can be read from the link, but the document is identified only by its id, so the folder cannot be known without signing in.`,
       identifiers: [{ kind: 'sourcedoc', value: guid, label: 'document id (list item unique id) from sourcedoc', flag: 'Derived' }],

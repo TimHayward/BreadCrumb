@@ -7,7 +7,8 @@
  *   /:f:/t/SiteA/{token}?e={short}                                             token, "t" scope
  *   /_layouts/15/guestaccess.aspx?docid={id}&authkey={key}                      legacy guest access
  */
-import { locateByPath, unresolved } from '../result.js';
+import { failure, locateByPath, unresolved } from '../result.js';
+import { layoutsPages } from './layoutsPages.js';
 import type { Hint, Identifier } from '../types.js';
 import { itemTypeFromCode, layoutsPage, type FormMatcher } from './context.js';
 import { ownerHint } from '../path.js';
@@ -29,6 +30,15 @@ export const sharingPath: FormMatcher = (ctx) => {
   }
   const code = match[1] ?? 'u';
   const path = match[2] ?? '/';
+  // `/:w:/r/…/_layouts/15/Doc2.aspx?sourcedoc=…` wraps an Office web page, not a file
+  // path: hand it to the layouts rules so the document id is read, never a made up path.
+  if (/\/_layouts\//i.test(path)) {
+    const inner = layoutsPages({ ...ctx, pagePath: path });
+    if (inner === undefined) {
+      return failure('unsupported_form', undefined, 'This sharing link points at a SharePoint page that does not identify a file or folder.');
+    }
+    return inner.ok ? { ...inner, hints: [typeHint(code), ...inner.hints] } : inner;
+  }
   const identifiers: Identifier[] = [];
   const d = ctx.query.get('d');
   if (d !== undefined && d !== '') {

@@ -1,0 +1,9 @@
+{
+  "title": "A /r/ sharing link into a SharePoint system folder fails instead of offering _vti_bin as a library",
+  "row": "14",
+  "input": "https://contoso.sharepoint.com/:u:/r/sites/SiteA/_vti_bin/owssvr.dll?Cmd=Display",
+  "expected": {
+    "ok": false,
+    "reason": "unsupported_form"
+  }
+}

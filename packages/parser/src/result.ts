@@ -137,6 +137,13 @@ export interface UnresolvedItem extends ResultBase {
 }
 
 export function unresolved(item: UnresolvedItem): ParseSuccess {
+  const hints = [...(item.hints ?? [])];
+  if (item.sitePath?.toLowerCase().startsWith('/personal/')) {
+    const alias = segmentsOf(item.sitePath)[1];
+    if (alias !== undefined && !hints.some((h) => h.kind === 'owner')) {
+      hints.push(ownerHint(alias));
+    }
+  }
   const result: ParseSuccess = {
     ok: true,
     state: 'Unresolved',
@@ -148,7 +155,7 @@ export function unresolved(item: UnresolvedItem): ParseSuccess {
       host: derived(item.host.host),
     },
     identifiers: [...(item.identifiers ?? [])],
-    hints: [...(item.hints ?? [])],
+    hints,
     wrappers: [...item.wrappers],
     original: item.original,
     parserVersion: PARSER_VERSION,
@@ -173,9 +180,15 @@ export interface LocateOptions extends ResultBase {
  * inferred by the BC-018 rules. Used by the direct, sharing, download and
  * OneDrive forms.
  */
+/** SharePoint system folders: never a document library, folder or file (invariant 4). */
+const SYSTEM_SEGMENTS = /^(_layouts|_vti_bin|_vti_pvt|_api|_catalogs|_cts|_private|_windows)$/i;
+
 export function locateByPath(decodedPath: string, options: LocateOptions): ParseSuccess | ParseFailure {
   if (options.host.kind === 'unknown' && !hasSiteShape(decodedPath)) {
     return failure('not_microsoft_365', { host: options.host.host });
+  }
+  if (segmentsOf(decodedPath).some((segment) => SYSTEM_SEGMENTS.test(segment))) {
+    return failure('unsupported_form', undefined, 'The link points at a SharePoint system page rather than a document library, folder or file.');
   }
   const isFolder = options.folder ?? looksLikeFolder(decodedPath);
   const split = splitSitePath(decodedPath);

@@ -1,0 +1,9 @@
+{
+  "title": "A /r/ sharing link to a _layouts page that names no document fails cleanly",
+  "row": "14",
+  "input": "https://contoso.sharepoint.com/:u:/r/sites/SiteA/_layouts/15/viewlsts.aspx?view=14",
+  "expected": {
+    "ok": false,
+    "reason": "unsupported_form"
+  }
+}
