@@ -4,7 +4,7 @@
  */
 import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
-import { buildRows, submitRows, type PopupRow } from './popupModel.js';
+import { buildRows, submitRows, verificationUrl, type PopupRow } from './popupModel.js';
 import { getApiBaseUrl } from './storage.js';
 
 const main = document.getElementById('main') as HTMLElement;
@@ -32,8 +32,11 @@ async function askContent<T extends ContentToPopup>(tabId: number, message: Popu
   return (await chrome.tabs.sendMessage(tabId, message)) as T;
 }
 
-function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number, surfaceNote?: string): void {
+function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number, surfaceNote?: string, notice?: string): void {
   main.replaceChildren();
+  if (notice !== undefined) {
+    main.append(el('p', { class: 'note', role: 'status' }, notice));
+  }
   if (surfaceNote !== undefined) {
     main.append(el('p', { class: 'note' }, surfaceNote));
   }
@@ -76,7 +79,19 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
     submit.disabled = true;
     status.textContent = 'Sending…';
     await submitRows(rows, baseUrl, (url, init) => fetch(url, init));
-    renderRows(rows, baseUrl, tabId, surfaceNote);
+    const sent = rows.filter((row) => row.outcome?.ok === true).length;
+    let notice: string | undefined;
+    if (sent > 0) {
+      // Graph tokens live only in BreadCrumb's own pages (decision D3), so verification
+      // happens there: a background tab verifies the new entries and closes itself.
+      try {
+        await chrome.tabs.create({ url: verificationUrl(baseUrl), active: false });
+        notice = `Sent ${sent}. BreadCrumb is verifying them in a background tab, which closes itself when done. If it stays open, switch to it: you may need to sign in to Microsoft there.`;
+      } catch (error) {
+        notice = `Sent ${sent}. Open BreadCrumb's history to verify them (${error instanceof Error ? error.message : String(error)}).`;
+      }
+    }
+    renderRows(rows, baseUrl, tabId, surfaceNote, notice);
   });
   actions.append(submit, status);
   main.append(actions);

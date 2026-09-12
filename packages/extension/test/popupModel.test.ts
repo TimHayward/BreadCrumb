@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildRows, normaliseBaseUrl, submitRows, type FetchLike } from '../src/popupModel.js';
+import { buildRows, normaliseBaseUrl, submitRows, verificationUrl, type FetchLike } from '../src/popupModel.js';
+
+describe('verificationUrl', () => {
+  it('opens the extension-filtered history with the self-closing marker', () => {
+    expect(verificationUrl('http://localhost:3000')).toBe('http://localhost:3000/history?source=extension&close=1');
+  });
+});
 
 const DIRECT = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf';
 const TOKEN = 'https://contoso.sharepoint.com/:b:/s/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd';

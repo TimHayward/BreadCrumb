@@ -1,8 +1,9 @@
 /**
  * Browser side of authenticated validation (BC-036 to BC-041). Bundled by
  * esbuild into public/validate.js and loaded only when the server is
- * configured for sign in. Tokens live in MSAL's sessionStorage cache and
- * never reach the server (decision D3, invariant 15).
+ * configured for sign in. Tokens live in MSAL's encrypted localStorage cache,
+ * whose key is a session cookie, and never reach the server (decision D3,
+ * invariant 15).
  *
  * Every result the validator can check (Derived, Inferred, and Unresolved
  * sharing and document id links) verifies automatically once signed in, with
@@ -129,7 +130,10 @@ async function main(): Promise<void> {
       authority: `https://login.microsoftonline.com/${authTenant}`,
       redirectUri: `${window.location.origin}/`,
     },
-    cache: { cacheLocation: 'sessionStorage' },
+    // Shared by every BreadCrumb tab, so a tab opened from the extension is already signed in.
+    // MSAL encrypts this cache with a key held in a session cookie: entries from an earlier
+    // browser session cannot be decrypted and are discarded (BC-036), and none reach the server.
+    cache: { cacheLocation: 'localStorage' },
     system: {
       loggerOptions: {
         logLevel: DEBUG || CLIENT_LOG ? LogLevel.Info : LogLevel.Error,
@@ -366,63 +370,110 @@ async function main(): Promise<void> {
   }
 
   // History page: verify every unverified entry Graph can check (extension submissions included).
-  if (validateAll !== null) {
-    const button = validateAll.querySelector<HTMLButtonElement>('button');
-    const status = validateAll.querySelector<HTMLElement>('[role="status"]');
-    if (button !== null && status !== null) {
-      button.addEventListener('click', async () => {
-        button.disabled = true;
-        status.textContent = 'Listing unverified entries…';
-        let entries: ValidatableEntry[];
+  const verifyAllButton = validateAll?.querySelector<HTMLButtonElement>('button') ?? null;
+  const verifyAllStatus = validateAll?.querySelector<HTMLElement>('[role="status"]') ?? null;
+  let verifyAllRunning = false;
+  const attemptedKey = (id: number | string): string => `breadcrumb:auto:${id}`;
+
+  /**
+   * The extension opens this page in a background tab with close=1 after
+   * sending citations. Once everything it could verify is Verified, the tab
+   * closes itself; on any problem (not signed in, an entry Graph could not
+   * verify) it stays open so the reason is visible. Returns true when closing.
+   */
+  function closeIfOpenedToVerify(): boolean {
+    if (new URLSearchParams(window.location.search).get('close') !== '1') {
+      return false;
+    }
+    trace('verify-tab-close');
+    window.close();
+    // Browsers refuse to close tabs they did not open by script; fall back to showing the result.
+    window.setTimeout(() => window.location.replace('/history?source=extension'), 500);
+    return true;
+  }
+
+  /**
+   * Verifies unverified entries one at a time, newest first. Automatic runs
+   * (opening the history page, signing in) skip entries already attempted in
+   * this tab, so an entry Graph cannot verify is not retried on every reload;
+   * the button retries everything.
+   */
+  async function verifyAll(auto: boolean): Promise<void> {
+    if (verifyAllButton === null || verifyAllStatus === null || verifyAllRunning || account() === null) {
+      return;
+    }
+    const button = verifyAllButton;
+    const status = verifyAllStatus;
+    verifyAllRunning = true;
+    button.disabled = true;
+    let keepDisabled = false;
+    try {
+      status.textContent = 'Listing unverified entries…';
+      let entries: ValidatableEntry[];
+      try {
+        const response = await fetch('/api/history/validatable?limit=100');
+        entries = ((await response.json()) as { entries: ValidatableEntry[] }).entries;
+      } catch (error) {
+        status.textContent = `Could not list entries: ${error instanceof Error ? error.message : String(error)}.`;
+        return;
+      }
+      if (auto) {
+        entries = entries.filter((entry) => safeStorage(() => window.sessionStorage.getItem(attemptedKey(entry.id))) !== '1');
+      }
+      trace('validate-all-start', { count: entries.length, auto });
+      if (entries.length === 0) {
+        status.textContent = auto ? '' : 'Nothing to verify: every entry Graph can check is already Verified.';
+        if (auto) closeIfOpenedToVerify();
+        return;
+      }
+      let resolved = 0;
+      let failed = 0;
+      for (const [index, entry] of entries.entries()) {
+        status.textContent = `Verifying ${index + 1} of ${entries.length} with Microsoft Graph (${resolved} verified, ${failed} not)…`;
+        safeStorage(() => window.sessionStorage.setItem(attemptedKey(entry.id), '1'));
+        let outcome: EntryOutcome;
         try {
-          const response = await fetch('/api/history/validatable?limit=100');
-          entries = ((await response.json()) as { entries: ValidatableEntry[] }).entries;
+          outcome = await validateEntry(entry);
         } catch (error) {
-          status.textContent = `Could not list entries: ${error instanceof Error ? error.message : String(error)}.`;
-          button.disabled = false;
+          trace('validate-error', { id: entry.id, ...describeError(error) });
+          status.textContent = `Stopped: ${error instanceof Error ? error.message : String(error)}. ${resolved} verified so far.`;
           return;
         }
-        trace('validate-all-start', { count: entries.length });
-        if (entries.length === 0) {
-          status.textContent = 'Nothing to verify: every entry Graph can check is already Verified.';
-          button.disabled = false;
-          return;
-        }
-        let resolved = 0;
-        let failed = 0;
-        for (const [index, entry] of entries.entries()) {
-          status.textContent = `Validating ${index + 1} of ${entries.length} (${resolved} resolved, ${failed} not resolved)…`;
-          let outcome: EntryOutcome;
-          try {
-            outcome = await validateEntry(entry);
-          } catch (error) {
-            trace('validate-error', { id: entry.id, ...describeError(error) });
-            status.textContent = `Stopped: ${error instanceof Error ? error.message : String(error)}. ${resolved} resolved so far.`;
-            button.disabled = false;
+        if (outcome.ok) {
+          resolved += 1;
+        } else {
+          failed += 1;
+          if (outcome.kind === 'throttled') {
+            status.textContent = `Graph asked to slow down after ${resolved} verified. ${outcome.message}`;
+            keepDisabled = true;
+            countdown(button, outcome.retryAfterSeconds ?? 30, 'Verify all unverified');
             return;
           }
-          if (outcome.ok) {
-            resolved += 1;
-          } else {
-            failed += 1;
-            if (outcome.kind === 'throttled') {
-              status.textContent = `Graph asked to slow down after ${resolved} resolved. ${outcome.message}`;
-              countdown(button, outcome.retryAfterSeconds ?? 30, 'Verify all unverified');
-              return;
-            }
-            if (outcome.kind === 'auth') {
-              status.textContent = `Stopped: ${outcome.message} ${resolved} resolved so far.`;
-              button.disabled = false;
-              return;
-            }
+          if (outcome.kind === 'auth') {
+            status.textContent = `Stopped: ${outcome.message} ${resolved} verified so far.`;
+            return;
           }
         }
-        trace('validate-all-done', { resolved, failed });
-        status.textContent = `Done: ${resolved} resolved, ${failed} could not be resolved. Reloading…`;
+      }
+      trace('validate-all-done', { resolved, failed, auto });
+      if (auto && failed === 0 && closeIfOpenedToVerify()) {
+        return;
+      }
+      if (resolved > 0) {
+        status.textContent = `Done: ${resolved} verified${failed > 0 ? `, ${failed} could not be verified (open them to see why)` : ''}. Reloading…`;
         window.setTimeout(() => window.location.reload(), 800);
-      });
+      } else {
+        status.textContent = `None of the ${failed} ${failed === 1 ? 'entry' : 'entries'} could be verified. Open an entry to see why.`;
+      }
+    } finally {
+      verifyAllRunning = false;
+      if (!keepDisabled) {
+        button.disabled = false;
+      }
     }
   }
+
+  verifyAllButton?.addEventListener('click', () => void verifyAll(false));
 
   signIn.addEventListener('click', async () => {
     if (popupOpen) {
@@ -456,6 +507,7 @@ async function main(): Promise<void> {
     render();
     // A page opened before signing in may hold links waiting to be resolved.
     autoValidate();
+    void verifyAll(true);
   });
 
   signOut.addEventListener('click', async () => {
@@ -469,6 +521,7 @@ async function main(): Promise<void> {
 
   render();
   autoValidate();
+  void verifyAll(true);
 }
 
 void main().catch((error: unknown) => {

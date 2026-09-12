@@ -63,6 +63,16 @@ export function buildRows(citations: readonly Citation[]): PopupRow[] {
   return rows;
 }
 
+/**
+ * BreadCrumb's history filtered to extension submissions, opened after
+ * sending: a signed-in BreadCrumb page verifies unverified entries on its
+ * own, and close=1 lets that background tab close itself once all are
+ * Verified.
+ */
+export function verificationUrl(baseUrl: string): string {
+  return `${baseUrl}/history?source=extension&close=1`;
+}
+
 /** Turns what the user typed into an API base URL, or undefined when unusable. */
 export function normaliseBaseUrl(input: string | undefined | null): string | undefined {
   const text = (input ?? '').trim();
