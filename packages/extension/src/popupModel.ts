@@ -32,16 +32,41 @@ function folderOf(result: ParseResult): string | undefined {
   return result.path.slice(0, result.path.length - result.components.fileName.value.length - 1);
 }
 
+/**
+ * What makes two citations the same document: its unique id when the link
+ * carries one (sourcedoc, UniqueId, or the `d` of a sharing link), else its
+ * decoded path, else the URL. Copilot cites one file with different query
+ * parameters (`action=edit`, `action=default`), which must collapse to one row.
+ */
+export function identityOf(url: string, result: ParseResult): string {
+  if (!result.ok) {
+    return `url:${url}`;
+  }
+  const id = result.identifiers.find((i) => i.kind === 'sourcedoc' || i.kind === 'uniqueId' || i.kind === 'd');
+  if (id !== undefined) {
+    const raw = id.kind === 'd' ? id.value.replace(/^[a-z]/i, '') : id.value;
+    return `id:${raw.toLowerCase().replace(/[^0-9a-f]/g, '')}`;
+  }
+  if (result.path !== undefined) {
+    return `path:${result.components.host.value}${result.path}`.toLowerCase();
+  }
+  return `url:${url}`;
+}
+
 export function buildRows(citations: readonly Citation[]): PopupRow[] {
   const rows: PopupRow[] = [];
   const seen = new Set<string>();
   for (const citation of citations) {
     const url = citation.url.trim();
-    if (url === '' || seen.has(url)) {
+    if (url === '') {
       continue;
     }
-    seen.add(url);
     const result = parseLink(url);
+    const identity = identityOf(url, result);
+    if (seen.has(identity)) {
+      continue;
+    }
+    seen.add(identity);
     const folder = folderOf(result);
     const label = result.ok
       ? (result.components.fileName?.value ?? result.components.folders?.value.at(-1) ?? result.components.library?.value ?? citation.text ?? url)

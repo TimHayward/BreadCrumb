@@ -5,7 +5,7 @@
  * once those exist, each capture becomes a case here.
  */
 import { describe, expect, it } from 'vitest';
-import { extractCitations, isMicrosoftLink, redactedSample } from '../src/extract.js';
+import { extractCitations, isMicrosoftLink, redactedSample, urlsInJson } from '../src/extract.js';
 
 function page(bodyHtml: string): Document {
   document.body.innerHTML = bodyHtml;
@@ -56,6 +56,46 @@ describe('extractCitations', () => {
     expect(isMicrosoftLink('https://teams.microsoft.com/l/file/x')).toBe(true);
     expect(isMicrosoftLink('https://learn.microsoft.com/')).toBe(false);
     expect(isMicrosoftLink('not a url')).toBe(false);
+  });
+});
+
+describe('Copilot markup from spike S1 (copilot.cloud.microsoft, anonymised)', () => {
+  const docUrl = (guid: string, file: string, action: string): string =>
+    `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${guid}%7D&amp;file=${file}&amp;action=${action}&amp;mobileredirect=true`;
+  const PLAN = '3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C';
+  const grouped = JSON.stringify([
+    { index: '1-b80c34', occurrence: 5, url: docUrl(PLAN, 'Plan.pptx', 'edit').replaceAll('&amp;', '&') },
+    { index: '2-a1b2c3', occurrence: 1, url: 'https://contoso-my.sharepoint.com/personal/user_contoso_onmicrosoft_com/Documents/Budget.xlsx' },
+    { index: '3-d4e5f6', occurrence: 1, url: 'https://learn.microsoft.com/intune' },
+  ]).replaceAll('"', '&quot;');
+
+  it('reads inline entity links and the grouped citation list of the latest answer only', () => {
+    const doc = page(`
+      <main>
+        <div data-testid="chatMessage"><div data-testid="markdown-reply"><a data-testid="fl-link" href="https://contoso.sharepoint.com/sites/SiteA/Lib/Old.docx">Old</a></div></div>
+        <div data-testid="lastChatMessage">
+          <div data-testid="markdown-reply">
+            <h3><span><a class="fui-Link sef-entity-link" data-testid="fl-link" href="${docUrl(PLAN, 'Plan.pptx', 'default')}">Service plan</a></span></h3>
+            <p>Summary of the plan. <button class="fai-BebopCitation" data-citation-group-id="oai-citation-group-13" data-grouped-citations="${grouped}">1</button></p>
+          </div>
+        </div>
+        <button data-testid="sources-button-testid" aria-label="Sources">Sources</button>
+      </main>`);
+    const { citations, strategy } = extractCitations(doc, 'work');
+    expect(strategy).toBe('container [data-testid="lastChatMessage"] [data-testid="markdown-reply"] (last of 1)');
+    expect(citations.map((c) => c.url)).toEqual([
+      docUrl(PLAN, 'Plan.pptx', 'default').replaceAll('&amp;', '&'),
+      docUrl(PLAN, 'Plan.pptx', 'edit').replaceAll('&amp;', '&'),
+      'https://contoso-my.sharepoint.com/personal/user_contoso_onmicrosoft_com/Documents/Budget.xlsx',
+    ]);
+    expect(citations[0]?.text).toBe('Service plan');
+  });
+
+  it('urlsInJson tolerates bad JSON and nested shapes', () => {
+    expect(urlsInJson('not json')).toEqual([]);
+    expect(urlsInJson('{"sources":[{"title":"Deck","link":"https://contoso.sharepoint.com/sites/SiteA/Lib/Deck.pptx"}]}')).toEqual([
+      { url: 'https://contoso.sharepoint.com/sites/SiteA/Lib/Deck.pptx', title: 'Deck' },
+    ]);
   });
 });
 

@@ -26,6 +26,20 @@ describe('buildRows (BC-044)', () => {
   });
 });
 
+describe('one row per document', () => {
+  it('collapses the same document cited with different query parameters or link forms', () => {
+    const guid = '3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C';
+    const rows = buildRows([
+      { url: `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${guid}%7D&file=Plan.docx&action=edit&mobileredirect=true`, text: 'Plan' },
+      { url: `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${guid}%7D&file=Plan.docx&action=default` },
+      { url: `https://contoso.sharepoint.com/:w:/r/sites/SiteA/Lib/Plan.docx?d=w${guid.replaceAll('-', '').toLowerCase()}&csf=1&web=1` },
+      { url: `${DIRECT}?web=1` },
+      { url: DIRECT },
+    ]);
+    expect(rows.map((r) => r.label)).toEqual(['Plan.docx', 'Report.pdf']);
+  });
+});
+
 describe('normaliseBaseUrl (BC-045)', () => {
   it('accepts hosts with or without a scheme and strips trailing slashes', () => {
     expect(normaliseBaseUrl('192.168.1.20:3000')).toBe('http://192.168.1.20:3000');

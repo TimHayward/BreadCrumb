@@ -20,7 +20,7 @@ On `m365.cloud.microsoft` and `copilot.cloud.microsoft`, ask Copilot something t
 |---|---|---|---|---|
 | m365.cloud.microsoft | SharePoint file | | | |
 | m365.cloud.microsoft | OneDrive file | | | |
-| copilot.cloud.microsoft | SharePoint file | | | |
+| copilot.cloud.microsoft (2026-09-12) | SharePoint file (Doc.aspx) | Inline entity link `a.sef-entity-link[data-testid="fl-link"]` → `href`; numbered citation `button.fai-BebopCitation` → `data-grouped-citations`, a JSON array of `{ index, occurrence, url }` | Light DOM; no shadow roots; only iframe is `login.microsoftonline.com` | Answer: `[data-testid="lastChatMessage"] [data-testid="markdown-reply"]`; links: `[data-testid="fl-link"]`, `[data-grouped-citations]`. A "Sources" button (`data-testid="sources-button-testid"`) opens a panel not yet probed. Links are `_layouts/15/Doc.aspx?sourcedoc=…&file=…&action=edit` or `action=default` for the same file. |
 | copilot.cloud.microsoft | OneDrive file | | | |
 | copilot.microsoft.com | web page | | | |
 

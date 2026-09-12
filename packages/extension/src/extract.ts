@@ -11,9 +11,22 @@ import { classifyHost } from '@breadcrumb/parser';
 import { surfaceOf, type SurfaceKind } from './hosts.js';
 import type { Citation } from './messages.js';
 
-/** Candidate response containers per surface, most specific first. Placeholders pending S1. */
+/**
+ * Candidate response containers per surface, most specific first. The first
+ * two come from spike S1 on copilot.cloud.microsoft (2026-09-12): the latest
+ * answer is `[data-testid="lastChatMessage"]`, its body
+ * `[data-testid="markdown-reply"]`; no shadow DOM, no iframes.
+ */
 export const RESPONSE_SELECTORS: Record<SurfaceKind, string[]> = {
-  work: ['[data-testid*="assistant"]', '[data-testid*="response"]', '[role="article"]', '[aria-label*="Copilot"]', 'main'],
+  work: [
+    '[data-testid="lastChatMessage"] [data-testid="markdown-reply"]',
+    '[data-testid="markdown-reply"]',
+    '[role="article"]',
+    '[data-testid*="assistant"]',
+    '[data-testid*="response"]',
+    '[aria-label*="Copilot"]',
+    'main',
+  ],
   consumer: ['[data-testid*="response"]', '[role="article"]', 'main'],
   other: ['main'],
 };
@@ -56,6 +69,41 @@ function trimUrl(raw: string): string {
 }
 
 /**
+ * URLs inside a JSON valued data attribute. Copilot's citation buttons
+ * (`button.fai-BebopCitation`) hold `data-grouped-citations`, an array of
+ * `{ index, occurrence, url }` objects, one per grouped source (spike S1).
+ */
+export function urlsInJson(value: string): Array<{ url: string; title?: string }> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return [];
+  }
+  const found: Array<{ url: string; title?: string }> = [];
+  const visit = (node: unknown, depth: number): void => {
+    if (depth > 6 || node === null || typeof node !== 'object') {
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach((child) => visit(child, depth + 1));
+      return;
+    }
+    const record = node as Record<string, unknown>;
+    const title = ['title', 'name', 'displayName', 'text', 'label'].map((k) => record[k]).find((v): v is string => typeof v === 'string' && v.trim() !== '');
+    for (const child of Object.values(record)) {
+      if (typeof child === 'string' && /^https?:\/\//i.test(child)) {
+        found.push(title === undefined ? { url: child } : { url: child, title });
+      } else {
+        visit(child, depth + 1);
+      }
+    }
+  };
+  visit(parsed, 0);
+  return found;
+}
+
+/**
  * Collects candidate citations from links (href, and data attributes that
  * hold a URL) and from bare URLs in text, deduplicated by URL, in document
  * order.
@@ -84,8 +132,15 @@ export function extractCitations(doc: Document, surface: SurfaceKind = surfaceOf
       }
     }
     for (const attribute of Array.from(element.attributes)) {
-      if (attribute.name.startsWith('data-') && /^https?:\/\//i.test(attribute.value)) {
+      if (!attribute.name.startsWith('data-')) {
+        continue;
+      }
+      if (/^https?:\/\//i.test(attribute.value)) {
         add(attribute.value, element.textContent ?? undefined);
+      } else if (/^\s*[[{]/.test(attribute.value) && attribute.value.includes('http')) {
+        for (const found of urlsInJson(attribute.value)) {
+          add(found.url, found.title);
+        }
       }
     }
   }
