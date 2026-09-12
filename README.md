@@ -122,6 +122,10 @@ Reason codes: `not_a_url`, `not_microsoft_365`, `truncated` (with `detail.parame
 
 Unresolved results (sharing tokens, `Doc.aspx`, consumer OneDrive) are `200` with `state: "Unresolved"` and no `path`, `folderUrl` or `fileUrl`; `components` then carries only what the link reveals, and `identifiers` and `hints` hold the ids and best effort clues. Wrappers removed (Teams file links, Safe Links, expanded short links) are listed in `wrappers` in the order removed.
 
+### `POST /api/lookup`
+
+What BreadCrumb already knows about up to 50 links, used by the extension popup. Body: `{ "links": ["https://…", …] }`. Each answer is `{ "link", "found": false }` or `{ "link", "found": true, "id", "state", "verified", "path", "folderUrl", "fileUrl", "fileName" }`, taken from the best history entry for the same document: links are matched by the document's unique id (`sourcedoc`, `UniqueId`, a sharing link's `d`, or the unique id Graph confirmed), else its path, else the exact link. Verified entries win, then the newest; verified values replace the best effort ones.
+
 ### `GET /history/export.csv` and `GET /history/export.json`
 
 Download the history, filtered by the same query parameters as the history page (`q`, `state`, `from`, `to`, `source`, `host`).

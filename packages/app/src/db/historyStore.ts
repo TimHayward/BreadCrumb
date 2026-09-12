@@ -3,7 +3,7 @@
  * and validation upgrades (BC-040). Routes and pages talk to HistoryStore
  * only; SQL lives here.
  */
-import type { ConfidenceState, ParseResult } from '@breadcrumb/parser';
+import { documentKey, type ConfidenceState, type ParseResult } from '@breadcrumb/parser';
 import type { ValidationRecord, ValidationSubmission, VerifiedResult } from '../validation/types.js';
 import { isBusyError, type Database } from './connection.js';
 
@@ -88,6 +88,14 @@ export interface HistoryStore {
   delete(ids: readonly number[]): number;
   /** Appends a validation to a conversion. Throws when the conversion does not exist. */
   addValidation(conversionId: number, submission: ValidationSubmission): ValidationRecord;
+  /**
+   * The entry that best answers a citation (the extension's lookup): rows for
+   * the same document key or the exact link, and for id keys also rows whose
+   * newest validation has that list item unique id. Verified rows first, then newest.
+   */
+  findLatest(link: string, key: string): ConversionRow | undefined;
+  /** Fills doc_key for rows stored before migration 3; returns how many were filled. */
+  backfillDocumentKeys(): number;
 }
 
 interface DbRow {
@@ -252,8 +260,8 @@ export class SqliteHistoryStore implements HistoryStore {
         };
 
     const statement = this.#db.prepare(
-      `INSERT INTO conversions (created_at, source, input, state, failure_reason, form, method_text, host, tenant, site_path, library, path, folder_url, file_url, file_name, result_json, parser_version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO conversions (created_at, source, input, state, failure_reason, form, method_text, host, tenant, site_path, library, path, folder_url, file_url, file_name, result_json, parser_version, doc_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const args = [
       createdAt,
@@ -273,6 +281,7 @@ export class SqliteHistoryStore implements HistoryStore {
       params.file_name,
       JSON.stringify(r),
       r.parserVersion,
+      documentKey(r, conversion.input),
     ];
 
     // S4 saw one SQLITE_BUSY in 2000 writes under contention; retry once
@@ -363,5 +372,38 @@ export class SqliteHistoryStore implements HistoryStore {
         JSON.stringify(v),
       );
     return { id: Number(result.lastInsertRowid), conversionId, previousState: submission.previousState, verified: v };
+  }
+
+  findLatest(link: string, key: string): ConversionRow | undefined {
+    const clauses = ['c.doc_key = ?', 'c.input = ?'];
+    const params: string[] = [key, link.trim()];
+    if (key.startsWith('id:')) {
+      // A verified entry reached by another link form (a sharing token, say) still names the file's unique id.
+      clauses.push("('id:' || lower(replace(replace(replace(v.list_item_unique_id, '-', ''), '{', ''), '}', ''))) = ?");
+      params.push(key);
+    }
+    const r = this.#db
+      .prepare(`SELECT ${COLUMNS} ${FROM} WHERE ${clauses.join(' OR ')} ORDER BY (v.id IS NOT NULL) DESC, c.created_at DESC, c.id DESC LIMIT 1`)
+      .get(...params) as DbRow | undefined;
+    return r === undefined ? undefined : toRow(r);
+  }
+
+  backfillDocumentKeys(): number {
+    const rows = this.#db.prepare('SELECT id, input, result_json FROM conversions WHERE doc_key IS NULL').all() as Array<{ id: number; input: string; result_json: string }>;
+    if (rows.length === 0) {
+      return 0;
+    }
+    const update = this.#db.prepare('UPDATE conversions SET doc_key = ? WHERE id = ?');
+    this.#db.exec('BEGIN');
+    try {
+      for (const row of rows) {
+        update.run(documentKey(JSON.parse(row.result_json) as ParseResult, row.input), row.id);
+      }
+      this.#db.exec('COMMIT');
+    } catch (error) {
+      this.#db.exec('ROLLBACK');
+      throw error;
+    }
+    return rows.length;
   }
 }

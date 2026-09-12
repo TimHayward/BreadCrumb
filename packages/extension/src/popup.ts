@@ -4,7 +4,7 @@
  */
 import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
-import { buildRows, submitRows, verificationUrl, type PopupRow } from './popupModel.js';
+import { applyLookup, buildRows, followUntilVerified, lookupRows, submitRows, verificationUrl, type PopupRow } from './popupModel.js';
 import { getApiBaseUrl } from './storage.js';
 
 const main = document.getElementById('main') as HTMLElement;
@@ -49,18 +49,32 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
       row.selected = checkbox.checked;
     });
     const label = el('label', { for: row.key, class: 'label' }, row.label);
-    const folder = el('div', { class: 'folder' }, row.folder ?? (row.state === 'Unresolved' ? 'folder unknown until validated in BreadCrumb' : row.result.ok ? '' : row.result.message));
-    const meta = el('div', { class: 'meta' }, badge(row.state));
-    if (row.libraryInferred) {
+    const known = row.known;
+    const state = known?.state ?? row.state;
+    const folderText =
+      known?.folder ?? row.folder ?? (row.state === 'Unresolved' ? 'folder unknown until BreadCrumb verifies it' : row.result.ok ? '' : row.result.message);
+    const folder = el('div', { class: 'folder' }, folderText);
+    const meta = el('div', { class: 'meta' }, badge(state));
+    if (known?.verified === true) {
+      meta.append(el('span', { class: 'outcome-ok' }, 'confirmed by Microsoft Graph'));
+    } else if (row.libraryInferred && known === undefined) {
       meta.append(el('span', { class: 'marker-inferred' }, 'library inferred'));
     }
-    if (row.state === 'Unresolved') {
-      meta.append(el('span', { class: 'note' }, 'needs validation in the web application'));
+    if (state === 'Unresolved') {
+      meta.append(el('span', { class: 'note' }, 'verifies in BreadCrumb once you are signed in there'));
+    }
+    if (known !== undefined && baseUrl !== undefined) {
+      const entry = el('a', { href: `${baseUrl}/history/${known.id}`, class: 'note' }, `BreadCrumb entry ${known.id}`);
+      entry.addEventListener('click', (event) => {
+        event.preventDefault();
+        void chrome.tabs.create({ url: entry.href });
+      });
+      meta.append(entry);
     }
     if (row.outcome !== undefined) {
       meta.append(
         row.outcome.ok
-          ? el('span', { class: 'outcome-ok' }, `Sent: entry ${row.outcome.id} (${row.outcome.state})`)
+          ? el('span', { class: 'outcome-ok' }, known?.verified === true ? 'Sent and verified' : 'Sent')
           : el('span', { class: 'outcome-fail' }, row.outcome.message),
       );
     }
@@ -92,6 +106,12 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
       }
     }
     renderRows(rows, baseUrl, tabId, surfaceNote, notice);
+    if (sent > 0) {
+      const outcome = await followUntilVerified(rows, baseUrl, () => renderRows(rows, baseUrl, tabId, surfaceNote, notice));
+      if (outcome === 'verified') {
+        renderRows(rows, baseUrl, tabId, surfaceNote, `Sent ${sent} and BreadCrumb verified ${sent === 1 ? 'it' : 'them all'} with Microsoft Graph.`);
+      }
+    }
   });
   actions.append(submit, status);
   main.append(actions);
@@ -231,7 +251,17 @@ async function start(): Promise<void> {
     renderEmpty(surface, tab.id, baseUrl, extracted.strategy);
     return;
   }
-  renderRows(rows, baseUrl, tab.id, surface === 'consumer' ? 'Links found in the response text on the consumer surface.' : undefined);
+  const surfaceNote = surface === 'consumer' ? 'Links found in the response text on the consumer surface.' : undefined;
+  renderRows(rows, baseUrl, tab.id, surfaceNote);
+  // Show what BreadCrumb already knows (a Verified folder, the entry number); unticks documents it already has.
+  if (baseUrl !== undefined) {
+    const answers = await lookupRows(rows, baseUrl);
+    if (answers !== undefined && answers.some((answer) => answer.found)) {
+      applyLookup(rows, answers, { untickKnown: true });
+      const kept = rows.filter((row) => row.known !== undefined).length;
+      renderRows(rows, baseUrl, tab.id, surfaceNote, `${kept} of ${rows.length} already in BreadCrumb (unticked).`);
+    }
+  }
 }
 
 void start();

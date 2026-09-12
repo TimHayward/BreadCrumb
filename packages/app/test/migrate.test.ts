@@ -8,12 +8,12 @@ describe('migrations (BC-029)', () => {
   it('creates the schema on an empty database and applies nothing on a second run', () => {
     const db = openDatabase(':memory:');
     const first = migrate(db);
-    expect(first.applied).toEqual([1, 2]);
-    expect(first.version).toBe(2);
+    expect(first.applied).toEqual([1, 2, 3]);
+    expect(first.version).toBe(3);
 
     const second = migrate(db);
     expect(second.applied).toEqual([]);
-    expect(second.version).toBe(2);
+    expect(second.version).toBe(3);
 
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map(
       (r) => r.name,
@@ -25,12 +25,12 @@ describe('migrations (BC-029)', () => {
   it('rolls back a failing migration and leaves the version unchanged', () => {
     const db = openDatabase(':memory:');
     migrate(db);
-    expect(() => migrate(db, [{ version: 3, name: 'broken', sql: 'CREATE TABLE ok (id INTEGER); CREATE TABLE ok (id INTEGER);' }])).toThrow(
-      /Migration 3 \(broken\) failed/,
+    expect(() => migrate(db, [{ version: 4, name: 'broken', sql: 'CREATE TABLE ok (id INTEGER); CREATE TABLE ok (id INTEGER);' }])).toThrow(
+      /Migration 4 \(broken\) failed/,
     );
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'ok'").all() as unknown[]).length;
     expect(tables).toBe(0);
-    expect(migrate(db).version).toBe(2);
+    expect(migrate(db).version).toBe(3);
     db.close();
   });
 

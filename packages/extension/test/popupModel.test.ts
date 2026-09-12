@@ -1,5 +1,72 @@
 import { describe, expect, it } from 'vitest';
-import { buildRows, normaliseBaseUrl, submitRows, verificationUrl, type FetchLike } from '../src/popupModel.js';
+import { applyLookup, buildRows, followUntilVerified, lookupRows, normaliseBaseUrl, submitRows, verificationUrl, type FetchLike, type LookupAnswer } from '../src/popupModel.js';
+
+describe('what BreadCrumb knows (lookup)', () => {
+  const DOC = 'https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C%7D&file=Plan.pptx&action=edit';
+  const OTHER = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Other.pdf';
+  const verified: LookupAnswer = {
+    link: DOC,
+    found: true,
+    id: 23,
+    state: 'Verified',
+    verified: true,
+    path: '/sites/SiteA/Shared Documents/Plans/Plan.pptx',
+    folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Plans',
+    fileUrl: 'https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Plans/Plan.pptx',
+    fileName: 'Plan.pptx',
+  };
+
+  it('records the verified folder and unticks documents BreadCrumb already has, on the first lookup only', () => {
+    const rows = buildRows([{ url: DOC }, { url: OTHER }]);
+    applyLookup(rows, [verified, { link: OTHER, found: false }], { untickKnown: true });
+    expect(rows[0]?.known).toEqual({ id: 23, state: 'Verified', verified: true, path: verified.path, folder: '/sites/SiteA/Shared Documents/Plans', folderUrl: verified.folderUrl });
+    expect(rows[0]?.selected).toBe(false);
+    expect(rows[1]?.known).toBeUndefined();
+    expect(rows[1]?.selected).toBe(true);
+
+    rows[0]!.selected = true;
+    applyLookup(rows, [verified]);
+    expect(rows[0]?.selected).toBe(true);
+  });
+
+  it('asks POST /api/lookup with the row links and tolerates failures', async () => {
+    const rows = buildRows([{ url: DOC }, { url: OTHER }]);
+    const bodies: string[] = [];
+    const answers = await lookupRows(rows, 'http://localhost:3000', async (url, init) => {
+      bodies.push(`${url} ${String(init.body)}`);
+      return new Response(JSON.stringify({ answers: [verified] }), { status: 200 });
+    });
+    expect(bodies).toEqual([`http://localhost:3000/api/lookup ${JSON.stringify({ links: [DOC, OTHER] })}`]);
+    expect(answers).toEqual([verified]);
+    expect(await lookupRows(rows, 'http://localhost:3000', async () => new Response('', { status: 404 }))).toBeUndefined();
+    expect(await lookupRows(rows, 'http://localhost:3000', async () => { throw new Error('offline'); })).toBeUndefined();
+  });
+
+  it('follows sent rows until BreadCrumb has verified them, or gives up at the deadline', async () => {
+    const rows = buildRows([{ url: DOC }]);
+    rows[0]!.outcome = { ok: true, id: 23, state: 'Unresolved' };
+    let calls = 0;
+    const pending: LookupAnswer = { ...verified, state: 'Unresolved', verified: false, path: null, folderUrl: null, fileUrl: null, fileName: null };
+    const fetchImpl: FetchLike = async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ answers: [calls < 3 ? pending : verified] }), { status: 200 });
+    };
+    let updates = 0;
+    let clock = 0;
+    const options = { sleep: async (ms: number) => { clock += ms; }, now: () => clock, intervalMs: 2000, timeoutMs: 90000 };
+    expect(await followUntilVerified(rows, 'http://localhost:3000', () => (updates += 1), fetchImpl, options)).toBe('verified');
+    expect(calls).toBe(3);
+    expect(updates).toBe(3);
+    expect(rows[0]?.known?.folder).toBe('/sites/SiteA/Shared Documents/Plans');
+
+    const stuck = buildRows([{ url: OTHER }]);
+    stuck[0]!.outcome = { ok: true, id: 24, state: 'Inferred' };
+    clock = 0;
+    const neverVerified: FetchLike = async () => new Response(JSON.stringify({ answers: [{ ...pending, link: OTHER, id: 24, state: 'Inferred' }] }), { status: 200 });
+    expect(await followUntilVerified(stuck, 'http://localhost:3000', () => {}, neverVerified, { ...options, timeoutMs: 6000 })).toBe('timeout');
+    expect(await followUntilVerified(buildRows([{ url: OTHER }]), 'http://localhost:3000', () => {}, neverVerified, options)).toBe('nothing-sent');
+  });
+});
 
 describe('verificationUrl', () => {
   it('opens the extension-filtered history with the self-closing marker', () => {

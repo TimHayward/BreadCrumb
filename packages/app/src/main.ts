@@ -31,9 +31,11 @@ const https = config.tls === undefined ? undefined : { cert: readPem('TLS_CERT_F
 const db = openDatabase(config.databasePath);
 const migration = migrate(db);
 const store = new SqliteHistoryStore(db);
+// Entries stored before migration 3 get their document key from the stored result (once).
+const backfilled = store.backfillDocumentKeys();
 const app = await buildServer({ config, db, store, ...(https !== undefined ? { https } : {}) });
 
-app.log.info({ databasePath: config.databasePath, schemaVersion: migration.version, applied: migration.applied }, 'database ready');
+app.log.info({ databasePath: config.databasePath, schemaVersion: migration.version, applied: migration.applied, documentKeysBackfilled: backfilled }, 'database ready');
 app.log.info(
   { enabled: config.shortLinkExpansionEnabled, timeoutMs: config.shortLinkTimeoutMs },
   config.shortLinkExpansionEnabled ? 'short link expansion enabled: the server will fetch 1drv.ms links' : 'short link expansion disabled: no outbound requests',

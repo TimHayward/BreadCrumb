@@ -3,13 +3,17 @@
  * page share this path into history. Validation results come from the
  * browser, which is where Graph is called (decision D3).
  */
+import { documentKey, parseLink } from '@breadcrumb/parser';
 import type { FastifyInstance } from 'fastify';
-import type { ConversionSource, HistoryStore } from '../db/historyStore.js';
+import { effectiveState, type ConversionSource, type HistoryStore } from '../db/historyStore.js';
 import type { ConversionService } from '../services/conversionService.js';
 import { isValidatable } from '../validation/graphValidation.js';
 import { parseSubmission } from '../validation/submission.js';
 
 const SOURCES: ReadonlySet<string> = new Set(['web', 'extension']);
+
+/** Links per POST /api/lookup: one Copilot answer rarely cites more than a handful of files. */
+const MAX_LOOKUP_LINKS = 50;
 
 export interface ConvertRequestBody {
   link: string;
@@ -39,6 +43,38 @@ export function registerApiRoutes(app: FastifyInstance, service: ConversionServi
     request.breadcrumb.form = outcome.result.form;
     request.breadcrumb.state = outcome.result.state;
     return reply.code(200).send({ id: outcome.id, createdAt: outcome.createdAt, result: outcome.result });
+  });
+
+  /**
+   * What BreadCrumb knows about citations (the extension popup): for each link,
+   * the best history entry for the same document, with its Verified values
+   * when it has been validated. At most 50 links per request.
+   */
+  app.post('/api/lookup', async (request, reply) => {
+    const body = request.body as { links?: unknown } | null;
+    const links = body?.links;
+    if (!Array.isArray(links) || links.length > MAX_LOOKUP_LINKS || !links.every((l): l is string => typeof l === 'string' && l.trim() !== '')) {
+      return reply.code(400).send({ reason: 'invalid_request', message: `Request body must be { "links": [ ...up to ${MAX_LOOKUP_LINKS} non-empty strings ] }.` });
+    }
+    const answers = links.map((link) => {
+      const row = store.findLatest(link, documentKey(parseLink(link), link));
+      if (row === undefined) {
+        return { link, found: false as const };
+      }
+      const v = row.validation?.verified;
+      return {
+        link,
+        found: true as const,
+        id: row.id,
+        state: effectiveState(row),
+        verified: v !== undefined,
+        path: v?.path ?? row.path,
+        folderUrl: v?.folderUrl ?? row.folderUrl,
+        fileUrl: v === undefined ? row.fileUrl : (v.fileUrl ?? null),
+        fileName: v?.components.fileName ?? row.fileName,
+      };
+    });
+    return reply.send({ answers });
   });
 
   /** Every unverified entry the browser can check with Graph, newest first, for "Verify all unverified". */

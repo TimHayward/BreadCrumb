@@ -33,6 +33,7 @@ export type {
   WrapperType,
 } from './types.js';
 export { SHORT_LINK_HOSTS, classifyHost } from './url.js';
+export { documentKey, documentKeyForUniqueId } from './identity.js';
 export { PARSER_VERSION } from './version.js';
 
 /** Wrappers nested deeper than this are treated as malformed. */

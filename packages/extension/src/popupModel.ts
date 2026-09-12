@@ -1,9 +1,10 @@
 /**
  * Popup logic without the DOM (BC-044, BC-045): builds rows from extracted
- * citations with the shared parser, and submits selected rows to the API
- * one at a time with per row outcomes. Testable in Node.
+ * citations with the shared parser, asks BreadCrumb what it already knows
+ * about them, and submits selected rows to the API one at a time with per
+ * row outcomes. Testable in Node.
  */
-import { parseLink, type ConfidenceState, type ParseResult } from '@breadcrumb/parser';
+import { documentKey, parseLink, type ConfidenceState, type ParseResult } from '@breadcrumb/parser';
 import type { Citation } from './messages.js';
 
 export interface PopupRow {
@@ -18,6 +19,20 @@ export interface PopupRow {
   libraryInferred: boolean;
   selected: boolean;
   outcome?: SubmissionOutcome;
+  /** What BreadCrumb's history says about this document, when it has an entry. */
+  known?: KnownEntry;
+}
+
+/** A history entry for the row's document, as answered by POST /api/lookup. */
+export interface KnownEntry {
+  id: number;
+  state: ConfidenceState | 'failed';
+  /** True when the entry was confirmed by Microsoft Graph. */
+  verified: boolean;
+  path?: string;
+  /** Containing folder of `path` (the path itself for a folder). */
+  folder?: string;
+  folderUrl?: string;
 }
 
 export type SubmissionOutcome = { ok: true; id: number; state: ConfidenceState } | { ok: false; message: string };
@@ -32,27 +47,6 @@ function folderOf(result: ParseResult): string | undefined {
   return result.path.slice(0, result.path.length - result.components.fileName.value.length - 1);
 }
 
-/**
- * What makes two citations the same document: its unique id when the link
- * carries one (sourcedoc, UniqueId, or the `d` of a sharing link), else its
- * decoded path, else the URL. Copilot cites one file with different query
- * parameters (`action=edit`, `action=default`), which must collapse to one row.
- */
-export function identityOf(url: string, result: ParseResult): string {
-  if (!result.ok) {
-    return `url:${url}`;
-  }
-  const id = result.identifiers.find((i) => i.kind === 'sourcedoc' || i.kind === 'uniqueId' || i.kind === 'd');
-  if (id !== undefined) {
-    const raw = id.kind === 'd' ? id.value.replace(/^[a-z]/i, '') : id.value;
-    return `id:${raw.toLowerCase().replace(/[^0-9a-f]/g, '')}`;
-  }
-  if (result.path !== undefined) {
-    return `path:${result.components.host.value}${result.path}`.toLowerCase();
-  }
-  return `url:${url}`;
-}
-
 export function buildRows(citations: readonly Citation[]): PopupRow[] {
   const rows: PopupRow[] = [];
   const seen = new Set<string>();
@@ -62,7 +56,8 @@ export function buildRows(citations: readonly Citation[]): PopupRow[] {
       continue;
     }
     const result = parseLink(url);
-    const identity = identityOf(url, result);
+    // One row per document (the parser's documentKey, shared with the server's lookup).
+    const identity = documentKey(result, url);
     if (seen.has(identity)) {
       continue;
     }
@@ -143,4 +138,114 @@ export async function submitRows(rows: PopupRow[], baseUrl: string, fetchImpl: F
     }
   }
   return rows;
+}
+
+export type LookupAnswer =
+  | { link: string; found: false }
+  | {
+      link: string;
+      found: true;
+      id: number;
+      state: ConfidenceState | null;
+      verified: boolean;
+      path: string | null;
+      folderUrl: string | null;
+      fileUrl: string | null;
+      fileName: string | null;
+    };
+
+/** Links per lookup request; matches the server's limit. */
+export const MAX_LOOKUP_LINKS = 50;
+
+/**
+ * Records BreadCrumb's answers on the rows they belong to. On the first
+ * lookup (untickKnown) a document BreadCrumb already has starts unticked,
+ * since it is already kept; later lookups leave the selection alone.
+ */
+export function applyLookup(rows: PopupRow[], answers: readonly LookupAnswer[], options: { untickKnown?: boolean } = {}): PopupRow[] {
+  const byLink = new Map(answers.map((answer) => [answer.link, answer]));
+  for (const row of rows) {
+    const answer = byLink.get(row.url);
+    if (answer === undefined || !answer.found) {
+      continue;
+    }
+    const known: KnownEntry = { id: answer.id, state: answer.state ?? 'failed', verified: answer.verified };
+    if (answer.path !== null) {
+      known.path = answer.path;
+      const name = answer.fileName;
+      known.folder = name !== null && answer.path.endsWith(`/${name}`) ? answer.path.slice(0, answer.path.length - name.length - 1) : answer.path;
+    }
+    if (answer.folderUrl !== null) {
+      known.folderUrl = answer.folderUrl;
+    }
+    row.known = known;
+    if (options.untickKnown === true && row.outcome === undefined) {
+      row.selected = false;
+    }
+  }
+  return rows;
+}
+
+/** Asks BreadCrumb about the rows' links; undefined when it cannot be reached or answers badly. */
+export async function lookupRows(rows: readonly PopupRow[], baseUrl: string, fetchImpl: FetchLike = (u, i) => fetch(u, i)): Promise<LookupAnswer[] | undefined> {
+  const links = rows.map((row) => row.url).slice(0, MAX_LOOKUP_LINKS);
+  if (links.length === 0) {
+    return [];
+  }
+  try {
+    const response = await fetchImpl(`${baseUrl}/api/lookup`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ links }),
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    const body = (await response.json()) as { answers?: LookupAnswer[] };
+    return Array.isArray(body.answers) ? body.answers : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export interface PollOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+}
+
+/**
+ * After sending, follows the sent rows until BreadCrumb has verified them all
+ * (the background tab does the Graph work) or the time runs out, calling
+ * onUpdate after each lookup so the popup can re-render.
+ */
+export async function followUntilVerified(
+  rows: PopupRow[],
+  baseUrl: string,
+  onUpdate: () => void,
+  fetchImpl: FetchLike = (u, i) => fetch(u, i),
+  options: PollOptions = {},
+): Promise<'verified' | 'timeout' | 'nothing-sent'> {
+  const intervalMs = options.intervalMs ?? 2000;
+  const timeoutMs = options.timeoutMs ?? 90000;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const now = options.now ?? (() => Date.now());
+  const sent = rows.filter((row) => row.outcome?.ok === true);
+  if (sent.length === 0) {
+    return 'nothing-sent';
+  }
+  const deadline = now() + timeoutMs;
+  while (now() < deadline) {
+    await sleep(intervalMs);
+    const answers = await lookupRows(sent, baseUrl, fetchImpl);
+    if (answers !== undefined) {
+      applyLookup(sent, answers);
+      onUpdate();
+    }
+    if (sent.every((row) => row.known?.verified === true)) {
+      return 'verified';
+    }
+  }
+  return 'timeout';
 }
