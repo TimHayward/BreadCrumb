@@ -3,7 +3,7 @@
  * them with folder and state, and submits the selected ones to the API.
  */
 import { surfaceOf } from './hosts.js';
-import type { ContentToPopup, ExtractResponse, PopupToContent, SampleResponse } from './messages.js';
+import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
 import { buildRows, submitRows, type PopupRow } from './popupModel.js';
 import { getApiBaseUrl } from './storage.js';
 
@@ -113,6 +113,78 @@ function renderEmpty(kind: 'work' | 'consumer', tabId: number, baseUrl: string |
   main.append(box);
 }
 
+type ReportOutcome = 'sent' | 'disabled' | 'unreachable' | 'no-base-url';
+
+/**
+ * Posts a diagnostic event to BreadCrumb's log. The server accepts it only
+ * when it runs with CLIENT_LOG=true (local diagnosed runs); otherwise this is
+ * a harmless 404.
+ */
+async function reportToServer(baseUrl: string | undefined, event: string, detail: unknown): Promise<ReportOutcome> {
+  if (baseUrl === undefined) {
+    return 'no-base-url';
+  }
+  try {
+    const response = await fetch(`${baseUrl}/api/client-log`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ event, detail, page: 'extension-popup', at: new Date().toISOString() }),
+    });
+    return response.ok ? 'sent' : 'disabled';
+  } catch {
+    return 'unreachable';
+  }
+}
+
+/** "Diagnose this page" (spike S1): probe the page's markup, send it to the log and copy it. */
+function setupDiagnostics(tabId: number, baseUrl: string | undefined): void {
+  const footer = document.getElementById('diag');
+  if (footer === null) {
+    return;
+  }
+  const button = el('button', { type: 'button', class: 'secondary' }, 'Diagnose this page');
+  const status = el('span', { class: 'note', role: 'status' });
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    status.textContent = 'Inspecting the page…';
+    let response: ProbeResponse;
+    try {
+      response = await askContent<ProbeResponse>(tabId, { type: 'breadcrumb:probe' });
+    } catch (error) {
+      status.textContent = `The page did not answer (${error instanceof Error ? error.message : String(error)}). Reload it and try again.`;
+      button.disabled = false;
+      return;
+    }
+    if (response.report === null) {
+      status.textContent = `The probe failed: ${response.error ?? 'unknown error'}.`;
+      button.disabled = false;
+      return;
+    }
+    const report = response.report;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(report, null, 1));
+      copied = true;
+    } catch {
+      copied = false;
+    }
+    const sent = await reportToServer(baseUrl, 'extension-probe', report);
+    const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const found = `Found ${plural(report.hits.length, 'Microsoft 365 link')}, ${plural(report.citationLike.length, 'citation chip')} without a link and ${plural(report.iframes.length, 'iframe')}.`;
+    const where =
+      sent === 'sent'
+        ? ' Sent to the BreadCrumb log.'
+        : sent === 'disabled'
+          ? ' The BreadCrumb server is not collecting diagnostics (CLIENT_LOG is off).'
+          : sent === 'unreachable'
+            ? ` Could not reach ${baseUrl ?? 'the API'}.`
+            : ' No API base URL is set.';
+    status.textContent = `${found}${where}${copied ? ' Copied to the clipboard.' : ''}`;
+    button.disabled = false;
+  });
+  footer.replaceChildren(button, status);
+}
+
 async function start(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const baseUrl = await getApiBaseUrl();
@@ -125,6 +197,7 @@ async function start(): Promise<void> {
     main.replaceChildren(el('p', {}, 'BreadCrumb works on m365.cloud.microsoft, copilot.cloud.microsoft and copilot.microsoft.com. Open a Copilot response there.'));
     return;
   }
+  setupDiagnostics(tab.id, baseUrl);
   let extracted: ExtractResponse;
   try {
     extracted = await askContent<ExtractResponse>(tab.id, { type: 'breadcrumb:extract' });
@@ -132,6 +205,12 @@ async function start(): Promise<void> {
     main.replaceChildren(el('p', {}, `The page did not answer (${error instanceof Error ? error.message : String(error)}). Reload the Copilot page and open the popup again.`));
     return;
   }
+  void reportToServer(baseUrl, 'extension-extract', {
+    host: extracted.host,
+    surface: extracted.surface,
+    strategy: extracted.strategy,
+    citations: extracted.citations,
+  });
   const rows = buildRows(extracted.citations);
   if (rows.length === 0) {
     renderEmpty(surface, tab.id, baseUrl, extracted.strategy);

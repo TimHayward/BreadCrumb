@@ -1,5 +1,6 @@
 /** Messages between the popup and the content script. */
 import type { SurfaceKind } from './hosts.js';
+import type { ProbeReport } from './probe.js';
 
 export interface Citation {
   url: string;
@@ -30,5 +31,15 @@ export interface SampleResponse {
   sample: string;
 }
 
-export type PopupToContent = ExtractRequest | SampleRequest;
-export type ContentToPopup = ExtractResponse | SampleResponse;
+export interface ProbeRequest {
+  type: 'breadcrumb:probe';
+}
+
+export interface ProbeResponse {
+  type: 'breadcrumb:probe';
+  report: ProbeReport | null;
+  error?: string;
+}
+
+export type PopupToContent = ExtractRequest | SampleRequest | ProbeRequest;
+export type ContentToPopup = ExtractResponse | SampleResponse | ProbeResponse;

@@ -24,3 +24,6 @@ li.row .meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; align-i
 .outcome-fail { color: var(--failed); font-size: 12px; }
 .actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .empty h2 { font-size: 14px; margin: 0 0 6px; }
+.diag { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.diag:empty { display: none; }
+.diag button { padding: 3px 8px; font-size: 12px; }
