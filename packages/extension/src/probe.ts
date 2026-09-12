@@ -160,17 +160,18 @@ export function probePage(doc: Document): ProbeReport {
     }
     if (tag === 'iframe') {
       const src = element.getAttribute('src') ?? '';
+      // Same origin as the page means the content script could read inside it;
+      // a cross-origin iframe (another host) is out of the extension's reach.
       let host = '';
+      let sameOrigin = src === '' || src.startsWith('about:');
       try {
-        host = src === '' ? '' : new URL(src, doc.location?.href).hostname;
+        if (!sameOrigin) {
+          const target = new URL(src, doc.location?.href);
+          host = target.hostname;
+          sameOrigin = target.origin === doc.location?.origin;
+        }
       } catch {
         host = '';
-      }
-      let sameOrigin = false;
-      try {
-        sameOrigin = (element as HTMLIFrameElement).contentDocument !== null;
-      } catch {
-        sameOrigin = false;
       }
       report.iframes.push({ src: clip(src, 200), host, sameOrigin, shadowDepth: depth });
     }
