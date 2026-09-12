@@ -17,6 +17,7 @@ describe('loadConfig (BC-005)', () => {
       'config: SHORTLINK_EXPANSION_ENABLED not set, using "false"',
       'config: SHORTLINK_TIMEOUT_MS not set, using "5000"',
       'config: CLIENT_LOG not set, using "false"',
+      'config: TLS_CERT_FILE and TLS_KEY_FILE not set, serving plain HTTP',
       'config: AUTH_TENANT_ID and AUTH_CLIENT_ID not set, authenticated validation is not configured',
     ]);
   });
@@ -32,6 +33,8 @@ describe('loadConfig (BC-005)', () => {
         SHORTLINK_EXPANSION_ENABLED: 'yes',
         SHORTLINK_TIMEOUT_MS: '2500',
         CLIENT_LOG: 'true',
+        TLS_CERT_FILE: '/tls/cert.pem',
+        TLS_KEY_FILE: '/tls/key.pem',
         AUTH_TENANT_ID: TENANT.toUpperCase(),
         AUTH_CLIENT_ID: CLIENT,
         AUTH_SCOPES: 'Files.Read.All',
@@ -46,6 +49,7 @@ describe('loadConfig (BC-005)', () => {
       shortLinkExpansionEnabled: true,
       shortLinkTimeoutMs: 2500,
       clientLog: true,
+      tls: { certFile: '/tls/cert.pem', keyFile: '/tls/key.pem' },
       auth: { tenantId: TENANT, clientId: CLIENT, scopes: ['Files.Read.All'] },
     });
     expect(lines).toEqual([]);
@@ -76,6 +80,13 @@ describe('loadConfig (BC-005)', () => {
       expect((error as ConfigError).message).toContain(name);
       expect((error as ConfigError).message).toContain(value);
     }
+  });
+
+  it('requires TLS_CERT_FILE and TLS_KEY_FILE together (D6)', () => {
+    expect(() => loadConfig({ TLS_CERT_FILE: '/tls/cert.pem' }, () => {})).toThrow(/TLS_KEY_FILE must be set/);
+    expect(() => loadConfig({ TLS_KEY_FILE: '/tls/key.pem' }, () => {})).toThrow(/TLS_CERT_FILE must be set/);
+    // compose passes empty strings when unset; that means plain HTTP.
+    expect(loadConfig({ TLS_CERT_FILE: '', TLS_KEY_FILE: '' }, () => {}).tls).toBeUndefined();
   });
 
   it('requires AUTH_TENANT_ID and AUTH_CLIENT_ID together and as GUIDs', () => {

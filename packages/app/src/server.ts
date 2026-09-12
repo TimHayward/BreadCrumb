@@ -23,6 +23,8 @@ export interface ServerDeps {
   logger?: boolean | { level: string };
   /** Short link expander override, used by tests to avoid the network. */
   expander?: ShortLinkExpander;
+  /** PEM certificate and key: when present the server speaks HTTPS (decision D6). */
+  https?: { cert: string | Buffer; key: string | Buffer };
 }
 
 /** `public/` next to `src/` in development, copied to `dist/public` in the build. */
@@ -37,12 +39,14 @@ export function resolvePublicDir(): string {
 }
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
-  const app = Fastify({
+  const options = {
     logger: deps.logger ?? { level: deps.config.logLevel },
     // One line per request comes from registerRequestLogging, not Fastify's two default lines.
     logController: new LogController({ disableRequestLogging: true }),
     trustProxy: false,
-  });
+  };
+  // The HTTPS instance has a different server type parameter; routes and plugins are identical.
+  const app = (deps.https === undefined ? Fastify(options) : Fastify({ ...options, https: deps.https })) as unknown as FastifyInstance;
 
   registerRequestLogging(app, deps.config);
 

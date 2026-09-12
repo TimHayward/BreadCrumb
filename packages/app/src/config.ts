@@ -34,13 +34,20 @@ export interface AppConfig {
    * the events carry file names from the tenant.
    */
   clientLog: boolean;
+  /** Serve HTTPS from these PEM files (decision D6: private CA). Absent means plain HTTP. */
+  tls?: TlsConfig;
   /** Set only when both AUTH_TENANT_ID and AUTH_CLIENT_ID are present. */
   auth?: AuthConfig;
 }
 
+export interface TlsConfig {
+  certFile: string;
+  keyFile: string;
+}
+
 export const DEFAULT_AUTH_SCOPES = 'Files.Read.All Sites.Read.All';
 
-export const DEFAULTS: Readonly<Omit<AppConfig, 'auth'>> = {
+export const DEFAULTS: Readonly<Omit<AppConfig, 'auth' | 'tls'>> = {
   port: 3000,
   databasePath: './data/breadcrumb.sqlite',
   logLevel: 'info',
@@ -113,6 +120,22 @@ function parseGuid(name: string): (raw: string) => string {
   };
 }
 
+function parseTls(env: Env, log: (line: string) => void): TlsConfig | undefined {
+  const certFile = env['TLS_CERT_FILE']?.trim() ?? '';
+  const keyFile = env['TLS_KEY_FILE']?.trim() ?? '';
+  if (certFile === '' && keyFile === '') {
+    log('config: TLS_CERT_FILE and TLS_KEY_FILE not set, serving plain HTTP');
+    return undefined;
+  }
+  if (certFile === '') {
+    throw new ConfigError('TLS_CERT_FILE', 'must be set when TLS_KEY_FILE is set', '');
+  }
+  if (keyFile === '') {
+    throw new ConfigError('TLS_KEY_FILE', 'must be set when TLS_CERT_FILE is set', '');
+  }
+  return { certFile, keyFile };
+}
+
 function parseAuth(env: Env, log: (line: string) => void): AuthConfig | undefined {
   const tenant = env['AUTH_TENANT_ID']?.trim() ?? '';
   const client = env['AUTH_CLIENT_ID']?.trim() ?? '';
@@ -152,6 +175,10 @@ export function loadConfig(env: Env = process.env, log: (line: string) => void =
     shortLinkTimeoutMs: read(env, 'SHORTLINK_TIMEOUT_MS', DEFAULTS.shortLinkTimeoutMs, parseInteger('SHORTLINK_TIMEOUT_MS', 100, 60000), log),
     clientLog: read(env, 'CLIENT_LOG', DEFAULTS.clientLog, parseBoolean('CLIENT_LOG'), log),
   };
+  const tls = parseTls(env, log);
+  if (tls !== undefined) {
+    config.tls = tls;
+  }
   const auth = parseAuth(env, log);
   if (auth !== undefined) {
     config.auth = auth;

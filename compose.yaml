@@ -10,6 +10,11 @@
 # History lives on the named volume `breadcrumb-data`, never a bind mount and
 # never the container filesystem (invariant 9). `docker compose down` keeps it;
 # only `docker compose down -v` deletes it.
+#
+# HTTPS (decision D6, private CA): copy a certificate and key into the named
+# volume `breadcrumb-tls` and set TLS_CERT_FILE=/tls/cert.pem and
+# TLS_KEY_FILE=/tls/key.pem. Without them the app serves plain HTTP, and
+# Microsoft sign in then works only on localhost. See docs/https-private-ca.md.
 
 services:
   breadcrumb:
@@ -25,10 +30,16 @@ services:
       DATABASE_PATH: /data/breadcrumb.sqlite
       LOG_LEVEL: ${LOG_LEVEL:-info}
       LOG_REDACT_LINKS: ${LOG_REDACT_LINKS:-false}
+      TLS_CERT_FILE: ${TLS_CERT_FILE:-}
+      TLS_KEY_FILE: ${TLS_KEY_FILE:-}
+      AUTH_TENANT_ID: ${AUTH_TENANT_ID:-}
+      AUTH_CLIENT_ID: ${AUTH_CLIENT_ID:-}
     volumes:
       - breadcrumb-data:/data
+      - breadcrumb-tls:/tls:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      # Works over HTTP or HTTPS: dist/healthcheck.js picks the scheme from TLS_CERT_FILE.
+      test: ["CMD", "node", "dist/healthcheck.js"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -37,3 +48,4 @@ services:
 
 volumes:
   breadcrumb-data:
+  breadcrumb-tls:
