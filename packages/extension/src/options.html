@@ -4,11 +4,15 @@
     <meta charset="utf-8" />
     <title>BreadCrumb options</title>
     <style>
-      body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 16px; min-width: 360px; color: #1a1a1a; }
+      body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 16px; min-width: 420px; max-width: 760px; color: #1a1a1a; }
       label { display: block; font-weight: 600; margin-bottom: 4px; }
-      input { font: inherit; width: 100%; padding: 6px 8px; border: 1px solid #d0d0d0; border-radius: 4px; box-sizing: border-box; }
+      input, textarea { font: inherit; width: 100%; padding: 6px 8px; border: 1px solid #d0d0d0; border-radius: 4px; box-sizing: border-box; }
+      textarea { min-height: 6em; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
       button { font: inherit; margin-top: 10px; padding: 6px 12px; border: 1px solid #0b5cad; border-radius: 4px; background: #0b5cad; color: #fff; cursor: pointer; }
+      button.secondary { background: #fff; color: #0b5cad; }
       p.note { color: #555; font-size: 13px; }
+      section { margin-top: 24px; padding-top: 12px; border-top: 1px solid #d0d0d0; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f6f8; padding: 8px; border-radius: 4px; font-size: 12px; max-height: 24em; overflow: auto; }
     </style>
   </head>
   <body>
@@ -20,6 +24,22 @@
       <button type="submit">Save</button>
       <p id="status" class="note" role="status"></p>
     </form>
+
+    <section aria-labelledby="sp-heading">
+      <h2 id="sp-heading" style="font-size: 15px">Experimental: use my SharePoint session (spike S9)</h2>
+      <p class="note">Lets the extension ask SharePoint where a linked file lives, using the Microsoft 365 session already open in this browser. Only SharePoint's answers are used; your session cookies are never read or sent anywhere. The browser will ask you to allow access to your tenant's SharePoint and OneDrive sites.</p>
+      <label for="tenant">Tenant name</label>
+      <input id="tenant" type="text" placeholder="contoso (as in contoso.sharepoint.com)" autocomplete="off" />
+      <button type="button" id="grant">Allow access to this tenant</button>
+      <button type="button" id="revoke" class="secondary">Remove access</button>
+      <p id="grant-status" class="note" role="status"></p>
+
+      <label for="links" style="margin-top: 12px">Links to test (one per line)</label>
+      <textarea id="links" spellcheck="false" placeholder="https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=…"></textarea>
+      <button type="button" id="test">Test SharePoint session</button>
+      <p id="test-status" class="note" role="status"></p>
+      <pre id="test-output" hidden></pre>
+    </section>
     <script type="module" src="options.js"></script>
   </body>
 </html>

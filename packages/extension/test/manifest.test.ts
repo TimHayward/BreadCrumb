@@ -22,6 +22,11 @@ describe('manifest (BC-042, invariant 17)', () => {
     expect(manifest.content_scripts[0]?.js).toEqual(['content.js']);
   });
 
+  it('offers SharePoint only as an optional permission, granted per tenant at runtime (spike S9)', () => {
+    const optional = (manifest as unknown as { optional_host_permissions?: string[] }).optional_host_permissions;
+    expect(optional).toEqual(['https://*.sharepoint.com/*']);
+  });
+
   it('declares host permissions for the three Copilot hosts and nothing broader', () => {
     expect([...manifest.host_permissions].sort()).toEqual([...hosts].sort());
     expect([...(manifest.content_scripts[0]?.matches ?? [])].sort()).toEqual([...hosts].sort());
