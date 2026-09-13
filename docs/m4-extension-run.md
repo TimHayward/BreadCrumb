@@ -48,3 +48,15 @@ From a second machine on the private network, with the API base URL pointing at 
 ## Closing
 
 Move S1 and S6 with their findings, decide D6 and D7 in `BACKLOG.md`, then `node scripts/complete-story.mjs --sha <commit> BC-042 BC-043 BC-044 BC-045 BC-046` and add recordings from each host under `docs/evidence/m4/`.
+
+## Spike S9: resolving with the browser's SharePoint session
+
+Run from the extension options page ("Test SharePoint session"); results are posted to the BreadCrumb log.
+
+| Date, browser | Link | GetFileById | Library root | v2.0 shares | Notes |
+|---|---|---|---|---|---|
+| 2026-09-13, Edge | `Doc.aspx?sourcedoc=` on the tenant host (two files) | 200, exact `ServerRelativeUrl` | 200, library root (`/sites/…/Shared Documents`) | 200, Graph-shaped driveItem with `parentReference` | Same paths Graph returned for these files. No sign in, consent or app registration. |
+| 2026-09-13, Edge | `/:w:/r/personal/…/_layouts/15/doc2.aspx?sourcedoc=` on the `-my` host | 401 | 401 | 401 `unauthenticated` (`UnauthenticatedVroomException`) | Likely no session cookie yet for the `-my` host: SharePoint's cookie is per host and is set when OneDrive is first opened in the browser. To re-test after opening OneDrive once. |
+| Chrome | | | | | To run. |
+| Sharing link `/:x:/s/…` | | | | | To run. |
+| Permission prompt wording (Edge, Chrome) | | | | | To record. |
