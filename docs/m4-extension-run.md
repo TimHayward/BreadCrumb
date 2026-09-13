@@ -56,7 +56,8 @@ Run from the extension options page ("Test SharePoint session"); results are pos
 | Date, browser | Link | GetFileById | Library root | v2.0 shares | Notes |
 |---|---|---|---|---|---|
 | 2026-09-13, Edge | `Doc.aspx?sourcedoc=` on the tenant host (two files) | 200, exact `ServerRelativeUrl` | 200, library root (`/sites/…/Shared Documents`) | 200, Graph-shaped driveItem with `parentReference` | Same paths Graph returned for these files. No sign in, consent or app registration. |
-| 2026-09-13, Edge | `/:w:/r/personal/…/_layouts/15/doc2.aspx?sourcedoc=` on the `-my` host | 401 | 401 | 401 `unauthenticated` (`UnauthenticatedVroomException`) | Likely no session cookie yet for the `-my` host: SharePoint's cookie is per host and is set when OneDrive is first opened in the browser. To re-test after opening OneDrive once. |
+| 2026-09-13, Edge | `/:w:/r/personal/…/_layouts/15/doc2.aspx?sourcedoc=` on the `-my` host | 401 | 401 | 401 `unauthenticated` (`UnauthenticatedVroomException`) | Before OneDrive had been opened in this browser: no session cookie for the `-my` host (SharePoint's cookie is per host). |
+| 2026-09-13, Edge, after opening OneDrive once | same `-my` link | 200, `/personal/…/Documents/Documents/Work/CV - V2.2.docx` | 200, `/personal/…/Documents` | 200, `parentReference.path` `root:/Documents/Work` | Confirms the per-host cookie: OneDrive links resolve only once OneDrive has been visited in the browser session. Same path Graph returned. |
 | Chrome | | | | | To run. |
 | Sharing link `/:x:/s/…` | | | | | To run. |
 | Permission prompt wording (Edge, Chrome) | | | | | To record. |
