@@ -60,5 +60,5 @@ Run from the extension options page ("Test SharePoint session"); results are pos
 | 2026-09-13, Edge, after opening OneDrive once | same `-my` link | 200, `/personal/…/Documents/Documents/Work/CV - V2.2.docx` | 200, `/personal/…/Documents` | 200, `parentReference.path` `root:/Documents/Work` | Confirms the per-host cookie: OneDrive links resolve only once OneDrive has been visited in the browser session. Same path Graph returned. |
 | 2026-09-13, Edge | `/:w:/r/personal/…/Report.docx?d=…&csf=1&web=1&e=…` (file) and `/:f:/r/personal/…/Attachments?d=…` (folder), from Share → Copy link on the `-my` host | not tried (no sourcedoc) | not tried | 200 for both; name and `parentReference.path` match the link's path, and `sharepointIds.listItemUniqueId` equals the link's `d` | Copy link produced `/r/` links here, not `/s/` tokens. |
 | Chrome | | | | | To run. |
-| Sharing link `/:x:/s/…` | | | | | To run. |
+| 2026-09-13, Edge | `/:t:/s/Site/{token}?email=…&e=…` (a specific-people link) | not tried | not tried | 404 `itemNotFound` "Requested sharing link could not be found" | Inconclusive: Graph gives the same 404 for this link since 2026-09-12, although it resolved it on 2026-09-11, so the link was removed or expired. Re-test with a fresh `/s/` link. |
 | Permission prompt wording (Edge, Chrome) | | | | | To record. |
