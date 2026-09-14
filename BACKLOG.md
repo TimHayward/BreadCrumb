@@ -14,13 +14,14 @@ Conventions used throughout:
 
 - Confidence states, used identically everywhere: **Verified** (confirmed by an authenticated Microsoft Graph lookup), **Derived** (decoded deterministically from the link with no guesswork), **Inferred** (best effort where at least one component is a guess, such as the document library boundary), **Unresolved** (the form is recognised but cannot be decoded without authentication).
 - **[unverified]** marks a claim I am not certain of. Every such marker names the spike that closes it.
+- Priorities: **Must**, **Should**, and **Could** (a want: done only when time allows, low priority).
 - Sizes: XS under half a day, S one to two days, M three to five days, L one to two weeks, XL longer than two weeks, for one developer.
 
 ---
 
 ## 1. Product summary
 
-BreadCrumb is a self hosted tool that turns any Microsoft 365 SharePoint or OneDrive link into the folder location it points at. A user pastes a link into the web application and receives the decoded server relative path, the containing folder URL, the direct file URL and a breakdown of tenant, site, document library, folder chain and file name. Every conversion is stored in a searchable history held in SQLite on a dedicated Docker named volume. A Chromium extension extracts file citations from Microsoft Copilot responses, resolves them with the same shared parser and submits selected items to the web application. Every result states how it was obtained using four states: Verified, Derived, Inferred and Unresolved.
+BreadCrumb is a self hosted tool that turns any Microsoft 365 SharePoint or OneDrive link into the folder location it points at. A user pastes a link into the web application and receives the decoded server relative path, the containing folder URL, the direct file URL and a breakdown of tenant, site, document library, folder chain and file name. Every conversion is stored in a searchable history held in SQLite on a dedicated Docker named volume. A Microsoft Edge extension extracts file citations from Microsoft Copilot responses, resolves them with the same shared parser, confirms them with the user's SharePoint session where the user allows it, and submits selected items to the web application. Every result states how it was obtained using four states: Verified, Derived, Inferred and Unresolved.
 
 ---
 
@@ -29,7 +30,7 @@ BreadCrumb is a self hosted tool that turns any Microsoft 365 SharePoint or OneD
 Each line is a gap in the brief that I filled. Correct any that are wrong before M1 starts.
 
 - A single small team uses the tool from the same private network as the host. Write load is a few requests per minute at most.
-- "Chromium" means current stable Chrome and Edge. Other Chromium browsers are untested.
+- Microsoft Edge (current stable) is the primary browser, for both the web application and the extension. Chrome and other Chromium browsers are a low priority want (BC-050) and untested. Firefox and Safari are best effort for the web pages and out of scope for the extension.
 - The extension is loaded unpacked in developer mode or pushed by enterprise policy. Store publication is not needed for v1.
 - The personal test tenant is an Entra work tenant with SharePoint and OneDrive for Business, not a consumer Microsoft account.
 - The web application is served over plain HTTP on the private network in v1 unless the TLS open decision (D6) says otherwise.
@@ -56,7 +57,7 @@ Each line is a gap in the brief that I filled. Correct any that are wrong before
 | E3 Web conversion experience | A page and an API that accept a link and return the path, folder URL, file URL and components with a clear confidence state. | The core value: paste a link, get the folder. |
 | E4 Conversion history | Every conversion persisted, browsable, searchable, filterable, deletable and exportable. | Past lookups are never lost and can be found again. |
 | E5 Authenticated validation | Optional Microsoft sign in that confirms or corrects best effort results through Microsoft Graph and records the upgrade. | Inferred and Unresolved results become Verified without changing the default no sign in path. |
-| E6 Copilot extension | A Manifest V3 extension that lifts file citations from Copilot responses on the three hosts, resolves them with the shared parser and submits chosen items to the API. | Citations become folder locations without copying links by hand. |
+| E6 Copilot extension | A Manifest V3 extension for Microsoft Edge that lifts file citations from Copilot responses on the three hosts, resolves them with the shared parser, confirms them with the user's SharePoint session where the user allows it, and submits chosen items to the API. | Citations become folder locations without copying links by hand. |
 | E7 Operability | Health, logging, backup and restore for a single container with a SQLite file on a named volume. | The person running the stack can see it is healthy and can recover data. |
 
 ---
@@ -181,8 +182,8 @@ Priority: Must. Size: S. Depends on: BC-036.
 
 As a developer, I want a Manifest V3 extension with a popup, a content script and a service worker that imports the parser package, so that the extension shares parsing with the web application.
 
-- Given the manifest, When it is inspected, Then it declares host permissions for `m365.cloud.microsoft`, `copilot.cloud.microsoft` and `copilot.microsoft.com` and nothing broader.
-- Given the extension is loaded unpacked in Chrome and Edge, When any of the three hosts is opened, Then the content script loads without console errors and the popup opens.
+- Given the manifest, When it is inspected, Then it declares host permissions for `m365.cloud.microsoft`, `copilot.cloud.microsoft` and `copilot.microsoft.com`, plus the optional host permission `https://*.sharepoint.com/*` for SharePoint and OneDrive for Business (invariant 17), and nothing broader.
+- Given the extension is loaded unpacked in Microsoft Edge, When any of the three hosts is opened, Then the content script loads without console errors and the popup opens.
 - Given the extension bundle, When it is inspected, Then the parser comes from the shared package (BC-001) and running the fixture corpus (BC-022) inside the extension test harness produces identical results to the server.
 
 Priority: Must. Size: M. Depends on: BC-001, BC-006, BC-022.
@@ -229,6 +230,27 @@ As a user on `copilot.microsoft.com`, I want the popup to explain that this surf
 
 Priority: Must. Size: S. Depends on: BC-042, BC-043.
 
+#### BC-049 Resolve citations with the browser's SharePoint session
+
+As a Microsoft Edge user already signed in to Microsoft 365, I want the extension to confirm where each cited file lives using the session open in my browser, so that I see the real folder straight away without signing in to BreadCrumb.
+
+- Given the user has granted the extension access to their tenant's SharePoint and OneDrive for Business hosts from the options page, When the popup lists citations, Then each citation on those hosts is looked up from the service worker with the browser's session (SharePoint REST `GetFileById` for document id links, SharePoint's `/_api/v2.0/shares/…/driveItem` for sharing and path links), and the row shows the confirmed path and folder.
+- Given access has not been granted, or a host answers 401 (for example OneDrive before it has been opened in the browser), When the popup lists citations, Then the row keeps its offline state and the existing route applies: the entry is sent to BreadCrumb and verified there with Microsoft Graph.
+- Given a session lookup confirms an item, When the citation is sent, Then BreadCrumb records the confirmed result against the entry, naming the SharePoint call in the method text and labelling it as decision D9 settles.
+- Given the extension, When it runs, Then it never reads cookie values and sends only SharePoint's answers to BreadCrumb.
+- Given access is requested in Edge, When the browser prompts, Then the prompt's wording is recorded in `docs/m4-extension-run.md` for the team's install notes.
+
+Priority: Must. Size: M. Depends on: BC-042, BC-044, D9. Evidence: spike S9.
+
+#### BC-050 Chrome and other Chromium browsers
+
+As a user of Chrome or another Chromium browser, I want the extension and the web application to work there too, so that I am not tied to Edge.
+
+- Given the extension loaded unpacked in current stable Chrome, When the acceptance criteria of BC-042 to BC-049 are run, Then they pass or each difference from Edge is recorded.
+- Given the web application in Chrome, When sign in and validation (BC-036 to BC-041) are run, Then they pass or each difference from Edge is recorded.
+
+Priority: Could (a want, low priority). Size: S. Depends on: BC-042, BC-049.
+
 ### E7 Operability
 
 ## 6. Release plan
@@ -267,11 +289,11 @@ Progress evidence at the boundary: a recorded validation of three fixtures again
 
 ### M4 Extension
 
-Stories: BC-042, BC-043, BC-044, BC-045, BC-046.
+Stories: BC-042, BC-043, BC-044, BC-045, BC-046, BC-049.
 
-Demonstrable outcome: on `m365.cloud.microsoft` and `copilot.cloud.microsoft`, a Copilot response citing SharePoint and OneDrive files is opened, the popup lists the files with their folders and states, selected items are submitted and appear in history with source `extension`. On `copilot.microsoft.com` the popup shows the defined empty state.
+Demonstrable outcome: in Microsoft Edge, on `m365.cloud.microsoft` and `copilot.cloud.microsoft`, a Copilot response citing SharePoint and OneDrive files is opened, the popup lists the files with their folders and states (confirmed folders straight away where the user has granted SharePoint access), selected items are submitted and appear in history with source `extension`. On `copilot.microsoft.com` the popup shows the defined empty state.
 
-Deliberately excluded: store publication, Firefox and Safari, Copilot panes inside Office and Teams, validation from inside the popup, automatic submission without selection.
+Deliberately excluded: store publication, Chrome and other Chromium browsers (BC-050, Could), Firefox and Safari, Copilot panes inside Office and Teams, Microsoft Graph validation from inside the popup (the extension confirms with the SharePoint session, BC-049; Graph stays in the web application), automatic submission without selection.
 
 Progress evidence at the boundary: a recording on each of the three hosts, and the history rows produced.
 
@@ -286,10 +308,9 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 | S1 | What markup carries file citations in Copilot responses on `m365.cloud.microsoft` and `copilot.cloud.microsoft`, is it in the light DOM or inside shadow roots, which attribute holds the file URL, and what does the consumer host `copilot.microsoft.com` emit for web citations? | 2 days | An annotated DOM capture per host for a SharePoint file citation, a OneDrive file citation and a web citation, a note on shadow root depth, a list of stable attributes or roles to select on, and a redacted copy of each capture added to the extension test fixtures. | BC-043, BC-044, BC-046 |
 | S2 | Does the Graph shares endpoint with a `u!` base64url encoded link return a driveItem for `/s/`, `/g/` and `/t/` tokens and for `-my` host tokens, what is the minimum delegated permission, does it work for a token created by another user, does the legacy `guestaccess.aspx` form resolve, and does a personal site resolve by path? | 1 day | A table of link variant against result and HTTP status from the test tenant, with the exact permission set that succeeded and the smallest set that failed. Removes the [unverified] markers in matrix rows 3b, 3c, 3d, 6 and 8. | BC-038, BC-037 (personal site case) |
 | S3 | Which link forms does a modern tenant actually emit from its own copy link and share controls today: the SharePoint library "Copy link" for each audience option, OneDrive web, the Office desktop share dialogue, the Teams files tab, an Outlook attachment link, and a Copilot citation? Do `RootFolder`, `guestaccess.aspx` and the Safe Links `/ap/` variant still appear? What do `/g/` and `/t/` mean? | 1 day | One anonymised fixture per control and audience option added to the corpus (BC-022), and a note against each matrix row saying "emitted today", "legacy but seen" or "not observed". Removes the [unverified] markers in rows 1b, 3c, 3d, 8 and 10. | BC-022 completeness. Nothing in M1 or M2 is blocked. |
-| S6 | Can a Manifest V3 extension on an `https` Copilot page submit to an `http` API on a private network address from another machine? Which of the popup, service worker and content script may make the call, does Chrome's private network access restriction or mixed content blocking interfere, and what CORS headers does the API need? | 1 day | A test extension reaching a stub API from a second machine on the private network, in both Chrome and Edge, with a record of what was blocked and which context succeeded. Feeds decision D6. | BC-045, D6 |
+| S6 | Can a Manifest V3 extension on an `https` Copilot page submit to an `http` API on a private network address from another machine? Which of the popup, service worker and content script may make the call, does the browser's private network access restriction or mixed content blocking interfere, and what CORS headers does the API need? | 1 day | A test extension reaching a stub API from a second machine on the private network, in Microsoft Edge (Chrome only under BC-050), with a record of what was blocked and which context succeeded. Feeds decision D6. | BC-045, D6 |
 | S7 | How does a Portainer Git stack behave in practice: how are environment variables supplied, does "pull and redeploy" preserve named volumes, does removing the stack remove volumes, and does a private repository need stored credentials? Some of this is [unverified] from documentation alone. | Half a day | A runbook of the exact clicks, and a redeploy and a removal each followed by a check of the volume. | BC-003, BC-004 |
 | S8 | Does `1drv.ms` redirect to a parseable URL when fetched from a container without cookies, how many hops, and does the target vary by link type? | Half a day | A table of five short links against final URL and hop count, and the allow list of hosts contacted. | BC-027 |
-| S9 | Can the extension resolve a link with the browser's existing SharePoint session instead of a Graph token: do SharePoint REST `GetFileById` (Doc.aspx, UniqueId) and SharePoint's `/_api/v2.0/shares/u!…/driveItem` (sharing links) answer an extension service worker request with `credentials: 'include'`, in Chrome and Edge, on the tenant and `-my` hosts? What does each browser's permission prompt say? | Half a day | A table of link form against call, status and body shape from the test tenant, and the prompt text per browser (the options page test posts results to the BreadCrumb log). Until decided, the extension carries `optional_host_permissions` for `https://*.sharepoint.com/*`, granted per tenant by the user; adopting the approach reopens invariant 17 and widens the definition of Verified to include SharePoint lookups. | Decision on cookie-based resolution in the extension |
 
 ---
 
@@ -326,7 +347,7 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 | Backup and restore | Documented, rehearsed at M2, safe while the application runs, including write ahead log companion files (BC-048). |
 | Error handling | No unhandled exception reaches a user or crashes the process. Every failure carries a reason code and plain language message. Failures are logged with enough context to reproduce, without full links when redacted logging is set. |
 | Performance | Conversion under 100 ms on the server for any offline form. History search under one second at five thousand rows and acceptable at twenty thousand (BC-032). Page loads under two seconds on the private network. |
-| Browser support | Web application: current stable Chrome and Edge, plus current Firefox and Safari for the web pages only. Extension: current stable Chrome and Edge. |
+| Browser support | Microsoft Edge (current stable) is the primary and only required browser, for the web application and the extension. Chrome and other Chromium browsers are a low priority want (BC-050). Firefox and Safari are best effort for the web pages only. |
 | Accessibility | WCAG 2.2 AA for contrast and keyboard operation, state never conveyed by colour alone (BC-028). |
 | Network posture | The application listens on one port and makes no outbound requests except short link expansion when enabled, and Graph calls are made from the browser, not the server. |
 | Logging | Structured, one line per request, with a redaction switch (BC-047). |
@@ -346,7 +367,7 @@ Likelihood and impact are High, Medium or Low. Owner is a placeholder role until
 | R4 | Stored client names and file titles are sensitive and the application has no access control. | High | High | Private network only, stated in the README and in the compose file comments. Redacted logging. Delete and export exist so data can be pruned. Access control timing is decision D4. | Product owner |
 | R5 | The application becomes reachable beyond the private network, for example by a port forward or a host with a public interface. | Medium | High | The compose file binds to the host's private interface by default. The health page shows the bound address. D4 revisits access control before any wider hosting. | Operations owner |
 | R6 | The extension cannot reach the API from a different machine or network because of mixed content, private network access restrictions or CORS. | Medium | High | Spike S6 before M4. Decision D6 on serving the API over TLS. The popup reports reachability failures by base URL (BC-045). | Extension owner |
-| R7 | Extension installation is blocked by browser policy on managed devices. | Medium | Medium | Confirm with the device administrator whether unpacked or policy pushed extensions are allowed before M4 starts. The web application works without the extension. | Product owner |
+| R7 | Extension installation is blocked by browser policy on managed devices. | Medium | Medium | Confirm with the device administrator whether unpacked or policy pushed extensions are allowed before M4 starts, and whether the optional SharePoint host permission (BC-049) may be granted. The web application works without the extension. | Product owner |
 | R8 | SQLite limits bite if the tool spreads to a team: concurrent writes, a single file, no network access to the database. | Low | Medium | The data access layer (BC-029) isolates the engine. Write ahead logging for concurrency. Watch row counts and error rates. Moving engine is a planned later change, not a v1 requirement. | Developer |
 | R9 | The library boundary heuristic is wrong often enough that Inferred results mislead. | Medium | Medium | Always label Inferred. Measure the hit rate against Graph during M3 and refine the rules in BC-018 from real data. | Parser owner |
 | R10 | Short link expansion needs outbound access the host does not have, or Microsoft changes redirect behaviour. | Medium | Low | Feature is optional and off when unavailable. Spike S8. Links stay Unresolved with a reason. | Developer |
@@ -367,6 +388,7 @@ Likelihood and impact are High, Medium or Low. Owner is a placeholder role until
 | D6 | Whether the API is served over TLS on the private network and, if so, how certificates are issued. | Plain HTTP; TLS with a private certificate authority trusted on client devices; TLS terminated by a reverse proxy outside this stack. Decided from S6. | BC-045 | Operations owner, after S6 |
 | D7 | How the extension is distributed. | Unpacked developer mode; enterprise policy from a private update URL; browser store. | BC-042 rollout, R7 | Product owner |
 | D8 | Whether failed conversions are kept in history by default. | Never kept; kept only when the user opts in (assumed in BC-026); always kept. | BC-026, BC-033 | Product owner |
+| D9 | How a result confirmed through the browser's SharePoint session (BC-049) is labelled. | Count it as Verified and widen the definition to "confirmed by an authenticated Microsoft 365 lookup (Microsoft Graph, or SharePoint with the user's browser session)", naming the call in the method text (recommended: the same authority, the same user's access, the same data as Graph); keep Verified for Graph only and add a fifth state; show it only in the extension and do not record it. | BC-049 | Product owner |
 
 ---
 
@@ -406,7 +428,7 @@ The following are design rules for all future development. They restate the lock
 14. Configuration comes from environment variables only. No secret is committed to the repository, baked into the image or written to logs.
 15. Graph tokens are held in the browser session and are not persisted server side unless decision D3 changes and access control exists.
 16. There is no application level access control in v1, so the application is hosted only on a private network. Any hosting change reopens decision D4 first.
-17. The extension declares host permissions for the three named Copilot hosts and nothing broader.
+17. The extension declares host permissions for the three named Copilot hosts. It may also hold the optional host permission `https://*.sharepoint.com/*`, which covers SharePoint and OneDrive for Business, requested at runtime for one tenant's hosts only when the user asks. Nothing broader. Consumer OneDrive and sovereign cloud hosts are not included.
 18. The consumer Copilot host shows a defined empty state, never an error.
 19. History is a log of lookups. Rows are appended and deleted, never silently edited.
 20. New stories should improve one or more stages of: paste a link, get the folder path, keep the result.

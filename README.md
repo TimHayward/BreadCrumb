@@ -168,13 +168,13 @@ The Verified state is asserted by the browser (risk R12): the server checks the 
 
 ## Copilot extension
 
-`packages/extension` is a Manifest V3 extension for current Chrome and Edge. It runs only on `m365.cloud.microsoft`, `copilot.cloud.microsoft` and `copilot.microsoft.com` (host permissions for those three and nothing broader). Opening the popup on a Copilot response lists every SharePoint or OneDrive citation once, with its folder, confidence state and a "library inferred" marker where the library boundary was guessed; ticked items are sent one at a time to `POST /api/convert` with source `extension`. On the consumer host the popup shows a defined empty state, because Copilot there cites web pages. When no citations are found on a work host, "Report markup" copies a redacted sample of the response container to the clipboard for diagnosis.
+`packages/extension` is a Manifest V3 extension for Microsoft Edge, the primary browser (Chrome and other Chromium browsers are a low priority want and untested). It runs only on `m365.cloud.microsoft`, `copilot.cloud.microsoft` and `copilot.microsoft.com`. It may also be granted, from its options page and for one tenant only, access to that tenant's SharePoint and OneDrive for Business hosts (the optional host permission `https://*.sharepoint.com/*`), so it can confirm citations with the browser's existing SharePoint session. Nothing broader. Opening the popup on a Copilot response lists every SharePoint or OneDrive citation once, with its folder, confidence state and a "library inferred" marker where the library boundary was guessed; ticked items are sent one at a time to `POST /api/convert` with source `extension`. On the consumer host the popup shows a defined empty state, because Copilot there cites web pages. When no citations are found on a work host, "Report markup" copies a redacted sample of the response container to the clipboard for diagnosis.
 
 Build and load unpacked:
 
 ```sh
 pnpm build
-# Chrome or Edge: Extensions → Developer mode → Load unpacked → packages/extension/dist
+# Edge: edge://extensions → Developer mode → Load unpacked → packages/extension/dist
 ```
 
 Then open the extension options and enter the API base URL, for example `http://192.168.1.20:3000`. The extension keeps no other setting and uses the shared parser package, never a copy of it.

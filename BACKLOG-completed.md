@@ -493,3 +493,13 @@ Priority: Should. Size: M. Depends on: BC-036, BC-012, BC-040. Blocked by spike 
 **Note:** proven on the test tenant on 2026-09-11. Graph's shares endpoint resolves both a `Doc.aspx`/`doc2.aspx` sourcedoc link and a `download.aspx?UniqueId=` link directly (spike S5); search by unique id and by file name remain as replay-tested fallbacks, and the not-found message names every attempt.
 
 **Completed:** 2026-09-11 · 0c507d0
+
+### Spike S9: resolving links with the browser's SharePoint session
+
+| ID | Question | Timebox | Closing evidence | Blocks |
+|---|---|---|---|---|
+| S9 | Can the extension resolve a link with the browser's existing SharePoint session instead of a Graph token: do SharePoint REST `GetFileById` (Doc.aspx, UniqueId) and SharePoint's `/_api/v2.0/shares/u!…/driveItem` (sharing links) answer an extension service worker request with `credentials: 'include'`, in Chrome and Edge, on the tenant and `-my` hosts? What does each browser's permission prompt say? | Half a day | A table of link form against call, status and body shape from the test tenant, and the prompt text per browser (the options page test posts results to the BreadCrumb log). Until decided, the extension carries `optional_host_permissions` for `https://*.sharepoint.com/*`, granted per tenant by the user; adopting the approach reopens invariant 17 and widens the definition of Verified to include SharePoint lookups. | Decision on cookie-based resolution in the extension |
+
+**Finding:** in Microsoft Edge, an extension service worker with the optional host permission for the tenant's hosts resolves every link form with the user's existing SharePoint session and no app registration: SharePoint REST `GetFileById` returns the exact server-relative path of a Doc.aspx or doc2.aspx file and `…/ListItemAllFields/ParentList/RootFolder` its true library root; SharePoint's `/_api/v2.0/shares/u!…/driveItem` returns a Graph-shaped driveItem for Doc.aspx, `/r/` file and folder links (unique id equal to the link's `d`) and fresh `/s/` sharing tokens. OneDrive for Business (`-my`) links answer 401 until OneDrive has been opened in the browser session, because the session cookie is per host. A specific-people `/s/` link that had been removed answered 404 through both SharePoint and Graph. Chrome was not run: the contract now makes Edge primary and Chrome a low priority want (BC-050). Evidence: `docs/m4-extension-run.md` (spike S9). Adopted as BC-049; labelling of such results is decision D9.
+
+**Completed:** 2026-09-14 · pending
