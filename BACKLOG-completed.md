@@ -601,3 +601,61 @@ Priority: Must. Size: S. Depends on: BC-042, BC-043.
 **Finding:** on `copilot.cloud.microsoft` and `m365.cloud.microsoft` (same markup) citations sit in the light DOM with no shadow roots; the only iframe is `login.microsoftonline.com`. The latest answer is `[data-testid="lastChatMessage"] [data-testid="markdown-reply"]`; inline file links are `a[data-testid="fl-link"]` with the URL in `href`, and numbered citation buttons (`button.fai-BebopCitation`) carry `data-grouped-citations`, a JSON list of `{ index, occurrence, url }`. SharePoint citations are `_layouts/15/Doc.aspx?sourcedoc=…` (with `action=edit` or `action=default` for the same file) and path links. The probe replaced raw captures: an anonymised replica of the markup is a test case in `packages/extension/test/extract.test.ts`. On `copilot.microsoft.com` the popup shows the defined empty state. A OneDrive citation on the work surfaces was not captured separately. Evidence: `docs/m4-extension-run.md`.
 
 **Completed:** 2026-09-14 · 2033722
+
+#### BC-036 Optional Microsoft sign in with tokens held in the browser session
+
+As a user, I want to sign in to Microsoft optionally, so that I can validate results without changing the default no sign in experience.
+
+- Given no sign in has happened, When the conversion page is used, Then everything in E3 works unchanged and the sign in control is the only visible difference.
+- Given the sign in control is used, When the Microsoft sign in completes against the configured test tenant, Then the page shows the signed in account and the token is held only in the browser session, is not sent to the server and is gone when the browser session ends.
+- Given the tenant and client identifiers are supplied by environment variables (BC-005), When they are absent, Then the sign in control is hidden and a log line says validation is not configured.
+- Given a signed in user, When they sign out, Then the session token is discarded and validation controls are hidden again.
+
+Priority: Must. Size: M. Depends on: BC-023, BC-005.
+
+**Note:** validated by the user on the test tenant in Microsoft Edge (2026-09-14), after sign in, Graph verification of Doc.aspx, UniqueId, /s/ and /r/ links and the auto-verify flows were exercised throughout 2026-09-11 to 2026-09-14 (server log). Graph route details, including the recorded shares response, are in `docs/m3-tenant-run.md`.
+
+**Completed:** 2026-09-14 · aaacf84
+
+#### BC-037 Validate a best effort result and correct the library boundary
+
+As a signed in user, I want a Derived or Inferred result confirmed against Graph, so that the library split and path are facts rather than guesses.
+
+- Given a Derived or Inferred result on the global cloud, When validate is chosen, Then the site is resolved by path, the site's drives are listed, the library boundary is set from the drive whose URL prefixes the path, the item is fetched by path within that drive, and the result becomes Verified with every component marked as confirmed.
+- Given the Inferred library differs from the drive Graph returns, When validation completes, Then the corrected library and folder chain replace the inferred ones in the displayed result and the original inferred values are shown beneath as "was inferred as".
+- Given the item is not found by Graph, When validation completes, Then the result keeps its previous state (Derived or Inferred), and a message says Graph could not find the item at that path.
+- Given a link with a `d` identifier (BC-010), When validation completes, Then the identifier is compared with the item's list item unique id and any mismatch is shown.
+
+Priority: Must. Size: L. Depends on: BC-036, BC-018, BC-040.
+
+**Note:** validated by the user on the test tenant in Microsoft Edge (2026-09-14), after sign in, Graph verification of Doc.aspx, UniqueId, /s/ and /r/ links and the auto-verify flows were exercised throughout 2026-09-11 to 2026-09-14 (server log). Graph route details, including the recorded shares response, are in `docs/m3-tenant-run.md`.
+
+**Completed:** 2026-09-14 · aaacf84
+
+#### BC-038 Resolve sharing tokens through the shares endpoint
+
+As a signed in user, I want token based sharing links resolved, so that Unresolved links become real paths.
+
+- Given an Unresolved sharing link from BC-011, When validate is chosen, Then the full link is encoded as `u!` plus base64url and submitted to the Graph shares endpoint, and a successful driveItem response yields a Verified result with the path, folder URL, file URL and components taken from the returned item.
+- Given Graph answers with a permission error, When validation completes, Then the result stays Unresolved and the message names the missing permission or consent (BC-041).
+- Given the link is a `/g/` or `/t/` variant, When it is resolved, Then the behaviour is the same and the variant is recorded, so that spike S3 findings can be checked against real results.
+
+Priority: Must. Size: M. Depends on: BC-036, BC-011, BC-040.
+
+**Note:** validated by the user on the test tenant in Microsoft Edge (2026-09-14), after sign in, Graph verification of Doc.aspx, UniqueId, /s/ and /r/ links and the auto-verify flows were exercised throughout 2026-09-11 to 2026-09-14 (server log). Graph route details, including the recorded shares response, are in `docs/m3-tenant-run.md`.
+
+**Completed:** 2026-09-14 · aaacf84
+
+#### BC-041 Graph failures are reported honestly
+
+As a signed in user, I want Graph errors shown plainly, so that I know whether to retry, ask for consent or give up.
+
+- Given Graph returns a consent or permission error, When it is rendered, Then the message names the permission and says an administrator may need to grant consent, and the result state is unchanged.
+- Given Graph returns a throttling response, When it is rendered, Then the message says to retry later and the retry control honours the wait Graph asked for.
+- Given the token has expired, When validate is chosen, Then the user is prompted to sign in again and the result state is unchanged.
+
+Priority: Must. Size: S. Depends on: BC-036.
+
+**Note:** validated by the user on the test tenant in Microsoft Edge (2026-09-14), after sign in, Graph verification of Doc.aspx, UniqueId, /s/ and /r/ links and the auto-verify flows were exercised throughout 2026-09-11 to 2026-09-14 (server log). Graph route details, including the recorded shares response, are in `docs/m3-tenant-run.md`.
+
+**Completed:** 2026-09-14 · aaacf84
