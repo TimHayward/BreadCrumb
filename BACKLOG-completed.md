@@ -662,6 +662,19 @@ Priority: Must. Size: S. Depends on: BC-036.
 
 **Completed:** 2026-09-14 · aaacf84
 
+#### BC-051 Consumer OneDrive links say they are not supported
+
+As a user, I want a personal (consumer) OneDrive link to be named as such and refused, so that I know straight away BreadCrumb cannot help with it rather than seeing an Unresolved result that never resolves.
+
+- Given a `onedrive.live.com` link or a `1drv.ms` short link, When it is converted in the web application or the API, Then the result is a failure with reason code `consumer_onedrive` and a message saying it is a personal (consumer) OneDrive link, which is not supported, and naming the host.
+- Given such a link on the conversion page, When the failure is shown, Then the heading says consumer OneDrive links are not supported and no "keep in history" action is offered.
+- Given such a link cited in a Copilot response, When the extension popup lists it, Then it shows the same message and the row is not selected for submission.
+- Given any consumer OneDrive link, When it is converted, Then the server makes no outbound request, and the short link expansion feature and its `SHORTLINK_EXPANSION_ENABLED` and `SHORTLINK_TIMEOUT_MS` variables no longer exist.
+
+Priority: Must. Size: S. Depends on: BC-015, BC-021. Supersedes the Unresolved criteria of BC-015 and withdraws BC-027.
+
+**Completed:** 2026-09-14 · 2a2e35f
+
 ## Withdrawn
 
 #### BC-027 Server side short link expansion
@@ -684,16 +697,3 @@ Priority: Should. Size: M. Depends on: BC-015, BC-024, BC-005.
 | S8 | Does `1drv.ms` redirect to a parseable URL when fetched from a container without cookies, how many hops, and does the target vary by link type? | Half a day | A table of five short links against final URL and hop count, and the allow list of hosts contacted. | BC-027 |
 
 **Withdrawn:** 2026-09-14, with BC-027. Not run.
-
-#### BC-051 Consumer OneDrive links say they are not supported
-
-As a user, I want a personal (consumer) OneDrive link to be named as such and refused, so that I know straight away BreadCrumb cannot help with it rather than seeing an Unresolved result that never resolves.
-
-- Given a `onedrive.live.com` link or a `1drv.ms` short link, When it is converted in the web application or the API, Then the result is a failure with reason code `consumer_onedrive` and a message saying it is a personal (consumer) OneDrive link, which is not supported, and naming the host.
-- Given such a link on the conversion page, When the failure is shown, Then the heading says consumer OneDrive links are not supported and no "keep in history" action is offered.
-- Given such a link cited in a Copilot response, When the extension popup lists it, Then it shows the same message and the row is not selected for submission.
-- Given any consumer OneDrive link, When it is converted, Then the server makes no outbound request, and the short link expansion feature and its `SHORTLINK_EXPANSION_ENABLED` and `SHORTLINK_TIMEOUT_MS` variables no longer exist.
-
-Priority: Must. Size: S. Depends on: BC-015, BC-021. Supersedes the Unresolved criteria of BC-015 and withdraws BC-027.
-
-**Completed:** 2026-09-14 · 2a2e35f

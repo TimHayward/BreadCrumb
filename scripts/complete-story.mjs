@@ -61,7 +61,12 @@ for (const id of ids) {
 }
 
 completed = completed.replace(/\n*None yet\.\n*/, '\n');
-completed = `${completed.trimEnd()}\n\n${moved.join('\n')}`;
+// Completed entries go at the end of "## Completed", before any "## Withdrawn" section.
+const withdrawnAt = completed.search(/^## Withdrawn\b/m);
+completed =
+  withdrawnAt === -1
+    ? `${completed.trimEnd()}\n\n${moved.join('\n')}`
+    : `${completed.slice(0, withdrawnAt).trimEnd()}\n\n${moved.join('\n')}\n${completed.slice(withdrawnAt)}`;
 
 writeFileSync(backlogPath, backlog);
 writeFileSync(completedPath, completed);
