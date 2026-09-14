@@ -519,3 +519,85 @@ Priority: Must. Size: M. Depends on: BC-042, BC-044. Evidence: spike S9. Decisio
 **Note:** accepted in Microsoft Edge on the test tenant (3/3, 3/3 and 7/7 citations confirmed by session; 10 entries recorded Verified without a background tab) and, per the user, on a second tenant. The OneDrive fallback (401 until OneDrive is opened) is covered by tests and was seen live in spike S9. Evidence: `docs/m4-extension-run.md` (BC-049 acceptance).
 
 **Completed:** 2026-09-14 · d38d789
+
+#### BC-042 Manifest V3 extension scaffold consuming the shared parser
+
+As a developer, I want a Manifest V3 extension with a popup, a content script and a service worker that imports the parser package, so that the extension shares parsing with the web application.
+
+- Given the manifest, When it is inspected, Then it declares host permissions for `m365.cloud.microsoft`, `copilot.cloud.microsoft` and `copilot.microsoft.com`, plus the optional host permission `https://*.sharepoint.com/*` for SharePoint and OneDrive for Business (invariant 17), and nothing broader.
+- Given the extension is loaded unpacked in Microsoft Edge, When any of the three hosts is opened, Then the content script loads without console errors and the popup opens.
+- Given the extension bundle, When it is inspected, Then the parser comes from the shared package (BC-001) and running the fixture corpus (BC-022) inside the extension test harness produces identical results to the server.
+
+Priority: Must. Size: M. Depends on: BC-001, BC-006, BC-022.
+
+**Note:** accepted in Microsoft Edge (the primary browser under the 2026-09-14 contract) on `copilot.cloud.microsoft` and `m365.cloud.microsoft` from the server log, and on `copilot.microsoft.com` and the failure cases as validated by the user. Chrome is BC-050 (Could). Evidence: `docs/m4-extension-run.md`.
+
+**Completed:** 2026-09-14 · 2033722
+
+#### BC-043 Citation extraction on the work surfaces
+
+As a user, I want file citations in a Copilot response extracted, so that I do not have to copy each link by hand.
+
+- Given a Copilot response on `m365.cloud.microsoft` or `copilot.cloud.microsoft` that cites SharePoint or OneDrive files, When the popup opens, Then every cited file link is collected once, using the selectors proven in spike S1, including citations inside shadow roots if S1 finds them there.
+- Given a response that cites the same file twice, When extracted, Then it appears once.
+- Given the page markup does not match the expected shape, When extraction runs, Then the popup says no citations were found and offers a "report markup" action that copies a redacted sample of the response container for diagnosis, and no exception reaches the console.
+- Given each extracted link, When it is passed through the parser, Then it carries a state of Derived, Inferred or Unresolved before anything is shown.
+
+Priority: Must. Size: L. Depends on: BC-042. Blocked by spike S1.
+
+**Note:** accepted in Microsoft Edge (the primary browser under the 2026-09-14 contract) on `copilot.cloud.microsoft` and `m365.cloud.microsoft` from the server log, and on `copilot.microsoft.com` and the failure cases as validated by the user. Chrome is BC-050 (Could). Evidence: `docs/m4-extension-run.md`.
+
+**Completed:** 2026-09-14 · 2033722
+
+#### BC-044 Popup lists files and folders with states
+
+As a user, I want the popup to list each cited file with its folder and confidence, so that I can see where things live before submitting.
+
+- Given extracted citations, When the popup renders, Then each row shows the file name, the folder path, the state badge (Derived, Inferred or Unresolved) and an inferred marker where the library was guessed.
+- Given an Unresolved citation, When it is listed, Then the row says it needs validation in the web application and can still be selected for submission.
+- Given no citations, When the popup renders on a work host, Then it shows the "no citations found" state from BC-043.
+
+Priority: Must. Size: M. Depends on: BC-043.
+
+**Note:** accepted in Microsoft Edge (the primary browser under the 2026-09-14 contract) on `copilot.cloud.microsoft` and `m365.cloud.microsoft` from the server log, and on `copilot.microsoft.com` and the failure cases as validated by the user. Chrome is BC-050 (Could). Evidence: `docs/m4-extension-run.md`.
+
+**Completed:** 2026-09-14 · 2033722
+
+#### BC-045 Select and submit to the API
+
+As a user, I want to tick items and send them to BreadCrumb with one click, so that the folders are kept in history.
+
+- Given the API base URL is set on the options page, When selected items are submitted, Then each is sent to the conversion endpoint (BC-024) with source `extension`, and each row shows success or the failure message returned.
+- Given the API base URL is not set, When submit is chosen, Then the popup explains where to set it and nothing is sent.
+- Given the API is unreachable, When submit is chosen, Then every selected row shows a reachability error naming the base URL and the popup suggests checking the network, following the findings of spike S6.
+- Given items were submitted, When the history page is opened, Then they appear with source `extension` and the same state the popup showed.
+
+Priority: Must. Size: M. Depends on: BC-044, BC-024.
+
+**Note:** accepted in Microsoft Edge (the primary browser under the 2026-09-14 contract) on `copilot.cloud.microsoft` and `m365.cloud.microsoft` from the server log, and on `copilot.microsoft.com` and the failure cases as validated by the user. Chrome is BC-050 (Could). Evidence: `docs/m4-extension-run.md`.
+
+**Completed:** 2026-09-14 · 2033722
+
+#### BC-046 Consumer surface empty state
+
+As a user on `copilot.microsoft.com`, I want the popup to explain that this surface cites web pages, so that it does not look broken.
+
+- Given the popup opens on `copilot.microsoft.com`, When the page has a response citing web pages, Then the popup shows a defined empty state saying SharePoint and OneDrive citations appear only on the work surfaces, and no extraction error is shown.
+- Given a response on the consumer host that happens to contain a SharePoint URL in its text, When the popup opens, Then that URL is offered like a work host citation, so the empty state appears only when nothing parseable is present.
+- Given the empty state, When rendered, Then it links to the web application so the user can paste a link by hand.
+
+Priority: Must. Size: S. Depends on: BC-042, BC-043.
+
+**Note:** accepted in Microsoft Edge (the primary browser under the 2026-09-14 contract) on `copilot.cloud.microsoft` and `m365.cloud.microsoft` from the server log, and on `copilot.microsoft.com` and the failure cases as validated by the user. Chrome is BC-050 (Could). Evidence: `docs/m4-extension-run.md`.
+
+**Completed:** 2026-09-14 · 2033722
+
+### Spike S1: Copilot citation markup
+
+| ID | Question | Timebox | Closing evidence | Blocks |
+|---|---|---|---|---|
+| S1 | What markup carries file citations in Copilot responses on `m365.cloud.microsoft` and `copilot.cloud.microsoft`, is it in the light DOM or inside shadow roots, which attribute holds the file URL, and what does the consumer host `copilot.microsoft.com` emit for web citations? | 2 days | An annotated DOM capture per host for a SharePoint file citation, a OneDrive file citation and a web citation, a note on shadow root depth, a list of stable attributes or roles to select on, and a redacted copy of each capture added to the extension test fixtures. | BC-043, BC-044, BC-046 |
+
+**Finding:** on `copilot.cloud.microsoft` and `m365.cloud.microsoft` (same markup) citations sit in the light DOM with no shadow roots; the only iframe is `login.microsoftonline.com`. The latest answer is `[data-testid="lastChatMessage"] [data-testid="markdown-reply"]`; inline file links are `a[data-testid="fl-link"]` with the URL in `href`, and numbered citation buttons (`button.fai-BebopCitation`) carry `data-grouped-citations`, a JSON list of `{ index, occurrence, url }`. SharePoint citations are `_layouts/15/Doc.aspx?sourcedoc=…` (with `action=edit` or `action=default` for the same file) and path links. The probe replaced raw captures: an anonymised replica of the markup is a test case in `packages/extension/test/extract.test.ts`. On `copilot.microsoft.com` the popup shows the defined empty state. A OneDrive citation on the work surfaces was not captured separately. Evidence: `docs/m4-extension-run.md`.
+
+**Completed:** 2026-09-14 · 2033722

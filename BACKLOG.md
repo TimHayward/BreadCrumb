@@ -178,58 +178,6 @@ Priority: Must. Size: S. Depends on: BC-036.
 
 ### E6 Copilot extension
 
-#### BC-042 Manifest V3 extension scaffold consuming the shared parser
-
-As a developer, I want a Manifest V3 extension with a popup, a content script and a service worker that imports the parser package, so that the extension shares parsing with the web application.
-
-- Given the manifest, When it is inspected, Then it declares host permissions for `m365.cloud.microsoft`, `copilot.cloud.microsoft` and `copilot.microsoft.com`, plus the optional host permission `https://*.sharepoint.com/*` for SharePoint and OneDrive for Business (invariant 17), and nothing broader.
-- Given the extension is loaded unpacked in Microsoft Edge, When any of the three hosts is opened, Then the content script loads without console errors and the popup opens.
-- Given the extension bundle, When it is inspected, Then the parser comes from the shared package (BC-001) and running the fixture corpus (BC-022) inside the extension test harness produces identical results to the server.
-
-Priority: Must. Size: M. Depends on: BC-001, BC-006, BC-022.
-
-#### BC-043 Citation extraction on the work surfaces
-
-As a user, I want file citations in a Copilot response extracted, so that I do not have to copy each link by hand.
-
-- Given a Copilot response on `m365.cloud.microsoft` or `copilot.cloud.microsoft` that cites SharePoint or OneDrive files, When the popup opens, Then every cited file link is collected once, using the selectors proven in spike S1, including citations inside shadow roots if S1 finds them there.
-- Given a response that cites the same file twice, When extracted, Then it appears once.
-- Given the page markup does not match the expected shape, When extraction runs, Then the popup says no citations were found and offers a "report markup" action that copies a redacted sample of the response container for diagnosis, and no exception reaches the console.
-- Given each extracted link, When it is passed through the parser, Then it carries a state of Derived, Inferred or Unresolved before anything is shown.
-
-Priority: Must. Size: L. Depends on: BC-042. Blocked by spike S1.
-
-#### BC-044 Popup lists files and folders with states
-
-As a user, I want the popup to list each cited file with its folder and confidence, so that I can see where things live before submitting.
-
-- Given extracted citations, When the popup renders, Then each row shows the file name, the folder path, the state badge (Derived, Inferred or Unresolved) and an inferred marker where the library was guessed.
-- Given an Unresolved citation, When it is listed, Then the row says it needs validation in the web application and can still be selected for submission.
-- Given no citations, When the popup renders on a work host, Then it shows the "no citations found" state from BC-043.
-
-Priority: Must. Size: M. Depends on: BC-043.
-
-#### BC-045 Select and submit to the API
-
-As a user, I want to tick items and send them to BreadCrumb with one click, so that the folders are kept in history.
-
-- Given the API base URL is set on the options page, When selected items are submitted, Then each is sent to the conversion endpoint (BC-024) with source `extension`, and each row shows success or the failure message returned.
-- Given the API base URL is not set, When submit is chosen, Then the popup explains where to set it and nothing is sent.
-- Given the API is unreachable, When submit is chosen, Then every selected row shows a reachability error naming the base URL and the popup suggests checking the network, following the findings of spike S6.
-- Given items were submitted, When the history page is opened, Then they appear with source `extension` and the same state the popup showed.
-
-Priority: Must. Size: M. Depends on: BC-044, BC-024.
-
-#### BC-046 Consumer surface empty state
-
-As a user on `copilot.microsoft.com`, I want the popup to explain that this surface cites web pages, so that it does not look broken.
-
-- Given the popup opens on `copilot.microsoft.com`, When the page has a response citing web pages, Then the popup shows a defined empty state saying SharePoint and OneDrive citations appear only on the work surfaces, and no extraction error is shown.
-- Given a response on the consumer host that happens to contain a SharePoint URL in its text, When the popup opens, Then that URL is offered like a work host citation, so the empty state appears only when nothing parseable is present.
-- Given the empty state, When rendered, Then it links to the web application so the user can paste a link by hand.
-
-Priority: Must. Size: S. Depends on: BC-042, BC-043.
-
 #### BC-050 Chrome and other Chromium browsers
 
 As a user of Chrome or another Chromium browser, I want the extension and the web application to work there too, so that I am not tied to Edge.
@@ -277,7 +225,7 @@ Progress evidence at the boundary: a recorded validation of three fixtures again
 
 ### M4 Extension
 
-Stories: BC-042, BC-043, BC-044, BC-045, BC-046.
+Stories: none remaining.
 
 Demonstrable outcome: in Microsoft Edge, on `m365.cloud.microsoft` and `copilot.cloud.microsoft`, a Copilot response citing SharePoint and OneDrive files is opened, the popup lists the files with their folders and states (confirmed folders straight away where the user has granted SharePoint access), selected items are submitted and appear in history with source `extension`. On `copilot.microsoft.com` the popup shows the defined empty state.
 
@@ -293,7 +241,6 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 
 | ID | Question | Timebox | Closing evidence | Blocks |
 |---|---|---|---|---|
-| S1 | What markup carries file citations in Copilot responses on `m365.cloud.microsoft` and `copilot.cloud.microsoft`, is it in the light DOM or inside shadow roots, which attribute holds the file URL, and what does the consumer host `copilot.microsoft.com` emit for web citations? | 2 days | An annotated DOM capture per host for a SharePoint file citation, a OneDrive file citation and a web citation, a note on shadow root depth, a list of stable attributes or roles to select on, and a redacted copy of each capture added to the extension test fixtures. | BC-043, BC-044, BC-046 |
 | S2 | Does the Graph shares endpoint with a `u!` base64url encoded link return a driveItem for `/s/`, `/g/` and `/t/` tokens and for `-my` host tokens, what is the minimum delegated permission, does it work for a token created by another user, does the legacy `guestaccess.aspx` form resolve, and does a personal site resolve by path? | 1 day | A table of link variant against result and HTTP status from the test tenant, with the exact permission set that succeeded and the smallest set that failed. Removes the [unverified] markers in matrix rows 3b, 3c, 3d, 6 and 8. | BC-038, BC-037 (personal site case) |
 | S3 | Which link forms does a modern tenant actually emit from its own copy link and share controls today: the SharePoint library "Copy link" for each audience option, OneDrive web, the Office desktop share dialogue, the Teams files tab, an Outlook attachment link, and a Copilot citation? Do `RootFolder`, `guestaccess.aspx` and the Safe Links `/ap/` variant still appear? What do `/g/` and `/t/` mean? | 1 day | One anonymised fixture per control and audience option added to the corpus (BC-022), and a note against each matrix row saying "emitted today", "legacy but seen" or "not observed". Removes the [unverified] markers in rows 1b, 3c, 3d, 8 and 10. | BC-022 completeness. Nothing in M1 or M2 is blocked. |
 | S6 | Can a Manifest V3 extension on an `https` Copilot page submit to an `http` API on a private network address from another machine? Which of the popup, service worker and content script may make the call, does the browser's private network access restriction or mixed content blocking interfere, and what CORS headers does the API need? | 1 day | A test extension reaching a stub API from a second machine on the private network, in Microsoft Edge (Chrome only under BC-050), with a record of what was blocked and which context succeeded. Feeds decision D6. | BC-045, D6 |
