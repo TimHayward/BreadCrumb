@@ -71,6 +71,9 @@ importers:
       '@breadcrumb/parser':
         specifier: workspace:*
         version: link:../parser
+      '@breadcrumb/validation':
+        specifier: workspace:*
+        version: link:../validation
       '@fastify/cors':
         specifier: 'catalog:'
         version: 11.3.0
@@ -114,6 +117,9 @@ importers:
       '@breadcrumb/parser':
         specifier: workspace:*
         version: link:../parser
+      '@breadcrumb/validation':
+        specifier: workspace:*
+        version: link:../validation
     devDependencies:
       '@types/chrome':
         specifier: 'catalog:'
@@ -136,6 +142,22 @@ importers:
 
   packages/parser:
     devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@24.13.4)(jsdom@30.0.1)(vite@8.3.0(@types/node@24.13.4)(esbuild@0.28.2)(tsx@4.23.13))
+
+  packages/validation:
+    dependencies:
+      '@breadcrumb/parser':
+        specifier: workspace:*
+        version: link:../parser
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.4
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

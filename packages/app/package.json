@@ -18,6 +18,7 @@
   "dependencies": {
     "@azure/msal-browser": "catalog:",
     "@breadcrumb/parser": "workspace:*",
+    "@breadcrumb/validation": "workspace:*",
     "@fastify/cors": "catalog:",
     "@fastify/formbody": "catalog:",
     "@fastify/static": "catalog:",

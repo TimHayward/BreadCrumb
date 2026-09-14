@@ -4,7 +4,7 @@
  * only; SQL lives here.
  */
 import { documentKey, type ConfidenceState, type ParseResult } from '@breadcrumb/parser';
-import type { ValidationRecord, ValidationSubmission, VerifiedResult } from '../validation/types.js';
+import type { ValidationRecord, ValidationSubmission, VerifiedResult } from '@breadcrumb/validation';
 import { isBusyError, type Database } from './connection.js';
 
 export type ConversionSource = 'web' | 'extension';

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ValidationSubmission } from '../src/validation/types.js';
+import type { ValidationSubmission } from '@breadcrumb/validation';
 import { TOKEN_LINK, WORKED_EXAMPLE, createTestServer, postForm, type TestContext } from './helpers.js';
 
 const INFERRED_LINK = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?id=%2Fsites%2FSiteA%2FArchive%2F2024%2FMinutes%2Edocx';

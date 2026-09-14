@@ -4,8 +4,8 @@
  * identically by the conversion page and the history detail page (BC-031).
  */
 import type { Component, ConfidenceState, ParseFailure, ParseSuccess } from '@breadcrumb/parser';
-import { isValidatable } from '../validation/graphValidation.js';
-import type { ValidationRecord, VerifiedResult } from '../validation/types.js';
+import { isValidatable } from '@breadcrumb/validation';
+import type { ValidationRecord, VerifiedResult } from '@breadcrumb/validation';
 import { formatTime } from './format.js';
 import { Markup, breakableUrl, html } from './html.js';
 

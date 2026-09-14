@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openDatabase } from '../src/db/connection.js';
 import { SqliteHistoryStore } from '../src/db/historyStore.js';
 import { migrate } from '../src/db/migrate.js';
-import type { ValidationSubmission } from '../src/validation/types.js';
+import type { ValidationSubmission } from '@breadcrumb/validation';
 import { TOKEN_LINK, createTestServer, type TestContext } from './helpers.js';
 
 const GUID = '3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C';

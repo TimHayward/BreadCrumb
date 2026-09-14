@@ -3,7 +3,7 @@
  * stored. The server trusts the browser's Graph work (risk R12) but not its
  * data types.
  */
-import type { ValidationSubmission, VerifiedResult } from './types.js';
+import type { ValidationSubmission, VerifiedResult } from '@breadcrumb/validation';
 
 const PREVIOUS_STATES = new Set(['Derived', 'Inferred', 'Unresolved']);
 

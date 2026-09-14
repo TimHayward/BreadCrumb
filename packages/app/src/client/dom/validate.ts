@@ -17,7 +17,7 @@
 import { InteractionRequiredAuthError, LogLevel, PublicClientApplication, type AccountInfo } from '@azure/msal-browser';
 import { broadcastResponseToMainFrame } from '@azure/msal-browser/redirect-bridge';
 import type { ParseSuccess } from '@breadcrumb/parser';
-import { validateResult, type GraphClient, type ValidationOutcome } from '../../validation/graphValidation.js';
+import { validateResult, type GraphClient, type ValidationOutcome } from '@breadcrumb/validation';
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 const MAX_LOGGED_BODY = 8000;

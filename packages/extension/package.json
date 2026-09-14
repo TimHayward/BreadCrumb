@@ -10,7 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@breadcrumb/parser": "workspace:*"
+    "@breadcrumb/parser": "workspace:*",
+    "@breadcrumb/validation": "workspace:*"
   },
   "devDependencies": {
     "@types/chrome": "catalog:",

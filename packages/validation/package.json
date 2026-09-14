@@ -1,0 +1,31 @@
+{
+  "name": "@breadcrumb/validation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure validator that confirms a parser result against Microsoft Graph or SharePoint's Graph-shaped v2.0 API through an injected client. Shared by the web application's browser script and the extension.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@breadcrumb/parser": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

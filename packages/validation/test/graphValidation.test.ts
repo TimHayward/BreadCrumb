@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseLink, type ParseSuccess } from '@breadcrumb/parser';
 import { describe, expect, it } from 'vitest';
-import { encodeSharingUrl, isValidatable, siteCandidates, validateResult, type GraphClient, type GraphResponse } from '../src/validation/graphValidation.js';
+import { encodeSharingUrl, isValidatable, siteCandidates, validateResult, type GraphClient, type GraphResponse } from '../src/graphValidation.js';
 
 type Route = GraphResponse | ((path: string) => GraphResponse);
 
@@ -329,7 +329,7 @@ describe('recorded tenant responses (anonymised)', () => {
     responses: { shares: Record<string, unknown>; drive: Record<string, unknown> };
     expected: { path: string; folderUrl: string; library: string; folders: string[]; listItemUniqueId: string; calls: string[]; methodIncludes: string };
   }
-  const fixture = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures', 'graph', 'doc-aspx-via-shares.json'), 'utf8')) as RecordedFixture;
+  const fixture = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures', 'doc-aspx-via-shares.json'), 'utf8')) as RecordedFixture;
 
   it(`${fixture.title}: file's own unique id is checked, not the parent folder's`, async () => {
     const driveId = String(fixture.responses.drive['id']);

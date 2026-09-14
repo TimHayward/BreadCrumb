@@ -7,7 +7,7 @@ import { documentKey, parseLink } from '@breadcrumb/parser';
 import type { FastifyInstance } from 'fastify';
 import { effectiveState, type ConversionSource, type HistoryStore } from '../db/historyStore.js';
 import type { ConversionService } from '../services/conversionService.js';
-import { isValidatable } from '../validation/graphValidation.js';
+import { isValidatable } from '@breadcrumb/validation';
 import { parseSubmission } from '../validation/submission.js';
 
 const SOURCES: ReadonlySet<string> = new Set(['web', 'extension']);
