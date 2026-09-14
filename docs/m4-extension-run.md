@@ -63,3 +63,12 @@ Run from the extension options page ("Test SharePoint session"); results are pos
 | Chrome | | | | | To run. |
 | 2026-09-13, Edge | `/:t:/s/Site/{token}?email=…&e=…` (a specific-people link) | not tried | not tried | 404 `itemNotFound` "Requested sharing link could not be found" | Inconclusive: Graph gives the same 404 for this link since 2026-09-12, although it resolved it on 2026-09-11, so the link was removed or expired. Re-test with a fresh `/s/` link. |
 | Permission prompt wording (Edge, Chrome) | | | | | To record. |
+
+## BC-049 acceptance (Edge, 2026-09-14)
+
+- Access granted per tenant from the options page; the popup confirmed every citation on the granted hosts through SharePoint's `/_api/v2.0/shares` endpoint with the browser's session: 3 of 3, 3 of 3 and 7 of 7 citations across three popup openings on `copilot.cloud.microsoft`.
+- Sending recorded each confirmation as the entry's validation: 10 entries Verified in BreadCrumb with "Confirmed by SharePoint, using your browser session", and no background tab opened.
+- Reopening the popup on the same answer skipped the session for documents BreadCrumb already had Verified.
+- Also confirmed by the user on a second tenant (not logged on this server).
+- Fallback (no access, or OneDrive before it is opened) covered by tests; seen live in spike S9 as a 401 on the `-my` host.
+- Edge's permission prompt wording: to record.
