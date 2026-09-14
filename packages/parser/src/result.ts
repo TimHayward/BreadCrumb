@@ -21,6 +21,8 @@ const FAILURE_MESSAGES: Record<FailureReason, (detail: FailureDetail) => string>
   not_microsoft_365: (d) => `${d.host ?? 'This host'} is not a SharePoint or OneDrive host, so there is nothing to decode.`,
   truncated: (d) => `The link appears truncated: the "${d.parameter ?? 'link'}" value is incomplete.`,
   unsupported_form: () => 'This link is on a Microsoft 365 host but its form is not supported yet.',
+  consumer_onedrive: (d) =>
+    `This is a personal (consumer) OneDrive link${d.host === undefined ? '' : ` on ${d.host}`}, which is not supported. BreadCrumb supports SharePoint and OneDrive for Business links only.`,
   missing_parameter: (d) => `The link is missing its "${d.parameter ?? ''}" parameter, so the item cannot be located.`,
   parser_error: () => 'The link could not be interpreted because of an unexpected parser error.',
 };

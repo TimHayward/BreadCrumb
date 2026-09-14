@@ -1,6 +1,6 @@
 # BreadCrumb completed backlog
 
-Stories and spikes are moved here verbatim from `BACKLOG.md` once their acceptance criteria genuinely pass or their closing evidence exists. Each entry keeps its ID and gains a `**Completed:** <YYYY-MM-DD> · <commit SHA>` line. IDs are never reused. `BACKLOG.md` only ever contains open work.
+Stories and spikes are moved here verbatim from `BACKLOG.md` once their acceptance criteria genuinely pass or their closing evidence exists. Each entry keeps its ID and gains a `**Completed:** <YYYY-MM-DD> · <commit SHA>` line. Dropped work sits under `## Withdrawn` with the date and the reason. IDs are never reused. `BACKLOG.md` only ever contains open work.
 
 ## Completed
 
@@ -250,6 +250,8 @@ As a user, I want `onedrive.live.com` and `1drv.ms` links to be recognised, so t
 Priority: Should. Size: S. Depends on: BC-006.
 
 **Completed:** 2026-09-10 · 35734f6
+
+**Superseded 2026-09-14:** consumer OneDrive is no longer supported. These links now fail with reason `consumer_onedrive` and a not supported message instead of an Unresolved result (BC-051).
 
 #### BC-016 Teams deep links wrapping a file URL
 
@@ -659,3 +661,26 @@ Priority: Must. Size: S. Depends on: BC-036.
 **Note:** validated by the user on the test tenant in Microsoft Edge (2026-09-14), after sign in, Graph verification of Doc.aspx, UniqueId, /s/ and /r/ links and the auto-verify flows were exercised throughout 2026-09-11 to 2026-09-14 (server log). Graph route details, including the recorded shares response, are in `docs/m3-tenant-run.md`.
 
 **Completed:** 2026-09-14 · aaacf84
+
+## Withdrawn
+
+#### BC-027 Server side short link expansion
+
+As a user, I want `1drv.ms` short links to be expanded before parsing, so that the parser can see the real link.
+
+- Given expansion is enabled by its environment variable and the container has outbound HTTPS, When a `1drv.ms` link is submitted, Then the server follows redirects up to a documented limit without sending cookies, passes the final URL to the parser, and the result records the short link as a wrapper.
+- Given expansion is disabled or the outbound request fails or times out, When a `1drv.ms` link is submitted, Then the result is Unresolved with a message that the link could not be expanded and why, and the failure is logged.
+- Given the expansion feature, When the allow list is inspected, Then only the documented short link hosts are ever fetched and a sharing token link (BC-011) is never fetched, because it would redirect to sign in.
+- Given expansion succeeds, When the final host is not a recognised Microsoft host, Then the result is a clean failure naming the host.
+
+Priority: Should. Size: M. Depends on: BC-015, BC-024, BC-005.
+
+**Withdrawn:** 2026-09-14. `1drv.ms` short links are only issued for personal (consumer) OneDrive, which is no longer supported because it holds little value in business settings. The expander that had been built was removed, and such links now fail with a not supported message (BC-051).
+
+### Spike S8: short link redirects
+
+| ID | Question | Timebox | Closing evidence | Blocks |
+|---|---|---|---|---|
+| S8 | Does `1drv.ms` redirect to a parseable URL when fetched from a container without cookies, how many hops, and does the target vary by link type? | Half a day | A table of five short links against final URL and hop count, and the allow list of hosts contacted. | BC-027 |
+
+**Withdrawn:** 2026-09-14, with BC-027. Not run.

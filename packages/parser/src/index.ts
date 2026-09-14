@@ -9,7 +9,7 @@ import type { MatchContext } from './forms/context.js';
 import { forms } from './forms/registry.js';
 import { unwrap } from './forms/wrappers.js';
 import { failure } from './result.js';
-import type { ParseOptions, ParseResult, Wrapper } from './types.js';
+import type { ParseResult, Wrapper } from './types.js';
 import { classifyHost, safeParseUrl } from './url.js';
 
 export type {
@@ -26,13 +26,12 @@ export type {
   LibraryReason,
   Method,
   ParseFailure,
-  ParseOptions,
   ParseResult,
   ParseSuccess,
   Wrapper,
   WrapperType,
 } from './types.js';
-export { SHORT_LINK_HOSTS, classifyHost } from './url.js';
+export { classifyHost } from './url.js';
 export { documentKey, documentKeyForUniqueId } from './identity.js';
 export { PARSER_VERSION } from './version.js';
 
@@ -44,9 +43,9 @@ const MAX_WRAPPERS = 5;
  * ParseSuccess carrying exactly one confidence state or a ParseFailure
  * carrying a reason code and a plain language message.
  */
-export function parseLink(input: string, options: ParseOptions = {}): ParseResult {
+export function parseLink(input: string): ParseResult {
   try {
-    return parse(input, options);
+    return parse(input);
   } catch (error) {
     if (error instanceof DecodeError) {
       return failure('truncated', { parameter: error.parameter });
@@ -55,7 +54,7 @@ export function parseLink(input: string, options: ParseOptions = {}): ParseResul
   }
 }
 
-function parse(input: string, options: ParseOptions): ParseResult {
+function parse(input: string): ParseResult {
   if (typeof input !== 'string') {
     return failure('not_a_url');
   }
@@ -68,7 +67,7 @@ function parse(input: string, options: ParseOptions): ParseResult {
     return failure('not_a_url');
   }
 
-  const wrappers: Wrapper[] = [...(options.priorWrappers ?? [])];
+  const wrappers: Wrapper[] = [];
   let host = classifyHost(url.hostname);
   for (let depth = 0; host.kind === 'teams' || host.kind === 'safelinks'; depth++) {
     if (depth >= MAX_WRAPPERS) {

@@ -24,10 +24,6 @@ export interface AppConfig {
   logLevel: LogLevel;
   /** When true, request logs carry only the host of a submitted link. */
   redactLinks: boolean;
-  /** Whether the server may fetch 1drv.ms short links to expand them (BC-027). */
-  shortLinkExpansionEnabled: boolean;
-  /** Timeout for one short link expansion request, in milliseconds. */
-  shortLinkTimeoutMs: number;
   /**
    * Diagnostic switch for local sign in runs: the browser posts its sign in
    * and Graph events (never tokens) to the server log. Off by default because
@@ -52,8 +48,6 @@ export const DEFAULTS: Readonly<Omit<AppConfig, 'auth' | 'tls'>> = {
   databasePath: './data/breadcrumb.sqlite',
   logLevel: 'info',
   redactLinks: false,
-  shortLinkExpansionEnabled: false,
-  shortLinkTimeoutMs: 5000,
   clientLog: false,
 };
 
@@ -165,14 +159,6 @@ export function loadConfig(env: Env = process.env, log: (line: string) => void =
     databasePath: read(env, 'DATABASE_PATH', DEFAULTS.databasePath, (raw) => raw, log),
     logLevel: read(env, 'LOG_LEVEL', DEFAULTS.logLevel, parseLogLevel, log),
     redactLinks: read(env, 'LOG_REDACT_LINKS', DEFAULTS.redactLinks, parseBoolean('LOG_REDACT_LINKS'), log),
-    shortLinkExpansionEnabled: read(
-      env,
-      'SHORTLINK_EXPANSION_ENABLED',
-      DEFAULTS.shortLinkExpansionEnabled,
-      parseBoolean('SHORTLINK_EXPANSION_ENABLED'),
-      log,
-    ),
-    shortLinkTimeoutMs: read(env, 'SHORTLINK_TIMEOUT_MS', DEFAULTS.shortLinkTimeoutMs, parseInteger('SHORTLINK_TIMEOUT_MS', 100, 60000), log),
     clientLog: read(env, 'CLIENT_LOG', DEFAULTS.clientLog, parseBoolean('CLIENT_LOG'), log),
   };
   const tls = parseTls(env, log);

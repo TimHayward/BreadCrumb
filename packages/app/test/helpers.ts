@@ -4,7 +4,6 @@ import { openDatabase, type Database } from '../src/db/connection.js';
 import { SqliteHistoryStore } from '../src/db/historyStore.js';
 import { migrate } from '../src/db/migrate.js';
 import { buildServer } from '../src/server.js';
-import type { ShortLinkExpander } from '../src/services/shortLinkExpander.js';
 
 export const WORKED_EXAMPLE =
   'https://848.sharepoint.com/sites/848Technical/Projects/Forms/AllItems.aspx?id=%2Fsites%2F848Technical%2FProjects%2FProjects%20WIP%2FDeloitte%2FDeloitte%20%2D%20Digital%20Development%20Environment%2FSMR%20SIID%20029%20%2D%20Development%20Environment%20for%20Digital%20team%2Epdf&parent=%2Fsites%2F848Technical%2FProjects%2FProjects%20WIP%2FDeloitte%2FDeloitte%20%2D%20Digital%20Development%20Environment';
@@ -29,7 +28,6 @@ export interface TestContext {
 
 export interface TestServerOptions {
   config?: Partial<AppConfig>;
-  expander?: ShortLinkExpander;
 }
 
 /** An in-memory database, migrated, behind a server with logging silenced and no network. */
@@ -38,11 +36,7 @@ export async function createTestServer(options: TestServerOptions = {}): Promise
   const db = openDatabase(':memory:');
   migrate(db);
   const store = new SqliteHistoryStore(db);
-  const expander: ShortLinkExpander = options.expander ?? {
-    enabled: false,
-    expand: async () => ({ ok: false, reason: 'disabled', message: 'Short link expansion is switched off in tests.' }),
-  };
-  const app = await buildServer({ config, db, store, logger: false, expander });
+  const app = await buildServer({ config, db, store, logger: false });
   await app.ready();
   return { app, db, store, config };
 }

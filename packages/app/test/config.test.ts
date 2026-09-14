@@ -14,8 +14,6 @@ describe('loadConfig (BC-005)', () => {
       'config: DATABASE_PATH not set, using "./data/breadcrumb.sqlite"',
       'config: LOG_LEVEL not set, using "info"',
       'config: LOG_REDACT_LINKS not set, using "false"',
-      'config: SHORTLINK_EXPANSION_ENABLED not set, using "false"',
-      'config: SHORTLINK_TIMEOUT_MS not set, using "5000"',
       'config: CLIENT_LOG not set, using "false"',
       'config: TLS_CERT_FILE and TLS_KEY_FILE not set, serving plain HTTP',
       'config: AUTH_TENANT_ID and AUTH_CLIENT_ID not set, authenticated validation is not configured',
@@ -30,8 +28,6 @@ describe('loadConfig (BC-005)', () => {
         DATABASE_PATH: '/data/x.sqlite',
         LOG_LEVEL: 'DEBUG',
         LOG_REDACT_LINKS: 'true',
-        SHORTLINK_EXPANSION_ENABLED: 'yes',
-        SHORTLINK_TIMEOUT_MS: '2500',
         CLIENT_LOG: 'true',
         TLS_CERT_FILE: '/tls/cert.pem',
         TLS_KEY_FILE: '/tls/key.pem',
@@ -46,8 +42,6 @@ describe('loadConfig (BC-005)', () => {
       databasePath: '/data/x.sqlite',
       logLevel: 'debug',
       redactLinks: true,
-      shortLinkExpansionEnabled: true,
-      shortLinkTimeoutMs: 2500,
       clientLog: true,
       tls: { certFile: '/tls/cert.pem', keyFile: '/tls/key.pem' },
       auth: { tenantId: TENANT, clientId: CLIENT, scopes: ['Files.Read.All'] },
@@ -69,8 +63,7 @@ describe('loadConfig (BC-005)', () => {
     ['PORT', '80.5'],
     ['LOG_LEVEL', 'loud'],
     ['LOG_REDACT_LINKS', 'maybe'],
-    ['SHORTLINK_EXPANSION_ENABLED', 'sometimes'],
-    ['SHORTLINK_TIMEOUT_MS', '10'],
+    ['CLIENT_LOG', 'sometimes'],
   ])('rejects malformed %s=%s with an error naming the variable', (name, value) => {
     expect(() => loadConfig({ [name]: value }, () => {})).toThrowError(ConfigError);
     try {

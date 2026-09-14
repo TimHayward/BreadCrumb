@@ -27,7 +27,6 @@ const STATE_HELP: Record<ConfidenceState, string> = {
 const WRAPPER_LABELS: Record<string, string> = {
   teams: 'Teams file link',
   safelinks: 'Outlook Safe Links',
-  shortlink: 'short link (expanded by the server)',
 };
 
 export const UNRESOLVED_NEXT_STEP_CONFIGURED =
@@ -75,7 +74,7 @@ function componentRows(result: ParseSuccess): Markup {
         ? html`<em>(library root)</em>`
         : html`<ol class="folder-chain">${c.folders.value.map((f) => html`<li><code>${f}</code></li>`)}</ol>`;
   return html`<dl class="components">
-      <div><dt>Tenant</dt><dd>${c.tenant.value === '' ? html`<em>none (consumer service)</em>` : html`<code>${c.tenant.value}</code>`}${inferredMarker(c.tenant)}</dd></div>
+      <div><dt>Tenant</dt><dd>${c.tenant.value === '' ? html`<em>none</em>` : html`<code>${c.tenant.value}</code>`}${inferredMarker(c.tenant)}</dd></div>
       <div><dt>Host</dt><dd><code>${c.host.value}</code>${inferredMarker(c.host)}</dd></div>
       <div><dt>Site</dt><dd>${sitePath}${inferredMarker(c.sitePath)}</dd></div>
       <div><dt>Document library</dt><dd>${
@@ -231,14 +230,16 @@ export interface FailureViewOptions {
 }
 
 export function renderFailure(failure: ParseFailure, options: FailureViewOptions = {}): Markup {
+  // Consumer OneDrive is out of scope, not a fault: say so, and do not offer to keep it.
+  const consumer = failure.reason === 'consumer_onedrive';
   return html`<section class="failure" role="alert">
-    <h2>Could not convert this link</h2>
+    <h2>${consumer ? 'Consumer OneDrive links are not supported' : 'Could not convert this link'}</h2>
     <p>${failure.message}</p>
     <p class="reason-code">Reason code: <code>${failure.reason}</code></p>
     ${
       options.keptAs !== undefined
         ? html`<p class="saved">Kept in history as <a href="/history/${options.keptAs}">entry ${options.keptAs}</a> (a failure with no state).</p>`
-        : options.keepInput !== undefined
+        : options.keepInput !== undefined && !consumer
           ? html`<form method="post" action="/convert" class="keep-form">
       <input type="hidden" name="link" value="${options.keepInput}">
       <input type="hidden" name="keep" value="1">

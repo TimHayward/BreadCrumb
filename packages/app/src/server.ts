@@ -12,7 +12,6 @@ import { registerApiRoutes } from './routes/api.js';
 import { registerHealthRoute } from './routes/health.js';
 import { registerPageRoutes } from './routes/pages.js';
 import { createConversionService } from './services/conversionService.js';
-import { DEFAULT_MAX_HOPS, createShortLinkExpander, type ShortLinkExpander } from './services/shortLinkExpander.js';
 import type { ViewContext } from './views/layout.js';
 
 export interface ServerDeps {
@@ -21,8 +20,6 @@ export interface ServerDeps {
   store: HistoryStore;
   /** Pino logger options override, used by tests to silence output. */
   logger?: boolean | { level: string };
-  /** Short link expander override, used by tests to avoid the network. */
-  expander?: ShortLinkExpander;
   /** PEM certificate and key: when present the server speaks HTTPS (decision D6). */
   https?: { cert: string | Buffer; key: string | Buffer };
 }
@@ -65,17 +62,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   // new app.js, app.css or validate.js is never shadowed by a cached copy.
   await app.register(fastifyStatic, { root: resolvePublicDir(), prefix: '/static/', cacheControl: true, maxAge: 0 });
 
-  const expander =
-    deps.expander ??
-    createShortLinkExpander({
-      enabled: deps.config.shortLinkExpansionEnabled,
-      timeoutMs: deps.config.shortLinkTimeoutMs,
-      maxHops: DEFAULT_MAX_HOPS,
-    });
-  const service = createConversionService(deps.store, {
-    expander,
-    log: { warn: (obj, msg) => app.log.warn(obj, msg) },
-  });
+  const service = createConversionService(deps.store);
   const context: ViewContext = { auth: deps.config.auth, clientLog: deps.config.clientLog };
   registerHealthRoute(app, deps.db, deps.config.databasePath);
   registerApiRoutes(app, service, deps.store);

@@ -52,6 +52,7 @@ describe('extractCitations', () => {
   });
 
   it('isMicrosoftLink recognises parser hosts only', () => {
+    // Consumer OneDrive links are still picked up so the popup can say they are not supported.
     expect(isMicrosoftLink('https://1drv.ms/x/s!AaBb')).toBe(true);
     expect(isMicrosoftLink('https://teams.microsoft.com/l/file/x')).toBe(true);
     expect(isMicrosoftLink('https://learn.microsoft.com/')).toBe(false);

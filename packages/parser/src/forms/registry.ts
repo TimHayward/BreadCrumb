@@ -1,4 +1,4 @@
-import { oneDriveConsumer, shortLink } from './consumer.js';
+import { consumerOneDrive } from './consumer.js';
 import type { FormMatcher } from './context.js';
 import { directPath } from './directPath.js';
 import { layoutsPages } from './layoutsPages.js';
@@ -16,7 +16,6 @@ export const forms: readonly FormMatcher[] = [
   sharingToken,
   guestAccess,
   layoutsPages,
-  oneDriveConsumer,
-  shortLink,
+  consumerOneDrive,
   directPath,
 ];

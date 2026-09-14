@@ -91,6 +91,17 @@ describe('buildRows (BC-044)', () => {
     expect(rows[3]?.selected).toBe(false);
     expect(rows.map((r) => r.key)).toEqual(['row-1', 'row-2', 'row-3', 'row-4']);
   });
+
+  it('shows a consumer OneDrive link as not supported and leaves it unselected', () => {
+    const [row] = buildRows([{ url: 'https://1drv.ms/x/s!AaBbCcDdEeFfGgHh' }]);
+    expect(row?.state).toBe('failed');
+    expect(row?.selected).toBe(false);
+    expect(row?.result.ok).toBe(false);
+    if (row !== undefined && !row.result.ok) {
+      expect(row.result.reason).toBe('consumer_onedrive');
+      expect(row.result.message).toContain('personal (consumer) OneDrive link');
+    }
+  });
 });
 
 describe('one row per document', () => {

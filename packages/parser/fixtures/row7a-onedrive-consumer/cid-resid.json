@@ -1,25 +1,12 @@
 {
-  "title": "onedrive.live.com with cid and resid: Unresolved with identifiers (BC-015)",
+  "title": "onedrive.live.com link: consumer OneDrive is not supported, clean failure naming the host",
   "row": "7a",
   "input": "https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123&authkey=%21AAbbCCddEEff",
   "expected": {
-    "ok": true,
-    "state": "Unresolved",
-    "form": "onedrive-consumer",
-    "method": {
-      "code": "onedrive-consumer/identifiers",
-      "text": "Recognised a consumer OneDrive link. Its owner and item identifiers are reported, but consumer OneDrive cannot be resolved to a path in this version."
-    },
-    "cloud": "global",
-    "components": {
-      "tenant": { "value": "", "flag": "Derived" },
-      "host": { "value": "onedrive.live.com", "flag": "Derived" }
-    },
-    "identifiers": [
-      { "kind": "cid", "value": "A1B2C3D4E5F60718", "label": "OneDrive owner id (cid)", "flag": "Derived" },
-      { "kind": "resid", "value": "A1B2C3D4E5F60718!123", "label": "OneDrive item id (resid)", "flag": "Derived" }
-    ],
-    "hints": [],
-    "wrappers": []
+    "ok": false,
+    "reason": "consumer_onedrive",
+    "detail": {
+      "host": "onedrive.live.com"
+    }
   }
 }

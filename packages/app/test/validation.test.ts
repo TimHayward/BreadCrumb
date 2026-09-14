@@ -62,6 +62,8 @@ describe('sign in control (BC-036)', () => {
     expect(doc.body).toContain('data-previous-state="Unresolved" data-auto="1" hidden>');
     const consumer = await postForm(ctx.app, '/convert', { link: 'https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123' });
     expect(consumer.body).not.toContain('class="validate"');
+    expect(consumer.body).toContain('Consumer OneDrive links are not supported');
+    expect(consumer.body).not.toContain('Keep this in history anyway');
     const sovereign = await postForm(ctx.app, '/convert', { link: 'https://contoso.sharepoint.us/sites/SiteA/Lib/Report.pdf' });
     expect(sovereign.body).not.toContain('class="validate"');
     const unconfigured = await createTestServer();

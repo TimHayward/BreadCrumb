@@ -22,8 +22,8 @@ const SHAREPOINT_CLOUDS: ReadonlyArray<{ suffix: string; cloud: Cloud }> = [
   { suffix: '.sharepoint.cn', cloud: 'china' },
 ];
 
-/** Short link hosts the server may expand (BC-027). Nothing else is ever fetched. */
-export const SHORT_LINK_HOSTS: ReadonlySet<string> = new Set(['1drv.ms']);
+/** Personal OneDrive short link hosts: recognised only to say consumer OneDrive is not supported. */
+const SHORT_LINK_HOSTS: ReadonlySet<string> = new Set(['1drv.ms']);
 
 const LOOKS_LIKE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?(\/|$)/i;
 

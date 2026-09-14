@@ -3,4 +3,4 @@
  * Must equal the `version` field in package.json; a test enforces this.
  * Bump it whenever any fixture's expected output changes.
  */
-export const PARSER_VERSION = '0.3.0';
+export const PARSER_VERSION = '0.4.0';

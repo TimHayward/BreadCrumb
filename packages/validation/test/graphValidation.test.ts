@@ -317,7 +317,6 @@ describe('validateResult by share (BC-038)', () => {
     expect(isValidatable(parseLink(link) as ParseSuccess)).toBe(true);
     expect(isValidatable(parseLink('https://contoso.sharepoint.com/sites/SiteA/Lib/x.pdf') as ParseSuccess)).toBe(true);
     expect(isValidatable(parseLink('https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3f2a9c1e-7b4d-4e0a-9c6b-1d2e3f4a5b6c%7D') as ParseSuccess)).toBe(true);
-    expect(isValidatable(parseLink('https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123') as ParseSuccess)).toBe(false);
     expect(isValidatable(parseLink('https://contoso.sharepoint.us/sites/SiteA/Lib/x.pdf') as ParseSuccess)).toBe(false);
   });
 });
@@ -441,8 +440,6 @@ describe('Graph failures are reported honestly (BC-041)', () => {
   it('unsupported cases say why', async () => {
     const sovereign = parseLink('https://contoso.sharepoint.us/sites/SiteA/Lib/Report.pdf') as ParseSuccess;
     expect(await validateResult(sovereign, graph({}))).toMatchObject({ ok: false, kind: 'unsupported' });
-    const consumer = parseLink('https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123') as ParseSuccess;
-    expect(await validateResult(consumer, graph({}))).toMatchObject({ ok: false, kind: 'unsupported' });
   });
 
   it('never throws on a client that throws', async () => {

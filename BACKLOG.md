@@ -6,7 +6,7 @@ Status: draft for review. Planning artefact only. No application code, schema, c
 
 **How to use this file.** Each story is self contained and written to be executed cold by an AI coding model or a developer with no other context. Pick a story, read its dependencies, implement, and satisfy every acceptance criterion. Where a story names a spike, the spike closes first and its evidence is linked from the story before implementation starts.
 
-**When a story is done.** Once its acceptance criteria genuinely pass, move the whole story verbatim out of this file into `BACKLOG-completed.md` under a `## Completed` heading, appending a `**Completed:** <YYYY-MM-DD> · <commit SHA>` line. Keep the ID. IDs are never reused. Spikes are moved the same way once their closing evidence exists, with a one line summary of the finding. This file only ever contains open work, so the milestone lists in section 6 shrink as stories complete.
+**When a story is done.** Once its acceptance criteria genuinely pass, move the whole story verbatim out of this file into `BACKLOG-completed.md` under a `## Completed` heading, appending a `**Completed:** <YYYY-MM-DD> · <commit SHA>` line. Keep the ID. IDs are never reused. Spikes are moved the same way once their closing evidence exists, with a one line summary of the finding. A story or spike that is dropped moves under a `## Withdrawn` heading with the date and the reason. This file only ever contains open work, so the milestone lists in section 6 shrink as stories complete.
 
 **Design rules.** Section 13 lists the architectural invariants that every story must respect. A story that would break an invariant is re-planned, not implemented.
 
@@ -21,7 +21,7 @@ Conventions used throughout:
 
 ## 1. Product summary
 
-BreadCrumb is a self hosted tool that turns any Microsoft 365 SharePoint or OneDrive link into the folder location it points at. A user pastes a link into the web application and receives the decoded server relative path, the containing folder URL, the direct file URL and a breakdown of tenant, site, document library, folder chain and file name. Every conversion is stored in a searchable history held in SQLite on a dedicated Docker named volume. A Microsoft Edge extension extracts file citations from Microsoft Copilot responses, resolves them with the same shared parser, confirms them with the user's SharePoint session where the user allows it, and submits selected items to the web application. Every result states how it was obtained using four states: Verified, Derived, Inferred and Unresolved.
+BreadCrumb is a self hosted tool that turns any Microsoft 365 SharePoint or OneDrive for Business link into the folder location it points at. A user pastes a link into the web application and receives the decoded server relative path, the containing folder URL, the direct file URL and a breakdown of tenant, site, document library, folder chain and file name. Every conversion is stored in a searchable history held in SQLite on a dedicated Docker named volume. A Microsoft Edge extension extracts file citations from Microsoft Copilot responses, resolves them with the same shared parser, confirms them with the user's SharePoint session where the user allows it, and submits selected items to the web application. Every result states how it was obtained using four states: Verified, Derived, Inferred and Unresolved.
 
 ---
 
@@ -38,7 +38,7 @@ Each line is a gap in the brief that I filled. Correct any that are wrong before
 - Node LTS at the time M1 starts is the target runtime, and the exact version is pinned during M1.
 - The tenant name is the first label of the host, so `848` in the worked example. The site path is `/sites/{name}` or `/teams/{name}`. Links on the root site have an empty site path and the library is the first path segment.
 - Corrections made by authenticated validation are recorded alongside the original best effort result rather than overwriting it, so the upgrade is visible.
-- Short link expansion needs outbound HTTPS from the container to Microsoft hosts. Where the host has no outbound access the feature is switched off and short links stay Unresolved.
+- Personal (consumer) OneDrive is not supported (decided 2026-09-14). Links on `onedrive.live.com` and `1drv.ms` are recognised only to tell the user they are not supported (BC-051). The server makes no outbound requests.
 - Export is a download of the currently filtered history. Import is not required.
 - The user interface is English only.
 - Authenticated validation targets the global Microsoft cloud only. Sovereign cloud links parse in best effort mode only.
@@ -81,8 +81,8 @@ Graph calls named here are the documented Microsoft Graph v1.0 calls I am confid
 | 5 | `download.aspx` and similar layouts pages with `SourceUrl` | `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/download.aspx?SourceUrl={enc}` | Full | As row 1 | Path, folder and file: Derived. Library: Inferred | Verified | BC-013 |
 | 5b | `download.aspx` with `UniqueId` | `.../_layouts/15/download.aspx?UniqueId={guid}` | Partial: site Derived, item Unresolved | As row 4 | Unresolved | Verified, subject to S5 | BC-013 |
 | 6 | OneDrive for Business personal site | `https://contoso-my.sharepoint.com/personal/user_contoso_onmicrosoft_com/_layouts/15/onedrive.aspx?id={enc}` and direct `https://contoso-my.sharepoint.com/personal/user_contoso_onmicrosoft_com/Documents/Folder/File.xlsx` | Full | `GET /sites/{host}:/personal/{alias}` to resolve the personal site [unverified that personal sites resolve by path, see S2], then as row 1 | Path, folder and file: Derived. Library: Inferred, defaulting to `Documents` | Verified | BC-014 |
-| 7a | OneDrive consumer, `onedrive.live.com` with `cid` and `resid` | `https://onedrive.live.com/?cid={hex}&resid={hex}%21{n}&authkey={key}` | Identifiers only | `/shares` with the full URL may work for consumer accounts, but consumer sign in is out of scope for v1 | Unresolved (cid and resid reported as Derived identifiers) | Not in v1 | BC-015 |
-| 7b | OneDrive consumer short link | `https://1drv.ms/x/s!{token}` and `https://1drv.ms/b/s/{token}` | Nothing until expanded | Not applicable. Expansion is an HTTP redirect, after which the target is parsed as row 7a or a sharing form | Unresolved until expanded, then as the target | Not in v1 | BC-015, BC-027 |
+| 7a | OneDrive consumer, `onedrive.live.com` with `cid` and `resid` | `https://onedrive.live.com/?cid={hex}&resid={hex}%21{n}&authkey={key}` | Fails cleanly: consumer OneDrive is not supported | Not applicable | No result state. Reason code `consumer_onedrive` with a message saying this is a consumer OneDrive link and not supported | Not applicable | BC-051 |
+| 7b | OneDrive consumer short link | `https://1drv.ms/x/s!{token}` and `https://1drv.ms/b/s/{token}` | Fails cleanly as row 7a. The link is never fetched or expanded | Not applicable | As row 7a | Not applicable | BC-051 |
 | 8 | Guest access links | Modern: identical in shape to rows 3b to 3d; nothing in the URL distinguishes a guest recipient [unverified], see S3. Legacy: `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/guestaccess.aspx?docid={id}&authkey={key}` [unverified whether still emitted], see S3 | Type and site hints only | As row 3b for modern. Legacy form: `/shares` with the full URL [unverified], see S2 | Unresolved | Verified where `/shares` accepts it | BC-011 |
 | 9 | Teams deep link wrapping a file URL | `https://teams.microsoft.com/l/file/{guid}?tenantId={guid}&fileType=docx&objectUrl={enc-full-url}&baseUrl={enc}&serviceName=teams&threadId={id}&groupId={guid}` | Full unwrap, then as the inner form | As the inner form | As the inner form. The wrapper is recorded in the result | As the inner form | BC-016 |
 | 10 | Outlook Safe Links wrapper | `https://{region}.safelinks.protection.outlook.com/?url={enc-full-url}&data={blob}&sdata={blob}&reserved=0` and the `/ap/{code}/?url=` variant [unverified, see S3] | Full unwrap, then as the inner form | As the inner form | As the inner form. The wrapper is recorded in the result | As the inner form | BC-017 |
@@ -93,7 +93,7 @@ Graph calls named here are the documented Microsoft Graph v1.0 calls I am confid
 
 Notes on the matrix:
 
-- A modern sharing link in the `/s/`, `/g/` or `/t/` variants cannot be expanded by an unauthenticated HTTP request. Fetching it without a session redirects to sign in, so the web application must not attempt it. Only row 7b is expanded by redirect (BC-027).
+- A modern sharing link in the `/s/`, `/g/` or `/t/` variants cannot be expanded by an unauthenticated HTTP request. Fetching it without a session redirects to sign in, so the web application must not attempt it. The server fetches no link of any form.
 - The library boundary is only deterministic in row 1, where the page path places `/Forms/AllItems.aspx` at the library root. In every other form the split between site, library and folders is Inferred until Graph confirms it by listing the site's drives.
 
 ---
@@ -119,18 +119,18 @@ Priority: Must. Size: S. Depends on: BC-002.
 
 ### E2 Shared link parser
 
+#### BC-051 Consumer OneDrive links say they are not supported
+
+As a user, I want a personal (consumer) OneDrive link to be named as such and refused, so that I know straight away BreadCrumb cannot help with it rather than seeing an Unresolved result that never resolves.
+
+- Given a `onedrive.live.com` link or a `1drv.ms` short link, When it is converted in the web application or the API, Then the result is a failure with reason code `consumer_onedrive` and a message saying it is a personal (consumer) OneDrive link, which is not supported, and naming the host.
+- Given such a link on the conversion page, When the failure is shown, Then the heading says consumer OneDrive links are not supported and no "keep in history" action is offered.
+- Given such a link cited in a Copilot response, When the extension popup lists it, Then it shows the same message and the row is not selected for submission.
+- Given any consumer OneDrive link, When it is converted, Then the server makes no outbound request, and the short link expansion feature and its `SHORTLINK_EXPANSION_ENABLED` and `SHORTLINK_TIMEOUT_MS` variables no longer exist.
+
+Priority: Must. Size: S. Depends on: BC-015, BC-021. Supersedes the Unresolved criteria of BC-015 and withdraws BC-027.
+
 ### E3 Web conversion experience
-
-#### BC-027 Server side short link expansion
-
-As a user, I want `1drv.ms` short links to be expanded before parsing, so that the parser can see the real link.
-
-- Given expansion is enabled by its environment variable and the container has outbound HTTPS, When a `1drv.ms` link is submitted, Then the server follows redirects up to a documented limit without sending cookies, passes the final URL to the parser, and the result records the short link as a wrapper.
-- Given expansion is disabled or the outbound request fails or times out, When a `1drv.ms` link is submitted, Then the result is Unresolved with a message that the link could not be expanded and why, and the failure is logged.
-- Given the expansion feature, When the allow list is inspected, Then only the documented short link hosts are ever fetched and a sharing token link (BC-011) is never fetched, because it would redirect to sign in.
-- Given expansion succeeds, When the final host is not a recognised Microsoft host, Then the result is a clean failure naming the host.
-
-Priority: Should. Size: M. Depends on: BC-015, BC-024, BC-005.
 
 ### E4 Conversion history
 
@@ -159,13 +159,13 @@ Stories: BC-003.
 
 Demonstrable outcome: the repository is a TypeScript monorepo with the compose file at its root. The same compose file is deployed as a Portainer Git stack and runs under `docker compose up` locally (BC-003). The worked example link converts end to end on the deployed stack with a Derived state and appears in the history list. A conversion written before the image is rebuilt and the stack redeployed is still present afterwards, on a named volume separate from the container filesystem (BC-004).
 
-Deliberately excluded: every link form other than the library view form, confidence labelling beyond the single state badge, search, filters, delete, export, short link expansion, sign in, the extension, backup documentation. The health endpoint (BC-047) is included only because the compose health check needs it. No story depends on Graph, sign in or tenant consent.
+Deliberately excluded: every link form other than the library view form, confidence labelling beyond the single state badge, search, filters, delete, export, sign in, the extension, backup documentation. The health endpoint (BC-047) is included only because the compose health check needs it. No story depends on Graph, sign in or tenant consent.
 
 Progress evidence at the boundary: a screen recording or screenshots of the Portainer stack, the conversion, the rebuild and the surviving history row.
 
 ### M2 Breadth and history
 
-Stories: BC-027.
+Stories: none remaining.
 
 Demonstrable outcome: every row of the link form matrix converts in best effort mode with the confidence state and per component inferred markers the matrix predicts, or fails with the message it predicts. The fixture corpus covers every row. History is searchable and filterable at five thousand rows, entries can be deleted singly and in bulk, and the filtered set exports as CSV and JSON. Backup and restore have been rehearsed once.
 
@@ -179,7 +179,7 @@ Stories: none remaining.
 
 Demonstrable outcome: a user signs in against the personal test tenant, validates an Inferred result whose library boundary was guessed wrongly, sees it corrected and upgraded to Verified, and sees the "was inferred as" record beneath it. An Unresolved sharing token resolves to a Verified path. The history list shows which rows were upgraded. Signing out removes the token and the default no sign in path is unchanged.
 
-Deliberately excluded: production tenant consent, server side token storage, consumer OneDrive validation, sovereign cloud Graph endpoints, automatic re-validation of old rows. BC-039 ships only if spike S5 closes with a working method.
+Deliberately excluded: production tenant consent, server side token storage, consumer OneDrive (not supported, BC-051), sovereign cloud Graph endpoints, automatic re-validation of old rows. BC-039 ships only if spike S5 closes with a working method.
 
 Progress evidence at the boundary: a recorded validation of three fixtures against the test tenant, one each from the Inferred and Unresolved states plus one Derived, with before and after states.
 
@@ -205,7 +205,6 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 | S3 | Which link forms does a modern tenant actually emit from its own copy link and share controls today: the SharePoint library "Copy link" for each audience option, OneDrive web, the Office desktop share dialogue, the Teams files tab, an Outlook attachment link, and a Copilot citation? Do `RootFolder`, `guestaccess.aspx` and the Safe Links `/ap/` variant still appear? What do `/g/` and `/t/` mean? | 1 day | One anonymised fixture per control and audience option added to the corpus (BC-022), and a note against each matrix row saying "emitted today", "legacy but seen" or "not observed". Removes the [unverified] markers in rows 1b, 3c, 3d, 8 and 10. | BC-022 completeness. Nothing in M1 or M2 is blocked. |
 | S6 | Can a Manifest V3 extension on an `https` Copilot page submit to an `http` API on a private network address from another machine? Which of the popup, service worker and content script may make the call, does the browser's private network access restriction or mixed content blocking interfere, and what CORS headers does the API need? | 1 day | A test extension reaching a stub API from a second machine on the private network, in Microsoft Edge (Chrome only under BC-050), with a record of what was blocked and which context succeeded. Feeds decision D6. | BC-045, D6 |
 | S7 | How does a Portainer Git stack behave in practice: how are environment variables supplied, does "pull and redeploy" preserve named volumes, does removing the stack remove volumes, and does a private repository need stored credentials? Some of this is [unverified] from documentation alone. | Half a day | A runbook of the exact clicks, and a redeploy and a removal each followed by a check of the volume. | BC-003, BC-004 |
-| S8 | Does `1drv.ms` redirect to a parseable URL when fetched from a container without cookies, how many hops, and does the target vary by link type? | Half a day | A table of five short links against final URL and hop count, and the allow list of hosts contacted. | BC-027 |
 
 ---
 
@@ -244,7 +243,7 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 | Performance | Conversion under 100 ms on the server for any offline form. History search under one second at five thousand rows and acceptable at twenty thousand (BC-032). Page loads under two seconds on the private network. |
 | Browser support | Microsoft Edge (current stable) is the primary and only required browser, for the web application and the extension. Chrome and other Chromium browsers are a low priority want (BC-050). Firefox and Safari are best effort for the web pages only. |
 | Accessibility | WCAG 2.2 AA for contrast and keyboard operation, state never conveyed by colour alone (BC-028). |
-| Network posture | The application listens on one port and makes no outbound requests except short link expansion when enabled, and Graph calls are made from the browser, not the server. |
+| Network posture | The application listens on one port and makes no outbound requests. Graph calls are made from the browser and SharePoint session calls from the extension, never from the server. |
 | Logging | Structured, one line per request, with a redaction switch (BC-047). |
 | Data sensitivity | History holds client names and file titles. There is no access control in v1, so the host must be reachable only on the private network, and the README says so in its first section. |
 
@@ -265,7 +264,7 @@ Likelihood and impact are High, Medium or Low. Owner is a placeholder role until
 | R7 | Extension installation is blocked by browser policy on managed devices. | Medium | Medium | Confirm with the device administrator whether unpacked or policy pushed extensions are allowed before M4 starts, and whether the optional SharePoint host permission (BC-049) may be granted. The web application works without the extension. | Product owner |
 | R8 | SQLite limits bite if the tool spreads to a team: concurrent writes, a single file, no network access to the database. | Low | Medium | The data access layer (BC-029) isolates the engine. Write ahead logging for concurrency. Watch row counts and error rates. Moving engine is a planned later change, not a v1 requirement. | Developer |
 | R9 | The library boundary heuristic is wrong often enough that Inferred results mislead. | Medium | Medium | Always label Inferred. Measure the hit rate against Graph during M3 and refine the rules in BC-018 from real data. | Parser owner |
-| R10 | Short link expansion needs outbound access the host does not have, or Microsoft changes redirect behaviour. | Medium | Low | Feature is optional and off when unavailable. Spike S8. Links stay Unresolved with a reason. | Developer |
+| R10 | Short link expansion needs outbound access the host does not have, or Microsoft changes redirect behaviour. **Closed 2026-09-14:** short link expansion was withdrawn with consumer OneDrive support (BC-051). | None | None | Not applicable. | Developer |
 | R11 | A native SQLite module fails to build in the container image or breaks on a Node upgrade. | Medium | Medium | Spike S4 and decision D2. Pin the Node version. | Developer |
 | R12 | The Verified state is asserted by the browser, since Graph calls happen there, so a modified client could store a false Verified row. | Low | Low | Acceptable on a private network without access control. Record the Graph item id with every Verified row so it can be re-checked. Revisit with D3 and D4. | Product owner |
 
@@ -291,7 +290,8 @@ Likelihood and impact are High, Medium or Low. Owner is a placeholder role until
 
 - Any application level authentication, authorisation or user accounts. Locked decision, revisited under D4.
 - Server side storage of Graph tokens or any background Graph access without a user present.
-- Authenticated validation for OneDrive consumer accounts or for sovereign and government clouds. Those links parse in best effort mode only.
+- Personal (consumer) OneDrive in any form: such links fail with a not supported message (BC-051).
+- Authenticated validation for sovereign and government clouds. Those links parse in best effort mode only.
 - Extension support for Firefox, Safari or any non Chromium browser, and browser store publication.
 - Copilot surfaces other than the three named hosts, including Copilot panes inside Word, Excel, PowerPoint, Outlook and Teams.
 - Any write operation against SharePoint or OneDrive, such as moving, renaming or sharing files.

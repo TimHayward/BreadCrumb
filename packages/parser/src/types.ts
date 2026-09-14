@@ -41,7 +41,7 @@ export interface Hint {
   label: string;
 }
 
-export type WrapperType = 'teams' | 'safelinks' | 'shortlink';
+export type WrapperType = 'teams' | 'safelinks';
 
 /** A wrapper removed before parsing, recorded in the order it was removed. */
 export interface Wrapper {
@@ -98,6 +98,7 @@ export type FailureReason =
   | 'truncated'
   | 'unsupported_form'
   | 'missing_parameter'
+  | 'consumer_onedrive'
   | 'parser_error';
 
 export interface FailureDetail {
@@ -115,10 +116,3 @@ export interface ParseFailure {
 
 export type ParseResult = ParseSuccess | ParseFailure;
 
-export interface ParseOptions {
-  /**
-   * Wrappers already removed by the caller, such as a short link the server
-   * expanded (BC-027). They are recorded ahead of any the parser removes.
-   */
-  priorWrappers?: Wrapper[];
-}

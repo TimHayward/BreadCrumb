@@ -37,10 +37,6 @@ const app = await buildServer({ config, db, store, ...(https !== undefined ? { h
 
 app.log.info({ databasePath: config.databasePath, schemaVersion: migration.version, applied: migration.applied, documentKeysBackfilled: backfilled }, 'database ready');
 app.log.info(
-  { enabled: config.shortLinkExpansionEnabled, timeoutMs: config.shortLinkTimeoutMs },
-  config.shortLinkExpansionEnabled ? 'short link expansion enabled: the server will fetch 1drv.ms links' : 'short link expansion disabled: no outbound requests',
-);
-app.log.info(
   https === undefined ? { scheme: 'http' } : { scheme: 'https', certFile: config.tls?.certFile },
   https === undefined ? 'serving plain HTTP (sign in works only on localhost)' : 'serving HTTPS',
 );

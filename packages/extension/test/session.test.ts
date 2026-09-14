@@ -5,7 +5,7 @@ import { confirmWithSession, sessionHost } from '../src/session.js';
 const GUID = '3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C';
 const DOC = `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${GUID}%7D&file=Plan.pptx&action=edit`;
 const ONEDRIVE = 'https://contoso-my.sharepoint.com/:w:/r/personal/user_contoso_onmicrosoft_com/Documents/Work/Report.docx?d=w1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6&csf=1&web=1';
-const CONSUMER = 'https://onedrive.live.com/?cid=A1B2C3D4E5F60718&resid=A1B2C3D4E5F60718%21123';
+const SOVEREIGN = 'https://contoso.sharepoint.us/sites/SiteA/Lib/Report.pdf';
 
 const item = {
   id: '01PLAN',
@@ -48,7 +48,7 @@ describe('confirmWithSession (BC-049)', () => {
   });
 
   it('leaves rows to the Graph route when access is missing or SharePoint says no, and skips what it cannot confirm', async () => {
-    const rows = buildRows([{ url: DOC }, { url: ONEDRIVE }, { url: CONSUMER }]);
+    const rows = buildRows([{ url: DOC }, { url: ONEDRIVE }, { url: SOVEREIGN }]);
     await confirmWithSession(rows, { fetchImpl: sharePoint, hasPermission: async (host) => host === 'contoso-my.sharepoint.com' });
     expect(rows[0]?.session).toMatchObject({ ok: false, reason: 'no-access' });
     expect(rows[1]?.session).toMatchObject({ ok: false, reason: 'failed' });
