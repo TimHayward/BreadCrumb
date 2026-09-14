@@ -71,4 +71,4 @@ Run from the extension options page ("Test SharePoint session"); results are pos
 - Reopening the popup on the same answer skipped the session for documents BreadCrumb already had Verified.
 - Also confirmed by the user on a second tenant (not logged on this server).
 - Fallback (no access, or OneDrive before it is opened) covered by tests; seen live in spike S9 as a 401 on the `-my` host.
-- Edge's permission prompt wording: to record.
+- Edge's permission prompt (as described by the user, 2026-09-14): Edge asks the user to approve the extension's access to the tenant's SharePoint and OneDrive sites; access is granted only on approval and can be removed on the options page.
