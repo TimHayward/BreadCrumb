@@ -450,3 +450,41 @@ describe('Graph failures are reported honestly (BC-041)', () => {
     expect(outcome).toMatchObject({ ok: false, kind: 'error', message: 'network down' });
   });
 });
+
+describe('SharePoint session authority (BC-049, decision D9)', () => {
+  const session = { authority: 'sharepoint-session' as const };
+
+  it('confirms a path link through the shares endpoint with the item URL, naming SharePoint', async () => {
+    const result = parseLink('https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf') as ParseSuccess;
+    const client = graph({
+      [`/shares/${encodeSharingUrl('https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf')}/driveItem`]: ok(FILE_ITEM),
+      '/drives/b!lib': ok(LIB_DRIVE),
+    });
+    const outcome = await validateResult(result, client, session);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.verified.path).toBe('/sites/SiteA/Lib/Folder One/Report.pdf');
+    expect(outcome.verified.methodText).toBe('Confirmed by SharePoint, using your browser session: the item URL was submitted to the shares endpoint, which returned the file and its library "Lib".');
+    expect(client.calls.map((c) => c.path.replace(/\?.*$/, ''))).not.toContain('/sites/contoso.sharepoint.com:/sites/SiteA');
+  });
+
+  it('confirms document id and sharing links the same way as Graph, with the SharePoint label', async () => {
+    const docLink = `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${UNIQUE}%7D&file=Report.pdf`;
+    const outcome = await validateResult(parseLink(docLink) as ParseSuccess, graph({
+      [`/shares/${encodeSharingUrl(docLink)}/driveItem`]: ok(FILE_ITEM),
+      '/drives/b!lib': ok(LIB_DRIVE),
+    }), session);
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) expect(outcome.verified.methodText.startsWith('Confirmed by SharePoint, using your browser session: the link was submitted')).toBe(true);
+  });
+
+  it('keeps the Graph label and route by default', async () => {
+    const result = parseLink('https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf') as ParseSuccess;
+    const outcome = await validateResult(result, graph({
+      '/sites/contoso.sharepoint.com:/sites/SiteA': ok(SITE_A),
+      [`/sites/${SITE_A.id}/drives`]: ok(DRIVES_A),
+      '/drives/b!lib/root:/Folder%20One/Report.pdf': ok(FILE_ITEM),
+    }));
+    expect(outcome.ok && outcome.verified.methodText.startsWith('Confirmed by Microsoft Graph:')).toBe(true);
+  });
+});

@@ -431,23 +431,23 @@ export function encodeSharingUrl(url: string): string {
 }
 
 /**
- * Fallback for accounts that can read files but not enumerate sites: the
- * shares endpoint accepts any item URL the user can open (BC-037, S2).
+ * The shares endpoint accepts any item URL the user can open (BC-037, S2):
+ * Graph's fallback for accounts that can read files but not enumerate
+ * sites, and the only route for SharePoint's v2.0 API (spike S9).
  */
-async function validateByPathThroughShares(result: ParseSuccess, graph: GraphClient, calls: string[], reason: string): Promise<ValidationOutcome> {
+async function validateByPathThroughShares(
+  result: ParseSuccess,
+  graph: GraphClient,
+  calls: string[],
+  reason: string,
+  why = 'the account could not list the site, so the item URL was submitted to the shares endpoint',
+): Promise<ValidationOutcome> {
   const url = result.fileUrl ?? result.folderUrl;
   if (url === undefined) {
     return { ok: false, kind: 'permission', message: reason, calls };
   }
   const item = await call<GraphItem>(graph, `/shares/${encodeSharingUrl(url)}/driveItem?${ITEM_SELECT}`, calls, REDEEM_HEADERS);
-  return verifyFromItem(
-    result,
-    item,
-    graph,
-    calls,
-    (kind, library) =>
-      `Confirmed by Microsoft Graph: the account could not list the site, so the item URL was submitted to the shares endpoint, which returned the ${kind} and its library ${library}.`,
-  );
+  return verifyFromItem(result, item, graph, calls, (kind, library) => `Confirmed by Microsoft Graph: ${why}, which returned the ${kind} and its library ${library}.`);
 }
 
 /** Unresolved sharing token links: the shares endpoint (BC-038). */
@@ -562,10 +562,37 @@ async function validateByDocumentId(result: ParseSuccess, graph: GraphClient, ca
 }
 
 /**
+ * Who confirms a result (decision D9): Microsoft Graph with a token from the
+ * web application's sign in, or SharePoint's Graph-shaped v2.0 API
+ * (`https://{host}/_api/v2.0`) with the browser's SharePoint session, from
+ * the extension (BC-049). Both count as Verified; the method text names which.
+ */
+export type ValidationAuthority = 'graph' | 'sharepoint-session';
+
+export interface ValidateOptions {
+  authority?: ValidationAuthority;
+}
+
+const AUTHORITY_LABELS: Record<ValidationAuthority, string> = {
+  graph: 'Microsoft Graph',
+  'sharepoint-session': 'SharePoint, using your browser session',
+};
+
+/**
  * Validates one parser result. Never throws: every Graph failure becomes an
  * outcome with a kind the page can act on (BC-041).
  */
-export async function validateResult(result: ParseSuccess, graph: GraphClient): Promise<ValidationOutcome> {
+export async function validateResult(result: ParseSuccess, graph: GraphClient, options: ValidateOptions = {}): Promise<ValidationOutcome> {
+  const authority = options.authority ?? 'graph';
+  const outcome = await validateWith(result, graph, authority);
+  if (outcome.ok && authority !== 'graph') {
+    // Relabelled here, not in the route functions, so parallel validations cannot mix labels.
+    outcome.verified.methodText = outcome.verified.methodText.replace(/^Confirmed by Microsoft Graph:/, `Confirmed by ${AUTHORITY_LABELS[authority]}:`);
+  }
+  return outcome;
+}
+
+async function validateWith(result: ParseSuccess, graph: GraphClient, authority: ValidationAuthority): Promise<ValidationOutcome> {
   const calls: string[] = [];
   try {
     if (result.state === 'Verified') {
@@ -582,6 +609,10 @@ export async function validateResult(result: ParseSuccess, graph: GraphClient): 
         return await validateByDocumentId(result, graph, calls);
       }
       return { ok: false, kind: 'unsupported', message: 'This link form cannot be validated in this version.', calls };
+    }
+    if (authority === 'sharepoint-session') {
+      // SharePoint's v2.0 API has no site-by-path lookup; its shares endpoint takes the item URL (spike S9).
+      return await validateByPathThroughShares(result, graph, calls, 'This result has no URL to look up.', 'the item URL was submitted to the shares endpoint');
     }
     return await validateByPath(result, graph, calls);
   } catch (error) {

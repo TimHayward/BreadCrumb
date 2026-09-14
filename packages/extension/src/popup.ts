@@ -4,7 +4,8 @@
  */
 import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
-import { applyLookup, buildRows, followUntilVerified, lookupRows, submitRows, verificationUrl, type PopupRow } from './popupModel.js';
+import { applyLookup, buildRows, followUntilVerified, lookupRows, submitRows, verificationUrl, verifiedFolder, type PopupRow } from './popupModel.js';
+import { confirmWithSession } from './session.js';
 import { getApiBaseUrl } from './storage.js';
 
 const main = document.getElementById('main') as HTMLElement;
@@ -50,18 +51,30 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
     });
     const label = el('label', { for: row.key, class: 'label' }, row.label);
     const known = row.known;
-    const state = known?.state ?? row.state;
+    // A session confirmation (BC-049) counts as Verified (decision D9) until BreadCrumb's own record says more.
+    const confirmed = row.session?.ok === true ? row.session.verified : undefined;
+    const verifiedHere = known?.verified !== true && confirmed !== undefined;
+    const state = known?.verified === true ? known.state : verifiedHere ? 'Verified' : (known?.state ?? row.state);
     const folderText =
-      known?.folder ?? row.folder ?? (row.state === 'Unresolved' ? 'folder unknown until BreadCrumb verifies it' : row.result.ok ? '' : row.result.message);
+      (known?.verified === true ? known.folder : undefined) ??
+      (confirmed !== undefined ? verifiedFolder(confirmed) : undefined) ??
+      known?.folder ??
+      row.folder ??
+      (row.state === 'Unresolved' ? 'folder unknown until it is verified' : row.result.ok ? '' : row.result.message);
     const folder = el('div', { class: 'folder' }, folderText);
     const meta = el('div', { class: 'meta' }, badge(state));
     if (known?.verified === true) {
-      meta.append(el('span', { class: 'outcome-ok' }, 'confirmed by Microsoft Graph'));
+      meta.append(el('span', { class: 'outcome-ok' }, 'verified in BreadCrumb'));
+    } else if (verifiedHere) {
+      meta.append(el('span', { class: 'outcome-ok' }, 'confirmed by SharePoint with your session'));
     } else if (row.libraryInferred && known === undefined) {
       meta.append(el('span', { class: 'marker-inferred' }, 'library inferred'));
     }
     if (state === 'Unresolved') {
       meta.append(el('span', { class: 'note' }, 'verifies in BreadCrumb once you are signed in there'));
+    }
+    if (row.session?.ok === false && row.session.reason === 'failed' && state !== 'Verified') {
+      meta.append(el('span', { class: 'note', title: row.session.message }, 'SharePoint session could not confirm it'));
     }
     if (known !== undefined && baseUrl !== undefined) {
       const entry = el('a', { href: `${baseUrl}/history/${known.id}`, class: 'note' }, `BreadCrumb entry ${known.id}`);
@@ -93,23 +106,29 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
     submit.disabled = true;
     status.textContent = 'Sending…';
     await submitRows(rows, baseUrl, (url, init) => fetch(url, init));
-    const sent = rows.filter((row) => row.outcome?.ok === true).length;
+    const sentRows = rows.filter((row) => row.outcome?.ok === true);
+    const sent = sentRows.length;
+    const pending = sentRows.filter((row) => row.known?.verified !== true).length;
     let notice: string | undefined;
-    if (sent > 0) {
-      // Graph tokens live only in BreadCrumb's own pages (decision D3), so verification
-      // happens there: a background tab verifies the new entries and closes itself.
+    if (sent > 0 && pending === 0) {
+      notice = `Sent ${sent}, all Verified with your SharePoint session.`;
+    } else if (pending > 0) {
+      // The rest are verified with Microsoft Graph in BreadCrumb's own pages (decision D3):
+      // a background tab verifies the new entries and closes itself.
+      const confirmedCount = sent - pending;
+      const lead = confirmedCount > 0 ? `Sent ${sent}; ${confirmedCount} Verified with your SharePoint session.` : `Sent ${sent}.`;
       try {
         await chrome.tabs.create({ url: verificationUrl(baseUrl), active: false });
-        notice = `Sent ${sent}. BreadCrumb is verifying them in a background tab, which closes itself when done. If it stays open, switch to it: you may need to sign in to Microsoft there.`;
+        notice = `${lead} BreadCrumb is verifying the other ${pending} in a background tab, which closes itself when done. If it stays open, switch to it: you may need to sign in to Microsoft there.`;
       } catch (error) {
-        notice = `Sent ${sent}. Open BreadCrumb's history to verify them (${error instanceof Error ? error.message : String(error)}).`;
+        notice = `${lead} Open BreadCrumb's history to verify the other ${pending} (${error instanceof Error ? error.message : String(error)}).`;
       }
     }
     renderRows(rows, baseUrl, tabId, surfaceNote, notice);
-    if (sent > 0) {
+    if (pending > 0) {
       const outcome = await followUntilVerified(rows, baseUrl, () => renderRows(rows, baseUrl, tabId, surfaceNote, notice));
       if (outcome === 'verified') {
-        renderRows(rows, baseUrl, tabId, surfaceNote, `Sent ${sent} and BreadCrumb verified ${sent === 1 ? 'it' : 'them all'} with Microsoft Graph.`);
+        renderRows(rows, baseUrl, tabId, surfaceNote, `Sent ${sent} and all are Verified.`);
       }
     }
   });
@@ -261,6 +280,22 @@ async function start(): Promise<void> {
       const kept = rows.filter((row) => row.known !== undefined).length;
       renderRows(rows, baseUrl, tab.id, surfaceNote, `${kept} of ${rows.length} already in BreadCrumb (unticked).`);
     }
+  }
+  // BC-049: confirm the rest with the browser's SharePoint session, where the user granted access.
+  await confirmWithSession(rows, {
+    fetchImpl: (url, init) => fetch(url, init),
+    hasPermission: (host) => chrome.permissions.contains({ origins: [`https://${host}/*`] }),
+  });
+  const confirmed = rows.filter((row) => row.session?.ok === true).length;
+  const noAccess = rows.some((row) => row.session?.ok === false && row.session.reason === 'no-access');
+  void reportToServer(baseUrl, 'extension-session', {
+    rows: rows.map((row) => ({ form: row.result.ok ? row.result.form : 'failed', session: row.session === undefined ? null : row.session.ok ? 'confirmed' : `${row.session.reason}: ${row.session.message}` })),
+  });
+  if (confirmed > 0 || noAccess) {
+    const parts = [];
+    if (confirmed > 0) parts.push(`${confirmed} confirmed with your SharePoint session.`);
+    if (noAccess) parts.push('Allow your tenant on the options page to confirm the others instantly.');
+    renderRows(rows, baseUrl, tab.id, surfaceNote, parts.join(' '));
   }
 }
 

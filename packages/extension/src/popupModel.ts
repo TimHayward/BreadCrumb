@@ -5,6 +5,7 @@
  * row outcomes. Testable in Node.
  */
 import { documentKey, parseLink, type ConfidenceState, type ParseResult } from '@breadcrumb/parser';
+import type { VerifiedResult } from '@breadcrumb/validation';
 import type { Citation } from './messages.js';
 
 export interface PopupRow {
@@ -21,6 +22,19 @@ export interface PopupRow {
   outcome?: SubmissionOutcome;
   /** What BreadCrumb's history says about this document, when it has an entry. */
   known?: KnownEntry;
+  /** What SharePoint said when asked with the browser's session (BC-049). */
+  session?: SessionOutcome;
+}
+
+/** A citation confirmed, or not, with the browser's SharePoint session (BC-049). */
+export type SessionOutcome =
+  | { ok: true; verified: VerifiedResult }
+  | { ok: false; reason: 'no-access' | 'failed'; message: string };
+
+/** The containing folder of a verified result (the path itself for a folder). */
+export function verifiedFolder(verified: VerifiedResult): string {
+  const name = verified.components.fileName;
+  return name !== undefined && verified.path.endsWith(`/${name}`) ? verified.path.slice(0, verified.path.length - name.length - 1) : verified.path;
 }
 
 /** A history entry for the row's document, as answered by POST /api/lookup. */
@@ -35,7 +49,8 @@ export interface KnownEntry {
   folderUrl?: string;
 }
 
-export type SubmissionOutcome = { ok: true; id: number; state: ConfidenceState } | { ok: false; message: string };
+/** `recorded` is true when a session confirmation was stored as the entry's validation (BC-049). */
+export type SubmissionOutcome = { ok: true; id: number; state: ConfidenceState; recorded?: boolean } | { ok: false; message: string };
 
 function folderOf(result: ParseResult): string | undefined {
   if (!result.ok || result.path === undefined) {
@@ -127,6 +142,9 @@ export async function submitRows(rows: PopupRow[], baseUrl: string, fetchImpl: F
       const body = (await response.json().catch(() => ({}))) as { id?: number; result?: { state?: ConfidenceState }; message?: string; reason?: string };
       if (response.ok && typeof body.id === 'number' && body.result?.state !== undefined) {
         row.outcome = { ok: true, id: body.id, state: body.result.state };
+        if (row.session?.ok === true) {
+          row.outcome.recorded = await recordSessionConfirmation(row, body.id, body.result.state, baseUrl, fetchImpl);
+        }
       } else {
         row.outcome = { ok: false, message: body.message ?? `${baseUrl} answered ${response.status}.` };
       }
@@ -138,6 +156,32 @@ export async function submitRows(rows: PopupRow[], baseUrl: string, fetchImpl: F
     }
   }
   return rows;
+}
+
+/**
+ * Stores a session confirmation as the new entry's validation, so BreadCrumb
+ * shows it Verified (decision D9) without a background tab. Returns false
+ * when BreadCrumb declines it; the background tab then verifies with Graph.
+ */
+async function recordSessionConfirmation(row: PopupRow, id: number, previousState: ConfidenceState, baseUrl: string, fetchImpl: FetchLike): Promise<boolean> {
+  if (row.session?.ok !== true || previousState === 'Verified') {
+    return false;
+  }
+  const verified = row.session.verified;
+  try {
+    const response = await fetchImpl(`${baseUrl}/api/history/${id}/validate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ previousState, verified }),
+    });
+    if (!response.ok) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  row.known = { id, state: 'Verified', verified: true, path: verified.path, folder: verifiedFolder(verified), folderUrl: verified.folderUrl };
+  return true;
 }
 
 export type LookupAnswer =
