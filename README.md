@@ -10,7 +10,7 @@ BreadCrumb turns a Microsoft 365 SharePoint or OneDrive link into the folder loc
 |---|---|
 | `packages/parser` | `@breadcrumb/parser`. Pure link parser, the single implementation consumed by both the web application and the extension. No runtime dependencies. |
 | `packages/app` | `@breadcrumb/app`. Fastify web application: conversion page, JSON API, history pages, SQLite data access layer. |
-| `packages/extension` | `@breadcrumb/extension`. Manifest V3 Chromium extension (build-only stub until M4). |
+| `packages/extension` | `@breadcrumb/extension`. Manifest V3 extension for Microsoft Edge that lifts citations out of Copilot responses. |
 | `compose.yaml` | The single deployment definition, used unchanged by `docker compose up` locally and by a Portainer Git stack. |
 | `docs/` | Worked example, spike write-ups, runbooks and milestone evidence. |
 | `BACKLOG.md`, `BACKLOG-completed.md` | Open and completed product backlog. |
