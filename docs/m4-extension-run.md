@@ -18,7 +18,7 @@ On `m365.cloud.microsoft` and `copilot.cloud.microsoft`, ask Copilot something t
 
 | Host | Citation kind | Element and attribute holding the URL | Light DOM or shadow root (depth) | Stable selector to use |
 |---|---|---|---|---|
-| m365.cloud.microsoft | SharePoint file | | | |
+| m365.cloud.microsoft (2026-09-14) | SharePoint file (Doc.aspx) | Same markup as copilot.cloud.microsoft: the same selectors found 4 of 4 citations, all confirmed by the SharePoint session | Light DOM | Same selectors as below |
 | m365.cloud.microsoft | OneDrive file | | | |
 | copilot.cloud.microsoft (2026-09-12) | SharePoint file (Doc.aspx) | Inline entity link `a.sef-entity-link[data-testid="fl-link"]` → `href`; numbered citation `button.fai-BebopCitation` → `data-grouped-citations`, a JSON array of `{ index, occurrence, url }` | Light DOM; no shadow roots; only iframe is `login.microsoftonline.com` | Answer: `[data-testid="lastChatMessage"] [data-testid="markdown-reply"]`; links: `[data-testid="fl-link"]`, `[data-grouped-citations]`. A "Sources" button (`data-testid="sources-button-testid"`) opens a panel not yet probed. Links are `_layouts/15/Doc.aspx?sourcedoc=…&file=…&action=edit` or `action=default` for the same file. |
 | copilot.cloud.microsoft | OneDrive file | | | |
@@ -72,3 +72,8 @@ Run from the extension options page ("Test SharePoint session"); results are pos
 - Also confirmed by the user on a second tenant (not logged on this server).
 - Fallback (no access, or OneDrive before it is opened) covered by tests; seen live in spike S9 as a 401 on the `-my` host.
 - Edge's permission prompt (as described by the user, 2026-09-14): Edge asks the user to approve the extension's access to the tenant's SharePoint and OneDrive sites; access is granted only on approval and can be removed on the options page.
+
+## M4 acceptance (Edge, 2026-09-14)
+
+- `copilot.cloud.microsoft` and `m365.cloud.microsoft`: citations extracted with the S1 selectors (3, 3, 7 and 4 citations in four answers), one row per document, confirmed by the SharePoint session, sent with source `extension` and Verified in BreadCrumb (from the server log).
+- `copilot.microsoft.com` empty state, the unreachable-server message and the missing-base-URL message: validated by the user in Edge (not visible in the server log, as expected when the server is stopped or the address is cleared).
