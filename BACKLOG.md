@@ -230,18 +230,6 @@ As a user on `copilot.microsoft.com`, I want the popup to explain that this surf
 
 Priority: Must. Size: S. Depends on: BC-042, BC-043.
 
-#### BC-049 Resolve citations with the browser's SharePoint session
-
-As a Microsoft Edge user already signed in to Microsoft 365, I want the extension to confirm where each cited file lives using the session open in my browser, so that I see the real folder straight away without signing in to BreadCrumb.
-
-- Given the user has granted the extension access to their tenant's SharePoint and OneDrive for Business hosts from the options page, When the popup lists citations, Then each citation on those hosts is looked up from the service worker with the browser's session (SharePoint REST `GetFileById` for document id links, SharePoint's `/_api/v2.0/shares/…/driveItem` for sharing and path links), and the row shows the confirmed path and folder.
-- Given access has not been granted, or a host answers 401 (for example OneDrive before it has been opened in the browser), When the popup lists citations, Then the row keeps its offline state and the existing route applies: the entry is sent to BreadCrumb and verified there with Microsoft Graph.
-- Given a session lookup confirms an item, When the citation is sent, Then BreadCrumb records the confirmed result against the entry, as Verified (decision D9), naming the SharePoint call in the method text.
-- Given the extension, When it runs, Then it never reads cookie values and sends only SharePoint's answers to BreadCrumb.
-- Given access is requested in Edge, When the browser prompts, Then the prompt's wording is recorded in `docs/m4-extension-run.md` for the team's install notes.
-
-Priority: Must. Size: M. Depends on: BC-042, BC-044. Evidence: spike S9. Decision D9 settled.
-
 #### BC-050 Chrome and other Chromium browsers
 
 As a user of Chrome or another Chromium browser, I want the extension and the web application to work there too, so that I am not tied to Edge.
@@ -289,7 +277,7 @@ Progress evidence at the boundary: a recorded validation of three fixtures again
 
 ### M4 Extension
 
-Stories: BC-042, BC-043, BC-044, BC-045, BC-046, BC-049.
+Stories: BC-042, BC-043, BC-044, BC-045, BC-046.
 
 Demonstrable outcome: in Microsoft Edge, on `m365.cloud.microsoft` and `copilot.cloud.microsoft`, a Copilot response citing SharePoint and OneDrive files is opened, the popup lists the files with their folders and states (confirmed folders straight away where the user has granted SharePoint access), selected items are submitted and appear in history with source `extension`. On `copilot.microsoft.com` the popup shows the defined empty state.
 

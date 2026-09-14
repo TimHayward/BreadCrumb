@@ -503,3 +503,19 @@ Priority: Should. Size: M. Depends on: BC-036, BC-012, BC-040. Blocked by spike 
 **Finding:** in Microsoft Edge, an extension service worker with the optional host permission for the tenant's hosts resolves every link form with the user's existing SharePoint session and no app registration: SharePoint REST `GetFileById` returns the exact server-relative path of a Doc.aspx or doc2.aspx file and `…/ListItemAllFields/ParentList/RootFolder` its true library root; SharePoint's `/_api/v2.0/shares/u!…/driveItem` returns a Graph-shaped driveItem for Doc.aspx, `/r/` file and folder links (unique id equal to the link's `d`) and fresh `/s/` sharing tokens. OneDrive for Business (`-my`) links answer 401 until OneDrive has been opened in the browser session, because the session cookie is per host. A specific-people `/s/` link that had been removed answered 404 through both SharePoint and Graph. Chrome was not run: the contract now makes Edge primary and Chrome a low priority want (BC-050). Evidence: `docs/m4-extension-run.md` (spike S9). Adopted as BC-049; labelling of such results is decision D9.
 
 **Completed:** 2026-09-14 · aae84ca
+
+#### BC-049 Resolve citations with the browser's SharePoint session
+
+As a Microsoft Edge user already signed in to Microsoft 365, I want the extension to confirm where each cited file lives using the session open in my browser, so that I see the real folder straight away without signing in to BreadCrumb.
+
+- Given the user has granted the extension access to their tenant's SharePoint and OneDrive for Business hosts from the options page, When the popup lists citations, Then each citation on those hosts is looked up from the service worker with the browser's session (SharePoint REST `GetFileById` for document id links, SharePoint's `/_api/v2.0/shares/…/driveItem` for sharing and path links), and the row shows the confirmed path and folder.
+- Given access has not been granted, or a host answers 401 (for example OneDrive before it has been opened in the browser), When the popup lists citations, Then the row keeps its offline state and the existing route applies: the entry is sent to BreadCrumb and verified there with Microsoft Graph.
+- Given a session lookup confirms an item, When the citation is sent, Then BreadCrumb records the confirmed result against the entry, as Verified (decision D9), naming the SharePoint call in the method text.
+- Given the extension, When it runs, Then it never reads cookie values and sends only SharePoint's answers to BreadCrumb.
+- Given access is requested in Edge, When the browser prompts, Then the prompt's wording is recorded in `docs/m4-extension-run.md` for the team's install notes.
+
+Priority: Must. Size: M. Depends on: BC-042, BC-044. Evidence: spike S9. Decision D9 settled.
+
+**Note:** accepted in Microsoft Edge on the test tenant (3/3, 3/3 and 7/7 citations confirmed by session; 10 entries recorded Verified without a background tab) and, per the user, on a second tenant. The OneDrive fallback (401 until OneDrive is opened) is covered by tests and was seen live in spike S9. Evidence: `docs/m4-extension-run.md` (BC-049 acceptance).
+
+**Completed:** 2026-09-14 · d38d789
