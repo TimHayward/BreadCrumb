@@ -18,7 +18,7 @@ const STATE_SYMBOLS: Record<ConfidenceState, string> = {
 };
 
 const STATE_HELP: Record<ConfidenceState, string> = {
-  Verified: 'Confirmed by an authenticated Microsoft Graph lookup.',
+  Verified: 'Confirmed by an authenticated Microsoft 365 lookup (Microsoft Graph, or SharePoint using your browser session).',
   Derived: 'Decoded deterministically from the link with no guesswork.',
   Inferred: 'Best effort: at least one component is a guess.',
   Unresolved: 'The link form is recognised but cannot be decoded without signing in.',

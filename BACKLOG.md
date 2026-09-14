@@ -12,7 +12,7 @@ Status: draft for review. Planning artefact only. No application code, schema, c
 
 Conventions used throughout:
 
-- Confidence states, used identically everywhere: **Verified** (confirmed by an authenticated Microsoft Graph lookup), **Derived** (decoded deterministically from the link with no guesswork), **Inferred** (best effort where at least one component is a guess, such as the document library boundary), **Unresolved** (the form is recognised but cannot be decoded without authentication).
+- Confidence states, used identically everywhere: **Verified** (confirmed by an authenticated Microsoft 365 lookup: Microsoft Graph, or SharePoint using the user's browser session; the method text names the call), **Derived** (decoded deterministically from the link with no guesswork), **Inferred** (best effort where at least one component is a guess, such as the document library boundary), **Unresolved** (the form is recognised but cannot be decoded without authentication).
 - **[unverified]** marks a claim I am not certain of. Every such marker names the spike that closes it.
 - Priorities: **Must**, **Should**, and **Could** (a want: done only when time allows, low priority).
 - Sizes: XS under half a day, S one to two days, M three to five days, L one to two weeks, XL longer than two weeks, for one developer.
@@ -236,11 +236,11 @@ As a Microsoft Edge user already signed in to Microsoft 365, I want the extensio
 
 - Given the user has granted the extension access to their tenant's SharePoint and OneDrive for Business hosts from the options page, When the popup lists citations, Then each citation on those hosts is looked up from the service worker with the browser's session (SharePoint REST `GetFileById` for document id links, SharePoint's `/_api/v2.0/shares/…/driveItem` for sharing and path links), and the row shows the confirmed path and folder.
 - Given access has not been granted, or a host answers 401 (for example OneDrive before it has been opened in the browser), When the popup lists citations, Then the row keeps its offline state and the existing route applies: the entry is sent to BreadCrumb and verified there with Microsoft Graph.
-- Given a session lookup confirms an item, When the citation is sent, Then BreadCrumb records the confirmed result against the entry, naming the SharePoint call in the method text and labelling it as decision D9 settles.
+- Given a session lookup confirms an item, When the citation is sent, Then BreadCrumb records the confirmed result against the entry, as Verified (decision D9), naming the SharePoint call in the method text.
 - Given the extension, When it runs, Then it never reads cookie values and sends only SharePoint's answers to BreadCrumb.
 - Given access is requested in Edge, When the browser prompts, Then the prompt's wording is recorded in `docs/m4-extension-run.md` for the team's install notes.
 
-Priority: Must. Size: M. Depends on: BC-042, BC-044, D9. Evidence: spike S9.
+Priority: Must. Size: M. Depends on: BC-042, BC-044. Evidence: spike S9. Decision D9 settled.
 
 #### BC-050 Chrome and other Chromium browsers
 
@@ -388,7 +388,7 @@ Likelihood and impact are High, Medium or Low. Owner is a placeholder role until
 | D6 | Whether the API is served over TLS on the private network and, if so, how certificates are issued. | Plain HTTP; TLS with a private certificate authority trusted on client devices; TLS terminated by a reverse proxy outside this stack. Decided from S6. | BC-045 | Operations owner, after S6 |
 | D7 | How the extension is distributed. | Unpacked developer mode; enterprise policy from a private update URL; browser store. | BC-042 rollout, R7 | Product owner |
 | D8 | Whether failed conversions are kept in history by default. | Never kept; kept only when the user opts in (assumed in BC-026); always kept. | BC-026, BC-033 | Product owner |
-| D9 | How a result confirmed through the browser's SharePoint session (BC-049) is labelled. | Count it as Verified and widen the definition to "confirmed by an authenticated Microsoft 365 lookup (Microsoft Graph, or SharePoint with the user's browser session)", naming the call in the method text (recommended: the same authority, the same user's access, the same data as Graph); keep Verified for Graph only and add a fifth state; show it only in the extension and do not record it. | BC-049 | Product owner |
+| D9 | How a result confirmed through the browser's SharePoint session (BC-049) is labelled. **Decided 2026-09-14: it counts as Verified.** The definition of Verified widens to "confirmed by an authenticated Microsoft 365 lookup (Microsoft Graph, or SharePoint using the user's browser session)", and the method text names the call that confirmed it. | Count it as Verified with the definition widened; keep Verified for Graph only and add a fifth state; show it only in the extension and do not record it. | Nothing. Closed. | Product owner |
 
 ---
 
