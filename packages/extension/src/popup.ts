@@ -4,7 +4,7 @@
  */
 import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
-import { applyLookup, buildRows, followUntilVerified, lookupRows, submitRows, verificationUrl, verifiedFolder, type PopupRow } from './popupModel.js';
+import { applyLookup, buildRows, describeRow, followUntilVerified, lookupRows, pathSegments, submitRows, verificationUrl, type PopupRow } from './popupModel.js';
 import { confirmWithSession } from './session.js';
 import { getApiBaseUrl } from './storage.js';
 
@@ -24,78 +24,127 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   return node;
 }
 
-function badge(state: PopupRow['state']): HTMLElement {
+function badge(state: PopupRow['state'], label: string = state): HTMLElement {
   const symbols: Record<PopupRow['state'], string> = { Verified: '●', Derived: '◆', Inferred: '◈', Unresolved: '○', failed: '✕' };
-  return el('span', { class: `badge badge-${state.toLowerCase()}` }, `${symbols[state]} ${state}`);
+  // The symbol repeats the state for colour-blind users; screen readers get the word only.
+  return el('span', { class: `badge badge-${state.toLowerCase()}` }, el('span', { 'aria-hidden': 'true' }, symbols[state]), ` ${label}`);
 }
 
 async function askContent<T extends ContentToPopup>(tabId: number, message: PopupToContent): Promise<T> {
   return (await chrome.tabs.sendMessage(tabId, message)) as T;
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Decorative 16px line icons (hidden from assistive technology; the link text carries the meaning). */
+const ICONS = {
+  link: ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'],
+  folder: ['M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'],
+  history: ['M3 12a9 9 0 1 0 3-6.7L3 8', 'M3 3v5h5', 'M12 7v5l3 2'],
+} as const;
+
+function icon(name: keyof typeof ICONS): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: '16', height: '16', 'aria-hidden': 'true', focusable: 'false', class: 'icon' })) {
+    svg.setAttribute(k, v);
+  }
+  for (const d of ICONS[name]) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+
+/** A link that opens in a new tab: the visible text starts the accessible name (WCAG 2.5.3). */
+function tabLink(url: string, text: string, iconName: keyof typeof ICONS, context: string): HTMLAnchorElement {
+  const link = el('a', { href: url, class: 'row-link', 'aria-label': `${text}: ${context} (opens a new tab)` }, icon(iconName), el('span', {}, text));
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    void chrome.tabs.create({ url });
+  });
+  return link;
+}
+
+/** A path that wraps between segments, never inside a folder or file name unless it must. */
+function pathText(path: string): HTMLElement {
+  const node = el('span', { class: 'path' });
+  for (const segment of pathSegments(path)) {
+    node.append(segment, el('wbr'));
+  }
+  return node;
+}
+
+function renderRow(row: PopupRow, baseUrl: string | undefined): HTMLLIElement {
+  const view = describeRow(row);
+  const locationId = `${row.key}-location`;
+
+  const checkbox = el('input', { type: 'checkbox', id: row.key, class: 'row-select', 'aria-describedby': locationId });
+  checkbox.checked = row.selected;
+  checkbox.disabled = view.failed;
+  checkbox.addEventListener('change', () => {
+    row.selected = checkbox.checked;
+  });
+  const name = el('label', { for: row.key, class: 'row-name' }, row.label);
+
+  let location: HTMLElement;
+  if (view.failed) {
+    // No location heading: the row says why the link cannot be converted.
+    location = el('p', { class: 'row-location location-note failed', id: locationId }, view.locationNote ?? '');
+  } else {
+    const term = el('dt', {}, view.locationLabel);
+    if (view.libraryInferred) {
+      term.append(' ', el('span', { class: 'marker-inferred', title: 'The document library boundary was guessed from the path.' }, 'library inferred'));
+    }
+    location = el(
+      'dl',
+      { class: 'row-location', id: locationId },
+      term,
+      view.location !== undefined ? el('dd', {}, pathText(view.location)) : el('dd', { class: 'location-note' }, view.locationNote ?? ''),
+    );
+  }
+
+  const item = el('li', { class: `row${view.failed ? ' row-failed' : ''}` }, checkbox, name, badge(view.state, view.stateLabel), location);
+
+  const links = el('div', { class: 'row-links' });
+  if (!view.failed) {
+    links.append(tabLink(view.originalUrl, 'Original link', 'link', row.label));
+  }
+  if (view.folderUrl !== undefined) {
+    links.append(tabLink(view.folderUrl, 'Folder link', 'folder', row.label));
+  }
+  if (view.entryId !== undefined && baseUrl !== undefined) {
+    links.append(tabLink(`${baseUrl}/history/${view.entryId}`, 'In BreadCrumb', 'history', `${row.label}, entry ${view.entryId}`));
+  }
+  if (links.childElementCount > 0) {
+    item.append(links);
+  }
+
+  if (view.notes.length > 0) {
+    const notes = el('ul', { class: 'row-notes' });
+    for (const note of view.notes) {
+      notes.append(el('li', { class: `tone-${note.tone}`, ...(note.detail !== undefined ? { title: note.detail } : {}) }, note.text));
+    }
+    item.append(notes);
+  }
+  return item;
+}
+
 function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number, surfaceNote?: string, notice?: string): void {
   main.replaceChildren();
   if (notice !== undefined) {
-    main.append(el('p', { class: 'note', role: 'status' }, notice));
+    main.append(el('p', { class: 'notice', role: 'status' }, notice));
   }
   if (surfaceNote !== undefined) {
     main.append(el('p', { class: 'note' }, surfaceNote));
   }
-  const list = el('ul', { class: 'rows' });
+  const list = el('ul', { class: 'rows', 'aria-label': 'Cited files' });
   for (const row of rows) {
-    const checkbox = el('input', { type: 'checkbox', id: row.key, 'aria-label': `Select ${row.label}` });
-    checkbox.checked = row.selected;
-    checkbox.disabled = !row.result.ok;
-    checkbox.addEventListener('change', () => {
-      row.selected = checkbox.checked;
-    });
-    const label = el('label', { for: row.key, class: 'label' }, row.label);
-    const known = row.known;
-    // A session confirmation (BC-049) counts as Verified (decision D9) until BreadCrumb's own record says more.
-    const confirmed = row.session?.ok === true ? row.session.verified : undefined;
-    const verifiedHere = known?.verified !== true && confirmed !== undefined;
-    const state = known?.verified === true ? known.state : verifiedHere ? 'Verified' : (known?.state ?? row.state);
-    const folderText =
-      (known?.verified === true ? known.folder : undefined) ??
-      (confirmed !== undefined ? verifiedFolder(confirmed) : undefined) ??
-      known?.folder ??
-      row.folder ??
-      (row.state === 'Unresolved' ? 'folder unknown until it is verified' : row.result.ok ? '' : row.result.message);
-    const folder = el('div', { class: 'folder' }, folderText);
-    const meta = el('div', { class: 'meta' }, badge(state));
-    if (known?.verified === true) {
-      meta.append(el('span', { class: 'outcome-ok' }, 'verified in BreadCrumb'));
-    } else if (verifiedHere) {
-      meta.append(el('span', { class: 'outcome-ok' }, 'confirmed by SharePoint with your session'));
-    } else if (row.libraryInferred && known === undefined) {
-      meta.append(el('span', { class: 'marker-inferred' }, 'library inferred'));
-    }
-    if (state === 'Unresolved') {
-      meta.append(el('span', { class: 'note' }, 'verifies in BreadCrumb once you are signed in there'));
-    }
-    if (row.session?.ok === false && row.session.reason === 'failed' && state !== 'Verified') {
-      meta.append(el('span', { class: 'note', title: row.session.message }, 'SharePoint session could not confirm it'));
-    }
-    if (known !== undefined && baseUrl !== undefined) {
-      const entry = el('a', { href: `${baseUrl}/history/${known.id}`, class: 'note' }, `BreadCrumb entry ${known.id}`);
-      entry.addEventListener('click', (event) => {
-        event.preventDefault();
-        void chrome.tabs.create({ url: entry.href });
-      });
-      meta.append(entry);
-    }
-    if (row.outcome !== undefined) {
-      meta.append(
-        row.outcome.ok
-          ? el('span', { class: 'outcome-ok' }, known?.verified === true ? 'Sent and verified' : 'Sent')
-          : el('span', { class: 'outcome-fail' }, row.outcome.message),
-      );
-    }
-    list.append(el('li', { class: 'row' }, checkbox, label, folder, meta));
+    list.append(renderRow(row, baseUrl));
   }
   main.append(list);
 
-  const actions = el('div', { class: 'actions' });
+  const actions = el('div', { class: 'actions sticky' });
   const submit = el('button', { type: 'button' }, 'Send selected to BreadCrumb');
   const status = el('span', { class: 'note', role: 'status' });
   submit.addEventListener('click', async () => {
@@ -272,13 +321,15 @@ async function start(): Promise<void> {
   }
   const surfaceNote = surface === 'consumer' ? 'Links found in the response text on the consumer surface.' : undefined;
   renderRows(rows, baseUrl, tab.id, surfaceNote);
+  let lookupNotice: string | undefined;
   // Show what BreadCrumb already knows (a Verified folder, the entry number); unticks documents it already has.
   if (baseUrl !== undefined) {
     const answers = await lookupRows(rows, baseUrl);
     if (answers !== undefined && answers.some((answer) => answer.found)) {
       applyLookup(rows, answers, { untickKnown: true });
       const kept = rows.filter((row) => row.known !== undefined).length;
-      renderRows(rows, baseUrl, tab.id, surfaceNote, `${kept} of ${rows.length} already in BreadCrumb (unticked).`);
+      lookupNotice = `${kept} of ${rows.length} already in BreadCrumb (unticked).`;
+      renderRows(rows, baseUrl, tab.id, surfaceNote, lookupNotice);
     }
   }
   // BC-049: confirm the rest with the browser's SharePoint session, where the user granted access.
@@ -292,7 +343,7 @@ async function start(): Promise<void> {
     rows: rows.map((row) => ({ form: row.result.ok ? row.result.form : 'failed', session: row.session === undefined ? null : row.session.ok ? 'confirmed' : `${row.session.reason}: ${row.session.message}` })),
   });
   if (confirmed > 0 || noAccess) {
-    const parts = [];
+    const parts = lookupNotice === undefined ? [] : [lookupNotice];
     if (confirmed > 0) parts.push(`${confirmed} confirmed with your SharePoint session.`);
     if (noAccess) parts.push('Allow your tenant on the options page to confirm the others instantly.');
     renderRows(rows, baseUrl, tab.id, surfaceNote, parts.join(' '));

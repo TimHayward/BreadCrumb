@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyLookup, buildRows, followUntilVerified, lookupRows, normaliseBaseUrl, submitRows, verificationUrl, type FetchLike, type LookupAnswer } from '../src/popupModel.js';
+import type { VerifiedResult } from '@breadcrumb/validation';
+import { applyLookup, buildRows, describeRow, followUntilVerified, lookupRows, normaliseBaseUrl, pathSegments, submitRows, verificationUrl, type FetchLike, type LookupAnswer } from '../src/popupModel.js';
 
 describe('what BreadCrumb knows (lookup)', () => {
   const DOC = 'https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C%7D&file=Plan.pptx&action=edit';
@@ -167,5 +168,87 @@ describe('submitRows (BC-045)', () => {
       expect(rows[0].outcome.message).toContain('Could not reach http://192.168.1.20:3000');
       expect(rows[0].outcome.message).toContain('private network');
     }
+  });
+});
+
+describe('describeRow (popup layout)', () => {
+  const DIRECT = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf';
+  const TOKEN = 'https://contoso.sharepoint.com/:b:/s/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd';
+  const FOLDER = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?id=%2Fsites%2FSiteA%2FLib%2FProjects&parent=%2Fsites%2FSiteA%2FLib%2FProjects';
+
+  it('shows the parsed folder, the original and folder links, and marks an inferred library', () => {
+    const [row] = buildRows([{ url: DIRECT }]);
+    const view = describeRow(row!);
+    expect(view).toMatchObject({
+      state: 'Inferred',
+      locationLabel: 'Document location',
+      location: '/sites/SiteA/Lib/Folder',
+      failed: false,
+      libraryInferred: true,
+      originalUrl: DIRECT,
+      folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder',
+    });
+    expect(view.entryId).toBeUndefined();
+    expect(view.notes).toEqual([]);
+  });
+
+  it('labels a folder as a folder', () => {
+    const [row] = buildRows([{ url: FOLDER }]);
+    expect(describeRow(row!)).toMatchObject({ locationLabel: 'Folder location', location: '/sites/SiteA/Lib/Projects' });
+  });
+
+  it('says an Unresolved location is unknown and offers no folder link', () => {
+    const [row] = buildRows([{ url: TOKEN }]);
+    const view = describeRow(row!);
+    expect(view.state).toBe('Unresolved');
+    expect(view.location).toBeUndefined();
+    expect(view.locationNote).toBe('Unknown until the link is verified.');
+    expect(view.folderUrl).toBeUndefined();
+    expect(view.notes.map((n) => n.text)).toEqual(['Verifies in BreadCrumb once you are signed in there.']);
+  });
+
+  it('uses what BreadCrumb verified, with its entry, and drops the inferred marker', () => {
+    const [row] = buildRows([{ url: DIRECT }]);
+    row!.known = { id: 4, state: 'Verified', verified: true, path: '/sites/SiteA/Shared Documents/General/Report.pdf', folder: '/sites/SiteA/Shared Documents/General', folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/General' };
+    const view = describeRow(row!);
+    expect(view).toMatchObject({ state: 'Verified', location: '/sites/SiteA/Shared Documents/General', folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/General', entryId: 4, libraryInferred: false });
+    expect(view.notes).toEqual([]);
+  });
+
+  it('shows a SharePoint session confirmation as Verified with a note', () => {
+    const [row] = buildRows([{ url: TOKEN }]);
+    const verified = {
+      path: '/sites/SiteA/Shared Documents/Plans/Plan.pdf',
+      folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Plans',
+      components: { fileName: 'Plan.pdf' },
+    } as unknown as VerifiedResult;
+    row!.session = { ok: true, verified };
+    const view = describeRow(row!);
+    expect(view).toMatchObject({ state: 'Verified', locationLabel: 'Document location', location: '/sites/SiteA/Shared Documents/Plans', folderUrl: verified.folderUrl });
+    expect(view.notes).toEqual([{ text: 'Confirmed with your SharePoint session.', tone: 'ok' }]);
+  });
+
+  it('shows a failure message in place of the location, for example a consumer OneDrive link', () => {
+    const [row] = buildRows([{ url: 'https://1drv.ms/x/s!AaBbCcDdEeFfGgHh' }]);
+    const view = describeRow(row!);
+    expect(view.failed).toBe(true);
+    expect(view.state).toBe('failed');
+    expect(view.stateLabel).toBe('Not supported');
+    expect(describeRow(buildRows([{ url: 'nope' }])[0]!).stateLabel).toBe('Failed');
+    expect(view.locationNote).toContain('which is not supported');
+    expect(view.folderUrl).toBeUndefined();
+  });
+
+  it('reports the send outcome and the new entry', () => {
+    const [row] = buildRows([{ url: DIRECT }]);
+    row!.outcome = { ok: true, id: 9, state: 'Inferred' };
+    expect(describeRow(row!)).toMatchObject({ entryId: 9, notes: [{ text: 'Sent.', tone: 'ok' }] });
+    row!.outcome = { ok: false, message: 'Could not reach BreadCrumb.' };
+    expect(describeRow(row!).notes).toEqual([{ text: 'Could not reach BreadCrumb.', tone: 'fail' }]);
+  });
+
+  it('splits a path after each slash so it wraps between names', () => {
+    expect(pathSegments('/sites/SiteA/Shared Documents/Folder')).toEqual(['/', 'sites/', 'SiteA/', 'Shared Documents/', 'Folder']);
+    expect(pathSegments('/sites/SiteA/Shared Documents/Folder').join('')).toBe('/sites/SiteA/Shared Documents/Folder');
   });
 });

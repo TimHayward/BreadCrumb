@@ -98,6 +98,102 @@ export function buildRows(citations: readonly Citation[]): PopupRow[] {
   return rows;
 }
 
+/** A short line under a row's links; `tone` picks its colour, the text always carries the meaning. */
+export interface RowNote {
+  text: string;
+  tone: 'muted' | 'ok' | 'fail';
+  /** Longer detail for a tooltip, when there is one. */
+  detail?: string;
+}
+
+/** Everything the popup shows for one row, decided without the DOM. */
+export interface RowView {
+  state: ConfidenceState | 'failed';
+  /** The word on the badge: the state, "Failed", or "Not supported" for consumer OneDrive. */
+  stateLabel: string;
+  /** "Document location" or "Folder location"; not shown for a failed row. */
+  locationLabel: string;
+  /** The containing folder (the folder itself for a folder), when known. */
+  location?: string;
+  /** Shown instead of a location: why it is unknown, or why the link failed. */
+  locationNote?: string;
+  /** True when the location is a parse failure message rather than a pending state. */
+  failed: boolean;
+  libraryInferred: boolean;
+  originalUrl: string;
+  folderUrl?: string;
+  /** The BreadCrumb history entry for this document, when there is one. */
+  entryId?: number;
+  notes: RowNote[];
+}
+
+/**
+ * Decides what a row shows. BreadCrumb's verified record wins, then a
+ * SharePoint session confirmation (BC-049, which counts as Verified under
+ * decision D9), then BreadCrumb's unverified record, then the parser.
+ */
+export function describeRow(row: PopupRow): RowView {
+  const known = row.known;
+  const confirmed = row.session?.ok === true ? row.session.verified : undefined;
+  const verifiedInBreadCrumb = known?.verified === true;
+  const verifiedHere = !verifiedInBreadCrumb && confirmed !== undefined;
+  const state = verifiedInBreadCrumb ? known.state : verifiedHere ? 'Verified' : (known?.state ?? row.state);
+  const parsed = row.result.ok ? row.result : undefined;
+
+  const location =
+    (verifiedInBreadCrumb ? known.folder : undefined) ?? (confirmed !== undefined ? verifiedFolder(confirmed) : undefined) ?? known?.folder ?? row.folder;
+  const folderUrl =
+    (verifiedInBreadCrumb ? known.folderUrl : undefined) ?? confirmed?.folderUrl ?? known?.folderUrl ?? (parsed?.state === 'Unresolved' ? undefined : parsed?.folderUrl);
+  const isFolder =
+    confirmed !== undefined ? confirmed.components.fileName === undefined : parsed !== undefined && parsed.state !== 'Unresolved' && parsed.components.fileName === undefined;
+
+  const stateLabel = state !== 'failed' ? state : !row.result.ok && row.result.reason === 'consumer_onedrive' ? 'Not supported' : 'Failed';
+  const view: RowView = {
+    state,
+    stateLabel,
+    locationLabel: isFolder ? 'Folder location' : 'Document location',
+    failed: !row.result.ok,
+    libraryInferred: row.libraryInferred && known === undefined && confirmed === undefined,
+    originalUrl: row.url,
+    notes: [],
+  };
+  if (location !== undefined) {
+    view.location = location;
+  } else if (!row.result.ok) {
+    view.locationNote = row.result.message;
+  } else {
+    view.locationNote = 'Unknown until the link is verified.';
+  }
+  if (folderUrl !== undefined) {
+    view.folderUrl = folderUrl;
+  }
+  const entryId = known?.id ?? (row.outcome?.ok === true ? row.outcome.id : undefined);
+  if (entryId !== undefined) {
+    view.entryId = entryId;
+  }
+
+  if (verifiedHere) {
+    view.notes.push({ text: 'Confirmed with your SharePoint session.', tone: 'ok' });
+  }
+  if (state === 'Unresolved') {
+    view.notes.push({ text: 'Verifies in BreadCrumb once you are signed in there.', tone: 'muted' });
+  }
+  if (row.session?.ok === false && row.session.reason === 'failed' && state !== 'Verified') {
+    view.notes.push({ text: 'Your SharePoint session could not confirm it.', tone: 'muted', detail: row.session.message });
+  }
+  if (row.outcome !== undefined) {
+    view.notes.push(
+      row.outcome.ok ? { text: verifiedInBreadCrumb ? 'Sent and verified.' : 'Sent.', tone: 'ok' } : { text: row.outcome.message, tone: 'fail' },
+    );
+  }
+  return view;
+}
+
+/** Splits a path after each "/" so it can wrap between segments rather than inside a name. */
+export function pathSegments(path: string): string[] {
+  return path.split(/(?<=\/)/);
+}
+
 /**
  * BreadCrumb's history filtered to extension submissions, opened after
  * sending: a signed-in BreadCrumb page verifies unverified entries on its
