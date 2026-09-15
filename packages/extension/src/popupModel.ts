@@ -189,6 +189,63 @@ export function describeRow(row: PopupRow): RowView {
   return view;
 }
 
+/** Links gathered from the ticked rows for the clipboard. */
+export interface CopySelection {
+  /** Ticked rows that can be copied from (failed rows are never ticked). */
+  selected: number;
+  /** The links, in list order, each once. */
+  links: string[];
+  /** Ticked rows left out because they have no such link yet (an Unresolved folder). */
+  skipped: number;
+}
+
+/** The original links of the ticked rows: the links Copilot cited, which open the files. */
+export function selectedFileLinks(rows: readonly PopupRow[]): CopySelection {
+  const selected = rows.filter((row) => row.selected && row.result.ok);
+  return { selected: selected.length, links: [...new Set(selected.map((row) => row.url))], skipped: 0 };
+}
+
+/** The folder links of the ticked rows, each folder once. Rows whose folder is not known yet are counted as skipped. */
+export function selectedFolderLinks(rows: readonly PopupRow[]): CopySelection {
+  const selected = rows.filter((row) => row.selected && row.result.ok);
+  const links: string[] = [];
+  let skipped = 0;
+  for (const row of selected) {
+    const folderUrl = describeRow(row).folderUrl;
+    if (folderUrl === undefined) {
+      skipped += 1;
+    } else if (!links.includes(folderUrl)) {
+      links.push(folderUrl);
+    }
+  }
+  return { selected: selected.length, links, skipped };
+}
+
+/** Text for the clipboard: one link per line. */
+export function clipboardText(selection: CopySelection): string {
+  return selection.links.join('\n');
+}
+
+/** What the status line says after a copy (or why nothing was copied). */
+export function copySummary(kind: 'file' | 'folder', selection: CopySelection): string {
+  const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+  if (selection.selected === 0) {
+    return 'Tick at least one file first. Nothing was copied.';
+  }
+  if (selection.links.length === 0) {
+    return selection.selected === 1
+      ? 'The selected file has no known folder yet. Nothing was copied.'
+      : 'None of the selected files has a known folder yet. Nothing was copied.';
+  }
+  let text = `Copied ${plural(selection.links.length, `${kind} link`)}`;
+  const counted = selection.selected - selection.skipped;
+  text += kind === 'folder' && counted > selection.links.length ? ` for ${plural(counted, 'file')}.` : '.';
+  if (selection.skipped > 0) {
+    text += ` ${plural(selection.skipped, 'selected file')} ${selection.skipped === 1 ? 'has' : 'have'} no known folder yet, so ${selection.skipped === 1 ? 'it was' : 'they were'} left out.`;
+  }
+  return text;
+}
+
 /** Splits a path after each "/" so it can wrap between segments rather than inside a name. */
 export function pathSegments(path: string): string[] {
   return path.split(/(?<=\/)/);

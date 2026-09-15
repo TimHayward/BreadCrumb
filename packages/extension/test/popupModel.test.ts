@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VerifiedResult } from '@breadcrumb/validation';
-import { applyLookup, buildRows, describeRow, followUntilVerified, lookupRows, normaliseBaseUrl, pathSegments, submitRows, verificationUrl, type FetchLike, type LookupAnswer } from '../src/popupModel.js';
+import { applyLookup, buildRows, clipboardText, copySummary, describeRow, selectedFileLinks, selectedFolderLinks, followUntilVerified, lookupRows, normaliseBaseUrl, pathSegments, submitRows, verificationUrl, type FetchLike, type LookupAnswer } from '../src/popupModel.js';
 
 describe('what BreadCrumb knows (lookup)', () => {
   const DOC = 'https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C%7D&file=Plan.pptx&action=edit';
@@ -250,5 +250,49 @@ describe('describeRow (popup layout)', () => {
   it('splits a path after each slash so it wraps between names', () => {
     expect(pathSegments('/sites/SiteA/Shared Documents/Folder')).toEqual(['/', 'sites/', 'SiteA/', 'Shared Documents/', 'Folder']);
     expect(pathSegments('/sites/SiteA/Shared Documents/Folder').join('')).toBe('/sites/SiteA/Shared Documents/Folder');
+  });
+});
+
+describe('copying selected links', () => {
+  const A = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf';
+  const B = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Budget.xlsx';
+  const C = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Other/Plan.docx';
+  const TOKEN = 'https://contoso.sharepoint.com/:b:/s/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd';
+
+  it('copies the original links of ticked rows only, one per line', () => {
+    const rows = buildRows([{ url: A }, { url: B }, { url: TOKEN }, { url: 'https://1drv.ms/x/s!AaBbCcDdEeFfGgHh' }]);
+    rows[1]!.selected = false;
+    const selection = selectedFileLinks(rows);
+    expect(selection).toEqual({ selected: 2, links: [A, TOKEN], skipped: 0 });
+    expect(clipboardText(selection)).toBe(`${A}
+${TOKEN}`);
+    expect(copySummary('file', selection)).toBe('Copied 2 file links.');
+  });
+
+  it('copies each folder once and leaves out files whose folder is not known yet', () => {
+    const rows = buildRows([{ url: A }, { url: B }, { url: C }, { url: TOKEN }]);
+    const selection = selectedFolderLinks(rows);
+    expect(selection).toEqual({
+      selected: 4,
+      links: ['https://contoso.sharepoint.com/sites/SiteA/Lib/Folder', 'https://contoso.sharepoint.com/sites/SiteA/Lib/Other'],
+      skipped: 1,
+    });
+    expect(copySummary('folder', selection)).toBe('Copied 2 folder links for 3 files. 1 selected file has no known folder yet, so it was left out.');
+  });
+
+  it('uses the verified folder once BreadCrumb or the session knows it', () => {
+    const rows = buildRows([{ url: TOKEN }]);
+    rows[0]!.known = { id: 3, state: 'Verified', verified: true, folder: '/sites/SiteA/Shared Documents/Plans', folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Plans' };
+    expect(selectedFolderLinks(rows).links).toEqual(['https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Plans']);
+  });
+
+  it('says why nothing was copied', () => {
+    const rows = buildRows([{ url: A }, { url: TOKEN }]);
+    rows[0]!.selected = false;
+    rows[1]!.selected = false;
+    expect(copySummary('file', selectedFileLinks(rows))).toBe('Tick at least one file first. Nothing was copied.');
+    rows[1]!.selected = true;
+    expect(copySummary('folder', selectedFolderLinks(rows))).toBe('The selected file has no known folder yet. Nothing was copied.');
+    expect(copySummary('file', selectedFileLinks(rows))).toBe('Copied 1 file link.');
   });
 });

@@ -4,11 +4,45 @@
  */
 import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
-import { applyLookup, buildRows, describeRow, followUntilVerified, lookupRows, pathSegments, submitRows, verificationUrl, type PopupRow } from './popupModel.js';
+import {
+  applyLookup,
+  buildRows,
+  clipboardText,
+  copySummary,
+  describeRow,
+  followUntilVerified,
+  lookupRows,
+  pathSegments,
+  selectedFileLinks,
+  selectedFolderLinks,
+  submitRows,
+  verificationUrl,
+  type PopupRow,
+} from './popupModel.js';
 import { confirmWithSession } from './session.js';
 import { getApiBaseUrl } from './storage.js';
 
 const main = document.getElementById('main') as HTMLElement;
+/** Visually hidden live region: tells screen reader users what a copy did. */
+const announcer = document.getElementById('announcer') as HTMLElement;
+
+function announce(text: string): void {
+  announcer.textContent = '';
+  // A fresh text node after clearing makes repeated identical messages announce again.
+  setTimeout(() => {
+    announcer.textContent = text;
+  }, 50);
+}
+
+async function copyToClipboard(text: string): Promise<string | undefined> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 const optionsLink = document.getElementById('options-link') as HTMLAnchorElement;
 optionsLink.addEventListener('click', (event) => {
   event.preventDefault();
@@ -38,6 +72,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Decorative 16px line icons (hidden from assistive technology; the link text carries the meaning). */
 const ICONS = {
+  check: ['M20 6 9 17l-5-5'],
   link: ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'],
   folder: ['M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'],
   history: ['M3 12a9 9 0 1 0 3-6.7L3 8', 'M3 3v5h5', 'M12 7v5l3 2'],
@@ -64,6 +99,34 @@ function tabLink(url: string, text: string, iconName: keyof typeof ICONS, contex
     void chrome.tabs.create({ url });
   });
   return link;
+}
+
+/**
+ * A row action that copies a link: same look and place as a link, but a
+ * button, because it acts rather than navigates. The label reads "Copied"
+ * for a moment and the live region says what was copied.
+ */
+function copyButton(url: string, text: string, iconName: keyof typeof ICONS, context: string): HTMLButtonElement {
+  // Both labels share one grid cell, so the button keeps its width and the links beside it never move.
+  const label = el('span', { class: 'swap' }, el('span', { class: 'swap-idle' }, text), el('span', { class: 'swap-done' }, 'Copied'));
+  const button = el('button', { type: 'button', class: 'row-link', 'aria-label': `Copy ${text.toLowerCase()}: ${context}`, title: url }, icon(iconName), label);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const show = (copied: boolean): void => {
+    button.classList.toggle('copied', copied);
+    button.querySelector('svg')?.replaceWith(icon(copied ? 'check' : iconName));
+  };
+  button.addEventListener('click', async () => {
+    const failure = await copyToClipboard(url);
+    if (failure !== undefined) {
+      announce(`Could not copy the ${text.toLowerCase()}: ${failure}`);
+      return;
+    }
+    announce(`${text} copied for ${context}.`);
+    clearTimeout(timer);
+    show(true);
+    timer = setTimeout(() => show(false), 1500);
+  });
+  return button;
 }
 
 /** A path that wraps between segments, never inside a folder or file name unless it must. */
@@ -108,10 +171,10 @@ function renderRow(row: PopupRow, baseUrl: string | undefined): HTMLLIElement {
 
   const links = el('div', { class: 'row-links' });
   if (!view.failed) {
-    links.append(tabLink(view.originalUrl, 'Original link', 'link', row.label));
+    links.append(copyButton(view.originalUrl, 'Original link', 'link', row.label));
   }
   if (view.folderUrl !== undefined) {
-    links.append(tabLink(view.folderUrl, 'Folder link', 'folder', row.label));
+    links.append(copyButton(view.folderUrl, 'Folder link', 'folder', row.label));
   }
   if (view.entryId !== undefined && baseUrl !== undefined) {
     links.append(tabLink(`${baseUrl}/history/${view.entryId}`, 'In BreadCrumb', 'history', `${row.label}, entry ${view.entryId}`));
@@ -146,7 +209,22 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
 
   const actions = el('div', { class: 'actions sticky' });
   const submit = el('button', { type: 'button' }, 'Send selected to BreadCrumb');
-  const status = el('span', { class: 'note', role: 'status' });
+  const copyFiles = el('button', { type: 'button', class: 'secondary' }, 'Copy selected file links');
+  const copyFolders = el('button', { type: 'button', class: 'secondary' }, 'Copy selected folder links');
+  const status = el('p', { class: 'note actions-status', role: 'status' });
+  const copySelected = async (kind: 'file' | 'folder'): Promise<void> => {
+    const selection = kind === 'file' ? selectedFileLinks(rows) : selectedFolderLinks(rows);
+    if (selection.links.length > 0) {
+      const failure = await copyToClipboard(clipboardText(selection));
+      if (failure !== undefined) {
+        status.textContent = `Could not copy to the clipboard: ${failure}`;
+        return;
+      }
+    }
+    status.textContent = copySummary(kind, selection);
+  };
+  copyFiles.addEventListener('click', () => void copySelected('file'));
+  copyFolders.addEventListener('click', () => void copySelected('folder'));
   submit.addEventListener('click', async () => {
     if (baseUrl === undefined) {
       status.textContent = 'Set the BreadCrumb API base URL in the extension options first (Options link above). Nothing was sent.';
@@ -181,7 +259,7 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
       }
     }
   });
-  actions.append(submit, status);
+  actions.append(submit, copyFiles, copyFolders, status);
   main.append(actions);
 }
 
