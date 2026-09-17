@@ -1,6 +1,6 @@
 # BreadCrumb completed backlog
 
-Stories and spikes are moved here verbatim from `BACKLOG.md` once their acceptance criteria genuinely pass or their closing evidence exists. Each entry keeps its ID and gains a `**Completed:** <YYYY-MM-DD> · <commit SHA>` line. Dropped work sits under `## Withdrawn` with the date and the reason. IDs are never reused. `BACKLOG.md` only ever contains open work.
+Stories and spikes are moved here verbatim from `BACKLOG.md` once their acceptance criteria genuinely pass or their closing evidence exists. Each entry keeps its ID and gains a `**Completed:** <YYYY-MM-DD> · <commit SHA>` line. Dropped work sits under `## Withdrawn` with the date and the reason, and work that was delivered but no longer describes the product sits under `## Superseded` with what replaced it. IDs are never reused. `BACKLOG.md` only ever contains open work.
 
 ## Completed
 
@@ -675,6 +675,22 @@ Priority: Must. Size: S. Depends on: BC-015, BC-021. Supersedes the Unresolved c
 
 **Completed:** 2026-09-14 · 2a2e35f
 
+#### BC-052 Popup row layout and clipboard actions
+
+As a user, I want each cited file presented clearly and its links on the clipboard in one click, so that I can act on a result without reading a wall of text or opening tabs I did not want.
+
+- Given citations in the popup, When the popup lists them, Then each row shows the checkbox, the file name and the confidence state on one line, then the document location with its path, then the row actions, then any short notes.
+- Given a row action, When "Original link" or "Folder link" is clicked, Then that link goes to the clipboard, the label confirms the copy without the row moving, and a live region announces it.
+- Given a selection, When "Copy selected file links" or "Copy selected folder links" is used, Then the ticked rows' links are copied one per line, each folder once, and the status line says what was copied and what was left out.
+- Given the popup, When it is operated with the keyboard and with a screen reader, Then every control is reachable, targets are at least 24 px, focus is always visible, and state is never conveyed by colour alone.
+- Given a row whose link cannot be converted, When it is shown, Then it gives the reason in place of a location and cannot be selected.
+
+Priority: Must. Size: M. Depends on: BC-044.
+
+**Note:** written up after the fact. The layout was designed against Tim's mockup and accepted on 2026-09-15; the clipboard actions replaced the earlier behaviour of opening links in a new tab on the same day.
+
+**Completed:** 2026-09-15 · d81dfd5, 4931d99
+
 ## Withdrawn
 
 #### BC-027 Server side short link expansion
@@ -697,3 +713,66 @@ Priority: Should. Size: M. Depends on: BC-015, BC-024, BC-005.
 | S8 | Does `1drv.ms` redirect to a parseable URL when fetched from a container without cookies, how many hops, and does the target vary by link type? | Half a day | A table of five short links against final URL and hop count, and the allow list of hosts contacted. | BC-027 |
 
 **Withdrawn:** 2026-09-14, with BC-027. Not run.
+
+#### BC-003 Portainer stack deploys the same compose file from Git
+
+As the person running BreadCrumb, I want to deploy the stack in Portainer straight from the Git repository, so that the repository is the single source of truth.
+
+- Given a Portainer instance with access to the repository, When a stack is created from the Git repository pointing at the root compose file with no edits, Then the stack deploys and the application answers on the configured port.
+- Given the same compose file, When it is used both by the Portainer Git stack and by `docker compose up` locally (BC-002), Then both start the application with identical service and volume names and no file differs between the two uses.
+- Given a new commit on the tracked branch, When the stack is redeployed from Portainer, Then the new image is built and the previous container is replaced.
+- Given the Portainer stack is redeployed, When history is inspected afterwards, Then all entries from before the redeploy are present (this is the Portainer path of BC-004).
+
+Priority: Must. Size: S. Depends on: BC-002.
+
+**Withdrawn:** 2026-09-17, with the web application. It was already on hold. There is no longer a service to deploy: installing the extension is the whole installation.
+
+### Spike S6: reaching a private network API from the extension
+
+| ID | Question | Timebox | Closing evidence | Blocks |
+|---|---|---|---|---|
+| S6 | Can a Manifest V3 extension on an `https` Copilot page submit to an `http` API on a private network address from another machine? Which of the popup, service worker and content script may make the call, does the browser's private network access restriction or mixed content blocking interfere, and what CORS headers does the API need? | 1 day | A test extension reaching a stub API from a second machine on the private network, in Microsoft Edge (Chrome only under BC-050), with a record of what was blocked and which context succeeded. Feeds decision D6. | BC-045, D6 |
+
+**Withdrawn:** 2026-09-17, with the web application. The extension no longer calls an API of ours. Partly answered along the way: the private network access preflight header was handled in the server, and the local run over `http://localhost:3000` worked throughout.
+
+### Spike S7: Portainer Git stack behaviour
+
+| ID | Question | Timebox | Closing evidence | Blocks |
+|---|---|---|---|---|
+| S7 | How does a Portainer Git stack behave in practice: how are environment variables supplied, does "pull and redeploy" preserve named volumes, does removing the stack remove volumes, and does a private repository need stored credentials? Some of this is [unverified] from documentation alone. | Half a day | A runbook of the exact clicks, and a redeploy and a removal each followed by a check of the volume. | BC-003, BC-004 |
+
+**Withdrawn:** 2026-09-17, with the web application and BC-003. Not run.
+
+## Superseded
+
+The architecture change of 17 September 2026 made BreadCrumb an extension only: the web application, its API, its SQLite database and the container deployment are gone. The stories below were genuinely delivered and their acceptance criteria passed at the time. They no longer describe the product. They are listed here so that no one reads them as current, and so the behaviour that moved into the extension can be traced to the story that replaces it.
+
+**Gone entirely, with the thing they built:**
+
+| Story | What it built | Why it is gone |
+|---|---|---|
+| BC-002 | Compose file at the repository root | Nothing is deployed any more. |
+| BC-004 | SQLite on a named volume surviving a rebuild | There is no database and no container. |
+| BC-005 | Configuration through environment variables | Settings come from the options page or enterprise policy (BC-057, BC-063). |
+| BC-024 | Conversion API endpoint | The extension parses in process; there is no API. |
+| BC-029 | Data access layer with migrations | Replaced by the extension's storage layer and its versioned stored shape (invariants 10 and 11). |
+| BC-047 | Health endpoint and structured logs | There is no service to be healthy or to log. |
+| BC-048 | Backup and restore of the database | Replaced by export (BC-056) and by the SharePoint list (BC-058) as the durable record. |
+
+**Re-homed in the extension: the behaviour survives, the page or route that carried it does not:**
+
+| Story | What it built | What carries it now |
+|---|---|---|
+| BC-023 | Paste and convert page | BC-054, paste a link inside the extension. |
+| BC-025 | Honest result labelling | Still binding: invariants 3, 4 and 6, applied in the popup. |
+| BC-026 | Failure and Unresolved presentation | The same rules in the popup rows (BC-052) and in BC-054. |
+| BC-028 | Accessibility of the conversion and history pages | The accessibility criteria in BC-052, BC-056 and BC-057. |
+| BC-030 | Every conversion is persisted | BC-055, the extension's own history. |
+| BC-031, BC-032, BC-033, BC-034, BC-035 | History list, search, filter, delete, export | BC-056, the history page in the extension. |
+| BC-036 | Optional Microsoft sign in with tokens held in the browser session | BC-061, sign in from the extension, once spike S12 says how. |
+| BC-037, BC-038, BC-039 | Graph validation of paths, sharing tokens and document ids | The confirmation package survives and is used by the extension through the SharePoint session (BC-049) and by BC-061. Only the web pages that drove it are gone. |
+| BC-040 | Record validation upgrades in history | The upgrade record in BC-055. |
+| BC-041 | Graph failures are reported honestly | The same honesty criteria in BC-061 and BC-062. |
+| BC-045 | Select and submit to the API | BC-055 locally and BC-058 to the SharePoint list. |
+
+Nothing above is re-opened by this change: each entry keeps its original completion date and commit. The stories that are unaffected, and still describe the product, are the parser stories (BC-006 to BC-022, BC-051), the extension stories (BC-042 to BC-044, BC-046, BC-049, BC-052), the monorepo scaffold (BC-001) and spikes S1, S5 and S9.
