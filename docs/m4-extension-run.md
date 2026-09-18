@@ -1,5 +1,7 @@
 # M4 extension run checklist
 
+> **Note (2026-09-18).** Sections about submitting to the BreadCrumb API describe behaviour that has been removed: the extension no longer sends anything. The extraction, popup and SharePoint session sections still apply.
+
 The extension scaffold (BC-042) and the popup and submission logic (BC-044, BC-045) are complete and unit tested. Citation extraction (BC-043) uses placeholder selectors until spike S1 delivers real DOM captures, and the network path from the popup to the API (spike S6, decision D6) has not been tried from another machine. This checklist covers what needs a real browser and real Copilot pages.
 
 ## BC-042 load unpacked

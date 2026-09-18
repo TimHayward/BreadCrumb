@@ -1,26 +1,13 @@
 /**
- * Popup (BC-043 to BC-046): asks the content script for citations, lists
- * them with folder and state, and submits the selected ones to the API.
+ * Popup (BC-043 to BC-046, BC-049, BC-052): asks the content script for
+ * citations, lists each one with its document location and state, confirms
+ * what it can with the browser's SharePoint session, and copies links to the
+ * clipboard. There is no BreadCrumb server to send anything to.
  */
 import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
-import {
-  applyLookup,
-  buildRows,
-  clipboardText,
-  copySummary,
-  describeRow,
-  followUntilVerified,
-  lookupRows,
-  pathSegments,
-  selectedFileLinks,
-  selectedFolderLinks,
-  submitRows,
-  verificationUrl,
-  type PopupRow,
-} from './popupModel.js';
+import { buildRows, clipboardText, copySummary, describeRow, pathSegments, selectedFileLinks, selectedFolderLinks, type PopupRow } from './popupModel.js';
 import { confirmWithSession } from './session.js';
-import { getApiBaseUrl } from './storage.js';
 
 const main = document.getElementById('main') as HTMLElement;
 /** Visually hidden live region: tells screen reader users what a copy did. */
@@ -75,7 +62,6 @@ const ICONS = {
   check: ['M20 6 9 17l-5-5'],
   link: ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'],
   folder: ['M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'],
-  history: ['M3 12a9 9 0 1 0 3-6.7L3 8', 'M3 3v5h5', 'M12 7v5l3 2'],
 } as const;
 
 function icon(name: keyof typeof ICONS): SVGSVGElement {
@@ -89,16 +75,6 @@ function icon(name: keyof typeof ICONS): SVGSVGElement {
     svg.append(path);
   }
   return svg;
-}
-
-/** A link that opens in a new tab: the visible text starts the accessible name (WCAG 2.5.3). */
-function tabLink(url: string, text: string, iconName: keyof typeof ICONS, context: string): HTMLAnchorElement {
-  const link = el('a', { href: url, class: 'row-link', 'aria-label': `${text}: ${context} (opens a new tab)` }, icon(iconName), el('span', {}, text));
-  link.addEventListener('click', (event) => {
-    event.preventDefault();
-    void chrome.tabs.create({ url });
-  });
-  return link;
 }
 
 /**
@@ -138,7 +114,7 @@ function pathText(path: string): HTMLElement {
   return node;
 }
 
-function renderRow(row: PopupRow, baseUrl: string | undefined): HTMLLIElement {
+function renderRow(row: PopupRow): HTMLLIElement {
   const view = describeRow(row);
   const locationId = `${row.key}-location`;
 
@@ -176,9 +152,6 @@ function renderRow(row: PopupRow, baseUrl: string | undefined): HTMLLIElement {
   if (view.folderUrl !== undefined) {
     links.append(copyButton(view.folderUrl, 'Folder link', 'folder', row.label));
   }
-  if (view.entryId !== undefined && baseUrl !== undefined) {
-    links.append(tabLink(`${baseUrl}/history/${view.entryId}`, 'In BreadCrumb', 'history', `${row.label}, entry ${view.entryId}`));
-  }
   if (links.childElementCount > 0) {
     item.append(links);
   }
@@ -193,7 +166,7 @@ function renderRow(row: PopupRow, baseUrl: string | undefined): HTMLLIElement {
   return item;
 }
 
-function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number, surfaceNote?: string, notice?: string): void {
+function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notice?: string): void {
   main.replaceChildren();
   if (notice !== undefined) {
     main.append(el('p', { class: 'notice', role: 'status' }, notice));
@@ -203,13 +176,12 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
   }
   const list = el('ul', { class: 'rows', 'aria-label': 'Cited files' });
   for (const row of rows) {
-    list.append(renderRow(row, baseUrl));
+    list.append(renderRow(row));
   }
   main.append(list);
 
   const actions = el('div', { class: 'actions sticky' });
-  const submit = el('button', { type: 'button' }, 'Send selected to BreadCrumb');
-  const copyFiles = el('button', { type: 'button', class: 'secondary' }, 'Copy selected file links');
+  const copyFiles = el('button', { type: 'button' }, 'Copy selected file links');
   const copyFolders = el('button', { type: 'button', class: 'secondary' }, 'Copy selected folder links');
   const status = el('p', { class: 'note actions-status', role: 'status' });
   const copySelected = async (kind: 'file' | 'folder'): Promise<void> => {
@@ -225,45 +197,11 @@ function renderRows(rows: PopupRow[], baseUrl: string | undefined, tabId: number
   };
   copyFiles.addEventListener('click', () => void copySelected('file'));
   copyFolders.addEventListener('click', () => void copySelected('folder'));
-  submit.addEventListener('click', async () => {
-    if (baseUrl === undefined) {
-      status.textContent = 'Set the BreadCrumb API base URL in the extension options first (Options link above). Nothing was sent.';
-      return;
-    }
-    submit.disabled = true;
-    status.textContent = 'Sending…';
-    await submitRows(rows, baseUrl, (url, init) => fetch(url, init));
-    const sentRows = rows.filter((row) => row.outcome?.ok === true);
-    const sent = sentRows.length;
-    const pending = sentRows.filter((row) => row.known?.verified !== true).length;
-    let notice: string | undefined;
-    if (sent > 0 && pending === 0) {
-      notice = `Sent ${sent}, all Verified with your SharePoint session.`;
-    } else if (pending > 0) {
-      // The rest are verified with Microsoft Graph in BreadCrumb's own pages (decision D3):
-      // a background tab verifies the new entries and closes itself.
-      const confirmedCount = sent - pending;
-      const lead = confirmedCount > 0 ? `Sent ${sent}; ${confirmedCount} Verified with your SharePoint session.` : `Sent ${sent}.`;
-      try {
-        await chrome.tabs.create({ url: verificationUrl(baseUrl), active: false });
-        notice = `${lead} BreadCrumb is verifying the other ${pending} in a background tab, which closes itself when done. If it stays open, switch to it: you may need to sign in to Microsoft there.`;
-      } catch (error) {
-        notice = `${lead} Open BreadCrumb's history to verify the other ${pending} (${error instanceof Error ? error.message : String(error)}).`;
-      }
-    }
-    renderRows(rows, baseUrl, tabId, surfaceNote, notice);
-    if (pending > 0) {
-      const outcome = await followUntilVerified(rows, baseUrl, () => renderRows(rows, baseUrl, tabId, surfaceNote, notice));
-      if (outcome === 'verified') {
-        renderRows(rows, baseUrl, tabId, surfaceNote, `Sent ${sent} and all are Verified.`);
-      }
-    }
-  });
-  actions.append(submit, copyFiles, copyFolders, status);
+  actions.append(copyFiles, copyFolders, status);
   main.append(actions);
 }
 
-function renderEmpty(kind: 'work' | 'consumer', tabId: number, baseUrl: string | undefined, strategy: string): void {
+function renderEmpty(kind: 'work' | 'consumer', tabId: number, strategy: string): void {
   main.replaceChildren();
   const box = el('div', { class: 'empty' });
   if (kind === 'consumer') {
@@ -271,11 +209,6 @@ function renderEmpty(kind: 'work' | 'consumer', tabId: number, baseUrl: string |
       el('h2', {}, 'No SharePoint or OneDrive citations here'),
       el('p', {}, 'Copilot on this site cites web pages. SharePoint and OneDrive file citations appear only on the work surfaces (m365.cloud.microsoft and copilot.cloud.microsoft).'),
     );
-    if (baseUrl !== undefined) {
-      box.append(el('p', {}, 'Paste a link by hand in ', el('a', { href: `${baseUrl}/`, target: '_blank', rel: 'noopener' }, 'the BreadCrumb web application'), '.'));
-    } else {
-      box.append(el('p', {}, 'Paste a link by hand in the BreadCrumb web application (set its address in the extension options).'));
-    }
   } else {
     box.append(
       el('h2', {}, 'No citations found'),
@@ -294,31 +227,8 @@ function renderEmpty(kind: 'work' | 'consumer', tabId: number, baseUrl: string |
   main.append(box);
 }
 
-type ReportOutcome = 'sent' | 'disabled' | 'unreachable' | 'no-base-url';
-
-/**
- * Posts a diagnostic event to BreadCrumb's log. The server accepts it only
- * when it runs with CLIENT_LOG=true (local diagnosed runs); otherwise this is
- * a harmless 404.
- */
-async function reportToServer(baseUrl: string | undefined, event: string, detail: unknown): Promise<ReportOutcome> {
-  if (baseUrl === undefined) {
-    return 'no-base-url';
-  }
-  try {
-    const response = await fetch(`${baseUrl}/api/client-log`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ event, detail, page: 'extension-popup', at: new Date().toISOString() }),
-    });
-    return response.ok ? 'sent' : 'disabled';
-  } catch {
-    return 'unreachable';
-  }
-}
-
-/** "Diagnose this page" (spike S1): probe the page's markup, send it to the log and copy it. */
-function setupDiagnostics(tabId: number, baseUrl: string | undefined): void {
+/** "Diagnose this page" (spike S1): probe the page's markup and copy the report (decision D22). */
+function setupDiagnostics(tabId: number): void {
   const footer = document.getElementById('diag');
   if (footer === null) {
     return;
@@ -349,18 +259,9 @@ function setupDiagnostics(tabId: number, baseUrl: string | undefined): void {
     } catch {
       copied = false;
     }
-    const sent = await reportToServer(baseUrl, 'extension-probe', report);
     const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
     const found = `Found ${plural(report.hits.length, 'Microsoft 365 link')}, ${plural(report.citationLike.length, 'citation chip')} without a link and ${plural(report.iframes.length, 'iframe')}.`;
-    const where =
-      sent === 'sent'
-        ? ' Sent to the BreadCrumb log.'
-        : sent === 'disabled'
-          ? ' The BreadCrumb server is not collecting diagnostics (CLIENT_LOG is off).'
-          : sent === 'unreachable'
-            ? ` Could not reach ${baseUrl ?? 'the API'}.`
-            : ' No API base URL is set.';
-    status.textContent = `${found}${where}${copied ? ' Copied to the clipboard.' : ''}`;
+    status.textContent = `${found}${copied ? ' The report is on the clipboard: paste it into an issue.' : ' The report could not be copied to the clipboard.'}`;
     button.disabled = false;
   });
   footer.replaceChildren(button, status);
@@ -368,7 +269,6 @@ function setupDiagnostics(tabId: number, baseUrl: string | undefined): void {
 
 async function start(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const baseUrl = await getApiBaseUrl();
   if (tab?.id === undefined || tab.url === undefined) {
     main.replaceChildren(el('p', {}, 'Open a Copilot page and try again.'));
     return;
@@ -378,7 +278,7 @@ async function start(): Promise<void> {
     main.replaceChildren(el('p', {}, 'BreadCrumb works on m365.cloud.microsoft, copilot.cloud.microsoft and copilot.microsoft.com. Open a Copilot response there.'));
     return;
   }
-  setupDiagnostics(tab.id, baseUrl);
+  setupDiagnostics(tab.id);
   let extracted: ExtractResponse;
   try {
     extracted = await askContent<ExtractResponse>(tab.id, { type: 'breadcrumb:extract' });
@@ -386,45 +286,25 @@ async function start(): Promise<void> {
     main.replaceChildren(el('p', {}, `The page did not answer (${error instanceof Error ? error.message : String(error)}). Reload the Copilot page and open the popup again.`));
     return;
   }
-  void reportToServer(baseUrl, 'extension-extract', {
-    host: extracted.host,
-    surface: extracted.surface,
-    strategy: extracted.strategy,
-    citations: extracted.citations,
-  });
   const rows = buildRows(extracted.citations);
   if (rows.length === 0) {
-    renderEmpty(surface, tab.id, baseUrl, extracted.strategy);
+    renderEmpty(surface, tab.id, extracted.strategy);
     return;
   }
   const surfaceNote = surface === 'consumer' ? 'Links found in the response text on the consumer surface.' : undefined;
-  renderRows(rows, baseUrl, tab.id, surfaceNote);
-  let lookupNotice: string | undefined;
-  // Show what BreadCrumb already knows (a Verified folder, the entry number); unticks documents it already has.
-  if (baseUrl !== undefined) {
-    const answers = await lookupRows(rows, baseUrl);
-    if (answers !== undefined && answers.some((answer) => answer.found)) {
-      applyLookup(rows, answers, { untickKnown: true });
-      const kept = rows.filter((row) => row.known !== undefined).length;
-      lookupNotice = `${kept} of ${rows.length} already in BreadCrumb (unticked).`;
-      renderRows(rows, baseUrl, tab.id, surfaceNote, lookupNotice);
-    }
-  }
-  // BC-049: confirm the rest with the browser's SharePoint session, where the user granted access.
+  renderRows(rows, tab.id, surfaceNote);
+  // BC-049: confirm what we can with the browser's SharePoint session, where the user granted access.
   await confirmWithSession(rows, {
     fetchImpl: (url, init) => fetch(url, init),
     hasPermission: (host) => chrome.permissions.contains({ origins: [`https://${host}/*`] }),
   });
   const confirmed = rows.filter((row) => row.session?.ok === true).length;
   const noAccess = rows.some((row) => row.session?.ok === false && row.session.reason === 'no-access');
-  void reportToServer(baseUrl, 'extension-session', {
-    rows: rows.map((row) => ({ form: row.result.ok ? row.result.form : 'failed', session: row.session === undefined ? null : row.session.ok ? 'confirmed' : `${row.session.reason}: ${row.session.message}` })),
-  });
   if (confirmed > 0 || noAccess) {
-    const parts = lookupNotice === undefined ? [] : [lookupNotice];
+    const parts: string[] = [];
     if (confirmed > 0) parts.push(`${confirmed} confirmed with your SharePoint session.`);
     if (noAccess) parts.push('Allow your tenant on the options page to confirm the others instantly.');
-    renderRows(rows, baseUrl, tab.id, surfaceNote, parts.join(' '));
+    renderRows(rows, tab.id, surfaceNote, parts.join(' '));
   }
 }
 

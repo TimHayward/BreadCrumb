@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRows, submitRows, type FetchLike } from '../src/popupModel.js';
+import { buildRows, type FetchLike } from '../src/popupModel.js';
 import { confirmWithSession, sessionHost } from '../src/session.js';
 
 const GUID = '3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C';
@@ -56,38 +56,4 @@ describe('confirmWithSession (BC-049)', () => {
     expect(sessionHost(rows[2]!)).toBeUndefined();
   });
 
-  it('does not ask SharePoint about documents BreadCrumb has already verified', async () => {
-    const rows = buildRows([{ url: DOC }]);
-    rows[0]!.known = { id: 7, state: 'Verified', verified: true };
-    let calls = 0;
-    await confirmWithSession(rows, { fetchImpl: async (u, i) => { calls += 1; return sharePoint(u, i); }, hasPermission: async () => true });
-    expect(calls).toBe(0);
-    expect(rows[0]?.session).toBeUndefined();
-  });
-});
-
-describe('sending session-confirmed rows (BC-049)', () => {
-  it('records the confirmation as the new entry\'s validation, so it is Verified without a background tab', async () => {
-    const rows = buildRows([{ url: DOC }]);
-    await confirmWithSession(rows, { fetchImpl: sharePoint, hasPermission: async () => true });
-    const posts: Array<{ url: string; body: unknown }> = [];
-    await submitRows(rows, 'http://localhost:3000', async (url, init) => {
-      posts.push({ url, body: JSON.parse(String(init.body)) });
-      return url.endsWith('/api/convert') ? json({ id: 12, result: { state: 'Unresolved' } }) : json({ ok: true, id: 12 });
-    });
-    expect(posts.map((p) => p.url)).toEqual(['http://localhost:3000/api/convert', 'http://localhost:3000/api/history/12/validate']);
-    expect(posts[1]?.body).toMatchObject({ previousState: 'Unresolved', verified: { path: '/sites/SiteA/Shared Documents/Plans/Plan.pptx' } });
-    expect(rows[0]?.outcome).toEqual({ ok: true, id: 12, state: 'Unresolved', recorded: true });
-    expect(rows[0]?.known).toMatchObject({ id: 12, state: 'Verified', verified: true, folder: '/sites/SiteA/Shared Documents/Plans' });
-  });
-
-  it('falls back quietly when BreadCrumb declines the confirmation', async () => {
-    const rows = buildRows([{ url: DOC }]);
-    await confirmWithSession(rows, { fetchImpl: sharePoint, hasPermission: async () => true });
-    await submitRows(rows, 'http://localhost:3000', async (url) =>
-      url.endsWith('/api/convert') ? json({ id: 13, result: { state: 'Unresolved' } }) : json({ reason: 'state_mismatch' }, 409),
-    );
-    expect(rows[0]?.outcome).toEqual({ ok: true, id: 13, state: 'Unresolved', recorded: false });
-    expect(rows[0]?.known).toBeUndefined();
-  });
 });

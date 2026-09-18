@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "BreadCrumb",
   "version": "0.2.0",
-  "description": "Turns SharePoint and OneDrive citations in Copilot responses into folder locations and sends them to BreadCrumb.",
+  "description": "Turns SharePoint and OneDrive citations in Copilot responses into folder locations you can copy.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "BreadCrumb"

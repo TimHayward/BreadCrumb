@@ -2,7 +2,7 @@
   "name": "@breadcrumb/extension",
   "version": "0.2.0",
   "private": true,
-  "description": "Manifest V3 Chromium extension that lifts SharePoint and OneDrive citations out of Copilot responses, resolves them with @breadcrumb/parser and submits selected items to the BreadCrumb API.",
+  "description": "Manifest V3 extension for Microsoft Edge that lifts SharePoint and OneDrive citations out of Copilot responses, resolves them with @breadcrumb/parser and confirms them with the browser SharePoint session.",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",

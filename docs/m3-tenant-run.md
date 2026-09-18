@@ -1,5 +1,7 @@
 # M3 tenant run
 
+> **Historical (architecture change of 2026-09-17).** The web application this run drove is gone. Kept for its tenant evidence: the Graph and SharePoint call shapes, the permission findings that close spikes S2 and S5, and the sign in troubleshooting that story BC-061 will need when sign in moves into the extension.
+
 The authenticated validation code (BC-036 to BC-041) is complete and covered by tests that replay hand-written Graph responses. Token sharing links (`/:x:/s/…`, `/g/`, `/t/`, guest access) resolve automatically once a user is signed in, and the history page can verify every unverified entry in one action. What remains needs a real Entra tenant. This document is the protocol for doing that interactively (the user drives the browser and reports; the developer fixes code on `main` as findings arrive) and the record of what was observed. Its tables close spikes S2 and S5 and the open M3 stories.
 
 ## B0. Set up (once)

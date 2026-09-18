@@ -51,18 +51,15 @@ export interface SessionDeps {
 }
 
 /**
- * Confirms every row that BreadCrumb has not already verified and that sits
- * on a SharePoint host, in parallel, recording each outcome on the row.
- * A host without access, or SharePoint saying no (for example 401 on OneDrive
- * before it has been opened in the browser), leaves the row to the Graph route.
+ * Confirms every row that sits on a SharePoint host, in parallel, recording
+ * each outcome on the row. A host without access, or SharePoint saying no
+ * (for example 401 on OneDrive before it has been opened in the browser),
+ * leaves the row with its best effort result.
  */
 export async function confirmWithSession(rows: PopupRow[], deps: SessionDeps): Promise<PopupRow[]> {
   const access = new Map<string, Promise<boolean>>();
   await Promise.all(
     rows.map(async (row) => {
-      if (row.known?.verified === true) {
-        return;
-      }
       const host = sessionHost(row);
       if (host === undefined) {
         return;

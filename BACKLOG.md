@@ -104,6 +104,8 @@ Story format: ID and title, user story sentence, acceptance criteria as Given, W
 
 #### BC-053 Remove the web application, the API and the deployment stack
 
+**Mostly executed 2026-09-18**, at Tim's instruction, ahead of BC-054 and BC-055 rather than after them. Removed: the `app` package, the Docker, compose and Portainer files, the server scripts and their docs, the catalog entries only the server used, and the container job in continuous integration. Removed from the extension: the "Send selected to BreadCrumb" action, the lookup of what BreadCrumb already knew, the background verification tab, the "In BreadCrumb" row action, the API base URL setting and the client log reporting. The local database was moved out of the repository rather than deleted. Decision D22 was taken as recommended: diagnostics go to the clipboard. Still open in this story: the last two criteria, which need the in-extension paste (BC-054). **Known gap until BC-054 and BC-055 land:** a link that did not come from a Copilot citation cannot be converted at all, and no result is kept once the popup closes. This is risk R17 accepted deliberately.
+
 As the person maintaining BreadCrumb, I want the web application and everything that hosted it removed from the repository, so that the extension is the only thing to build, install and reason about.
 
 - Given the repository after this story, When it is inspected, Then the web application package, the server, the SQLite database layer and its migrations, the Docker and compose files and the Portainer runbook are gone, and no file references them.
@@ -113,7 +115,7 @@ As the person maintaining BreadCrumb, I want the web application and everything 
 - Given the README, When it is read by someone who has never seen the project, Then it describes installing an extension, and nothing in it describes hosting a service.
 - Given a user who relied on the web pages to paste a link, When they read the README, Then it points them at the in-extension paste (BC-054).
 
-Priority: Must. Size: M. Depends on: BC-054 (so the paste path exists before the pages go), BC-055.
+Priority: Must. Size: M. Depends on: nothing outstanding; the last two criteria wait on BC-054.
 Decisions to close first: D16, D22.
 
 #### BC-054 Paste a link by hand in the extension

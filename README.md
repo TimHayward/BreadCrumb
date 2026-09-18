@@ -1,25 +1,25 @@
 # BreadCrumb
 
-BreadCrumb turns a Microsoft 365 SharePoint or OneDrive link into the folder location it points at, keeps every conversion in a searchable history, and (from M4) lifts file citations out of Microsoft Copilot responses.
+BreadCrumb is a Microsoft Edge extension that turns the SharePoint and OneDrive for Business citations in a Microsoft Copilot response into the folder location each file sits in, and puts those links on your clipboard.
 
-> **Private network only.** BreadCrumb has no application level access control in v1 and its history holds client names and file titles. Host it only where the private network is the boundary. The compose file binds to `127.0.0.1` by default; set `BREADCRUMB_BIND` to the host's private interface address to expose it to the LAN, and never to a public interface. See backlog risks R4 and R5 and open decision D4.
+Installing the extension is the whole installation. There is no server, no database and no deployment: the extension decodes links in the browser with a shared parser and, where you allow it, confirms them with the Microsoft 365 session your browser already has.
+
+> **What it holds.** File names and folder paths from your tenant appear in the popup while it is open, and go to your clipboard when you copy. The extension stores nothing beyond the tenant you granted. Keeping results, and writing them to a SharePoint list your organisation owns, are the next two milestones (see `BACKLOG.md`, stories BC-055 and BC-058).
 
 ## Repository layout
 
 | Path | Purpose |
 |---|---|
-| `packages/parser` | `@breadcrumb/parser`. Pure link parser, the single implementation consumed by both the web application and the extension. No runtime dependencies. |
-| `packages/app` | `@breadcrumb/app`. Fastify web application: conversion page, JSON API, history pages, SQLite data access layer. |
-| `packages/extension` | `@breadcrumb/extension`. Manifest V3 extension for Microsoft Edge that lifts citations out of Copilot responses. |
-| `compose.yaml` | The single deployment definition, used unchanged by `docker compose up` locally and by a Portainer Git stack. |
-| `docs/` | Worked example, spike write-ups, runbooks and milestone evidence. |
+| `packages/extension` | `@breadcrumb/extension`. The product: a Manifest V3 extension for Microsoft Edge. |
+| `packages/parser` | `@breadcrumb/parser`. Pure link parser, the single implementation of every link form. No runtime dependencies, no network, no DOM. |
+| `packages/validation` | `@breadcrumb/validation`. Turns a parsed link into a confirmed result through a Microsoft Graph shaped lookup, which the extension calls against SharePoint with your browser session. |
+| `docs/` | Worked example, spike write-ups and run notes. |
 | `BACKLOG.md`, `BACKLOG-completed.md` | Open and completed product backlog. |
 
 ## Prerequisites
 
 - Node 24 LTS (see `.nvmrc`)
 - pnpm 10 (`corepack enable` installs the pinned version)
-- Docker with Compose v2 or later, for the container workflow
 
 ## Install, build and test
 
@@ -29,181 +29,57 @@ pnpm build
 pnpm test
 ```
 
-`pnpm dev` starts the web application from source with reload. `pnpm start` runs the built application.
+`pnpm build` writes the loadable extension to `packages/extension/dist`.
 
-## Configuration
-
-Every setting is an environment variable with a documented default. Nothing is required in M1. A malformed value stops the process at start with a message naming the variable.
-
-| Variable | Default | Required | Meaning |
-|---|---|---|---|
-| `PORT` | `3000` | No | Port the application listens on inside the process or container. |
-| `DATABASE_PATH` | `./data/breadcrumb.sqlite` (compose sets `/data/breadcrumb.sqlite`) | No | SQLite database file. Its directory is created if missing. |
-| `LOG_LEVEL` | `info` | No | One of `trace`, `debug`, `info`, `warn`, `error`, `fatal`. |
-| `LOG_REDACT_LINKS` | `false` | No | When `true`, request logs carry only the host of a submitted link, never the full link. |
-| `AUTH_TENANT_ID` | unset | Only with `AUTH_CLIENT_ID` | Entra tenant id (GUID) for optional Microsoft sign in. When both auth variables are unset the sign in control is hidden and a log line says validation is not configured. Setting one without the other stops the process. |
-| `AUTH_CLIENT_ID` | unset | Only with `AUTH_TENANT_ID` | Application (client) id of the public client registration described under "Authenticated validation". |
-| `TLS_CERT_FILE` | unset | Only with `TLS_KEY_FILE` | PEM certificate to serve HTTPS (decision D6). Required for Microsoft sign in anywhere other than `localhost`. In compose the files live on the named volume `breadcrumb-tls` mounted at `/tls`. See `docs/https-private-ca.md`. |
-| `TLS_KEY_FILE` | unset | Only with `TLS_CERT_FILE` | PEM private key for `TLS_CERT_FILE`. |
-| `CLIENT_LOG` | `false` | No | Local diagnostics for sign in runs. When `true` (and auth is configured), the browser posts its sign in, MSAL and Graph events to the server log. Tokens are never sent, but events include file names and paths from the tenant, so leave it off on a shared host. |
-| `AUTH_SCOPES` | `Files.Read.All Sites.Read.All` | No | Delegated Graph permissions requested at sign in, space separated. Spike S2 may narrow this. |
-| `BREADCRUMB_BIND` | `127.0.0.1` | No | Compose only. Host interface the published port binds to. |
-| `BREADCRUMB_PUBLISH_PORT` | `3000` | No | Compose only. Host port mapped to the container's `PORT`. |
-
-## Run with Docker Compose
-
-```sh
-docker compose up --build
-```
-
-Then open `http://127.0.0.1:3000`. History lives on the named volume `breadcrumb-data`, which survives `docker compose down`, image rebuilds and redeploys. `docker compose down -v` deletes it.
-
-## Deploy with Portainer
-
-See `docs/portainer-runbook.md` (written when spike S7 closes).
-
-## API
-
-One link per request. There is no authentication and any origin is allowed (backlog risk R4), which is why the host must sit on a private network.
-
-### `POST /api/convert`
-
-Request body (JSON):
-
-```json
-{ "link": "https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?id=...", "source": "web" }
-```
-
-`source` is `web` or `extension` and is stored with the history row.
-
-Success, `200`:
-
-```json
-{
-  "id": 42,
-  "createdAt": "2026-09-10T16:05:00.000Z",
-  "result": {
-    "ok": true,
-    "state": "Derived",
-    "form": "library-view",
-    "method": { "code": "library-view/id+parent", "text": "Path decoded from the link's id and parent parameters. Library boundary taken from the page path." },
-    "cloud": "global",
-    "path": "/sites/SiteA/Lib/Folder/File.pdf",
-    "folderUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder",
-    "fileUrl": "https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/File.pdf",
-    "components": {
-      "tenant": { "value": "contoso", "flag": "Derived" },
-      "host": { "value": "contoso.sharepoint.com", "flag": "Derived" },
-      "sitePath": { "value": "/sites/SiteA", "flag": "Derived" },
-      "library": { "value": "Lib", "flag": "Derived", "reason": "from page path" },
-      "folders": { "value": ["Folder"], "flag": "Derived" },
-      "fileName": { "value": "File.pdf", "flag": "Derived" }
-    },
-    "identifiers": [],
-    "hints": [],
-    "wrappers": [],
-    "original": "https://contoso.sharepoint.com/sites/SiteA/Lib/Forms/AllItems.aspx?id=...",
-    "parserVersion": "0.1.0"
-  }
-}
-```
-
-`state` is exactly one of `Verified`, `Derived`, `Inferred` or `Unresolved`. `fileUrl` and `components.fileName` are absent for folder results. Every component carries a `flag` of `Derived` or `Inferred`.
-
-Parse failure, `400`, and no history row is written:
-
-```json
-{ "ok": false, "reason": "not_microsoft_365", "message": "www.example.com is not a SharePoint or OneDrive host, so there is nothing to decode.", "detail": { "host": "www.example.com" }, "parserVersion": "0.1.0" }
-```
-
-Reason codes: `not_a_url`, `not_microsoft_365`, `truncated` (with `detail.parameter`), `unsupported_form`, `missing_parameter`, `consumer_onedrive` (with `detail.host`), `parser_error`. Personal (consumer) OneDrive links on `onedrive.live.com` and `1drv.ms` are not supported: they fail with `consumer_onedrive` and a message saying so, and the server never fetches them. A malformed request (no `link`, bad `source`, invalid JSON) returns `400` with `reason: "invalid_request"`.
-
-Unresolved results (sharing tokens, `Doc.aspx`, `UniqueId`) are `200` with `state: "Unresolved"` and no `path`, `folderUrl` or `fileUrl`; `components` then carries only what the link reveals, and `identifiers` and `hints` hold the ids and best effort clues. Wrappers removed (Teams file links, Safe Links) are listed in `wrappers` in the order removed.
-
-### `POST /api/lookup`
-
-What BreadCrumb already knows about up to 50 links, used by the extension popup. Body: `{ "links": ["https://…", …] }`. Each answer is `{ "link", "found": false }` or `{ "link", "found": true, "id", "state", "verified", "path", "folderUrl", "fileUrl", "fileName" }`, taken from the best history entry for the same document: links are matched by the document's unique id (`sourcedoc`, `UniqueId`, a sharing link's `d`, or the unique id Graph confirmed), else its path, else the exact link. Verified entries win, then the newest; verified values replace the best effort ones.
-
-### `GET /history/export.csv` and `GET /history/export.json`
-
-Download the history, filtered by the same query parameters as the history page (`q`, `state`, `from`, `to`, `source`, `host`).
-
-### `GET /healthz`
-
-`200 { "status": "ok", "database": "/data/breadcrumb.sqlite" }` when the database file is readable and writable and a write lock can be taken; otherwise `503` with `failed` set to `file-access` or `write-lock`. The compose health check uses this endpoint.
-
-### Logs
-
-One JSON line per request with `method`, `route`, `status`, `durationMs` and, for conversions, `form`, `state` (or `reason` for failures) and `input`. With `LOG_REDACT_LINKS=true` the `input` field carries only the link's host.
-
-## History
-
-Every successful conversion is kept. The history page searches input, path, folder URL, file URL and file name (case insensitive), filters by state (including kept failures), date range, source and host or tenant, and reflects the combination in the URL so it can be bookmarked. Entries can be deleted singly or in bulk after one confirmation. The current filtered set exports as CSV or JSON with the date in the file name.
-
-To measure search on a large history, build once and seed a scratch database:
-
-```sh
-pnpm build
-node scripts/seed-history.mjs ./data/seed.sqlite 5000
-```
-
-## Authenticated validation
-
-Optional. Without it everything above works unchanged. With it, a user can sign in to Microsoft in the browser and confirm a Derived, Inferred or Unresolved result against Microsoft Graph. The result becomes Verified, corrections to the library boundary and folder chain are shown as "was inferred as", and the original result stays beneath. Graph is called from the browser; the access token lives in the browser session (`sessionStorage`) and is never sent to the server. Signing out discards it.
-
-**Register a public client once in Entra ID (global Microsoft cloud only):**
-
-1. Entra admin centre → App registrations → New registration. Single tenant. No client secret is needed or used.
-2. Authentication → Add a platform → **Single-page application**. Redirect URI: the exact origin users open, with a trailing slash, for example `http://192.168.1.20:3000/`. Add one entry per address in use.
-3. API permissions → Add a permission → Microsoft Graph → **Delegated** → `Files.Read.All` and `Sites.Read.All` (the default `AUTH_SCOPES`). Grant admin consent, or let each user consent if the tenant allows it. Spike S2 records the smallest set that works.
-4. Set `AUTH_TENANT_ID` (Directory (tenant) ID) and `AUTH_CLIENT_ID` (Application (client) ID) in the environment and restart.
-
-**Using it:** a "Sign in to Microsoft" control appears in the header. After signing in, every result Graph can check verifies automatically as soon as it is shown: sharing links (`/:x:/s/…`, `/g/`, `/t/`, `/r/`), `Doc.aspx` and `UniqueId` links, direct URLs and library views. The "Validate with Microsoft Graph" button stays for retries. Opening the history page while signed in verifies every unverified entry newest first, including entries the extension submitted, trying each entry once per tab; "Verify all unverified" retries everything. After you send citations from the extension it opens the history in a background tab, which verifies them and closes itself when all are Verified (it stays open if you need to sign in or an entry cannot be verified). Sign in is shared by all BreadCrumb tabs: MSAL keeps tokens in localStorage encrypted with a key held in a session cookie, so they are unusable once the browser session ends and never reach the server. Sovereign cloud links are not validated. Sharing links are submitted to Graph with `Prefer: redeemSharingLink`, so a link that grants access on first use behaves as if you had clicked it. For diagnosis, `localStorage.setItem('breadcrumb:debug', '1')` in the browser console logs every Graph request and response. Graph errors are shown plainly: a permission or consent problem names the permission, throttling shows the wait Graph asked for and the button re-enables when it has passed, and an expired sign in asks you to sign in again. The stored result never changes on an error.
-
-What the browser does: for a path (Derived or Inferred) it resolves the site by path, lists the site's document libraries, picks the library whose URL prefixes the path, and fetches the item by path within it. For a sharing token (Unresolved) it submits the link to the `/shares/{u!…}/driveItem` endpoint and reads the item and its library. `Doc.aspx` and `UniqueId` links await spike S5. Sovereign clouds are not validated in this version.
-
-The Verified state is asserted by the browser (risk R12): the server checks the payload's shape and records the Graph item and drive ids with every validation so it can be re-checked.
-
-## Copilot extension
-
-`packages/extension` is a Manifest V3 extension for Microsoft Edge, the primary browser (Chrome and other Chromium browsers are a low priority want and untested). It runs only on `m365.cloud.microsoft`, `copilot.cloud.microsoft` and `copilot.microsoft.com`. It may also be granted, from its options page and for one tenant only, access to that tenant's SharePoint and OneDrive for Business hosts (the optional host permission `https://*.sharepoint.com/*`), so it can confirm citations with the browser's existing SharePoint session. Nothing broader. When access is granted, the popup confirms each citation on those hosts as soon as it opens (SharePoint's `/_api/v2.0/shares` endpoint, with the session the browser already has), shows it Verified with its confirmed folder, and records that confirmation in BreadCrumb when you send it (decision D9: session confirmations count as Verified and the method text names SharePoint). Citations it cannot confirm, for example OneDrive before OneDrive has been opened in the browser, fall back to Graph verification in a background BreadCrumb tab. Cookie values are never read. Opening the popup on a Copilot response lists every SharePoint or OneDrive citation once, with its folder, confidence state and a "library inferred" marker where the library boundary was guessed, plus "Original link" and "Folder link", which copy that link to the clipboard, and "In BreadCrumb", which opens its history entry when BreadCrumb already has it. "Copy selected file links" and "Copy selected folder links" copy the ticked rows' links, one per line (each folder once; files whose folder is not known yet are left out and counted); ticked items are sent one at a time to `POST /api/convert` with source `extension`. On the consumer host the popup shows a defined empty state, because Copilot there cites web pages. When no citations are found on a work host, "Report markup" copies a redacted sample of the response container to the clipboard for diagnosis.
-
-Build and load unpacked:
+## Install the extension
 
 ```sh
 pnpm build
 # Edge: edge://extensions → Developer mode → Load unpacked → packages/extension/dist
 ```
 
-Then open the extension options and enter the API base URL, for example `http://192.168.1.20:3000`. The extension keeps no other setting and uses the shared parser package, never a copy of it.
+Then open the extension's options page and grant access to your tenant, by entering the tenant name (the first label of your SharePoint host, so `contoso` for `contoso.sharepoint.com`) and allowing access when the browser asks. Without that grant the extension still decodes links; with it, citations are confirmed against SharePoint and shown as Verified.
 
-Until spike S1 delivers DOM captures from the live Copilot surfaces, the response container selectors in `packages/extension/src/extract.ts` are best effort; see `docs/m4-extension-run.md`.
+## Using it
 
-## Backup and restore
+Open a Copilot response that cites files on `m365.cloud.microsoft` or `copilot.cloud.microsoft`, then open the popup. It lists every SharePoint or OneDrive for Business citation once, and each row shows:
 
-The database lives at `/data/breadcrumb.sqlite` on the named volume `breadcrumb-data`. In write ahead logging mode SQLite also keeps `breadcrumb.sqlite-wal` and `breadcrumb.sqlite-shm` next to it. Never copy the raw files while the application runs: recent writes may still be in the `-wal` file.
+- the file name, a tick box, and the confidence state;
+- the document location, with a "library inferred" marker where the library boundary was a guess;
+- **Original link** and **Folder link**, which copy that link to the clipboard rather than opening a tab.
 
-**Back up while running.** The backup script uses SQLite's online backup API inside the container, so the copy is consistent and self contained (no `-wal` companion needed):
+Below the list, **Copy selected file links** and **Copy selected folder links** copy the ticked rows, one link per line. Each folder is copied once, and any ticked file whose folder is not known yet is left out and counted in the status line.
+
+On `copilot.microsoft.com` the popup shows a defined empty state, because Copilot there cites web pages rather than files. When no citations are found on a work surface, "Report markup" copies a redacted sample of the response container to the clipboard so a markup change can be diagnosed; "Diagnose this page" does the same for the whole page.
+
+## Confidence states
+
+Every result says how it was obtained, and nothing inferred is presented as fact.
+
+| State | Meaning |
+|---|---|
+| Verified | Confirmed by an authenticated Microsoft 365 lookup. Today that is SharePoint answering with your browser session; the method text names the call. |
+| Derived | Decoded deterministically from the link, with no guesswork. |
+| Inferred | Best effort: at least one component is a guess, usually where the document library ends and the folders begin. |
+| Unresolved | The link form is recognised but cannot be decoded without an authenticated lookup, for example a sharing token. |
+
+Personal (consumer) OneDrive is not supported. Links on `onedrive.live.com` and `1drv.ms` fail with a message saying so, and are never fetched.
+
+## How confirmation works
+
+For a tenant you have granted, the extension calls that tenant's own SharePoint host at `/_api/v2.0/...` with `credentials: 'include'`, so the browser attaches the session you already have. Only SharePoint's answers are used: cookie values are never read, and nothing is sent anywhere else. The optional host permission is `https://*.sharepoint.com/*`, requested at runtime for one tenant's hosts and revocable from the options page.
+
+OneDrive for Business links need OneDrive to have been opened in the browser at least once, otherwise SharePoint answers 401 for the `-my` host and the row keeps its best effort result.
+
+## Development
+
+The parser is the single implementation of link decoding (architectural invariant 1) and is pure: no network, no DOM, no Node built-ins. It carries a fixture corpus covering every row of the link form matrix in `BACKLOG.md`, and the extension has a contract test that feeds the same corpus through its popup model.
+
+No real tenant link, file name or client name enters the repository. Anonymise before committing: the checklist is in `BACKLOG.md`, section 8.
 
 ```sh
-scripts/backup.sh                     # writes backups/breadcrumb-<timestamp>.sqlite
-scripts/backup.sh /path/to/copy.sqlite
+pnpm test            # every package
+pnpm typecheck
 ```
 
-The command prints the number of conversions in the copy. Compare it with the count shown at the top of the history page.
-
-**Check a backup** without touching the stack:
-
-```sh
-scripts/restore.sh --check backups/breadcrumb-20260910-120000.sqlite
-```
-
-**Restore.** This stops the application, replaces the database on the volume (removing any `-wal` and `-shm` files with it), starts the application and waits for the health check:
-
-```sh
-scripts/restore.sh backups/breadcrumb-20260910-120000.sqlite
-```
-
-**Verify a restore.** Open the history page and compare the entry count with the number printed by the backup or check command. If you copy the raw files by hand instead, stop the application first and copy `breadcrumb.sqlite` together with its `-wal` and `-shm` files if they exist.
-
-Under Portainer the same scripts work from any machine with Docker access to the host, or run the two container commands they wrap (`node dist/backup-cli.js` inside the container, then copy the file out) from the Portainer console.
+Work happens directly on `main` until the MVP is declared. Finished stories move to `BACKLOG-completed.md` with `node scripts/complete-story.mjs --sha <commit> BC-0xx`.

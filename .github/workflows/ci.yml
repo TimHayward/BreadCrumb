@@ -17,20 +17,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Build first: consumers resolve @breadcrumb/parser through its emitted dist/ types.
+      # Build first: the extension resolves @breadcrumb/parser through its emitted dist/ types.
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
-
-  container:
-    name: Container build and persistence check
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build the image
-        run: docker compose build
-      - name: Image size
-        run: docker image inspect breadcrumb:local --format '{{.Size}}' | awk '{ printf "breadcrumb:local is %.0f MB\n", $1/1024/1024; if ($1 > 250*1024*1024) { print "exceeds the 250 MB target"; exit 1 } }'
-      - name: History survives a rebuild (BC-004)
-        run: bash scripts/persistence-check.sh

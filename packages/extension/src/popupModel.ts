@@ -1,12 +1,20 @@
 /**
- * Popup logic without the DOM (BC-044, BC-045): builds rows from extracted
- * citations with the shared parser, asks BreadCrumb what it already knows
- * about them, and submits selected rows to the API one at a time with per
- * row outcomes. Testable in Node.
+ * Popup logic without the DOM (BC-044): builds rows from extracted citations
+ * with the shared parser, decides what each row shows once the SharePoint
+ * session has answered (BC-049), and gathers links for the clipboard
+ * (BC-052). Testable in Node.
+ *
+ * There is no BreadCrumb server: the extension is the whole product
+ * (architecture change of 2026-09-17). Keeping results is BC-055, and
+ * sending them to a SharePoint list is BC-058; until those land, a result
+ * lives only as long as the popup is open.
  */
 import { documentKey, parseLink, type ConfidenceState, type ParseResult } from '@breadcrumb/parser';
 import type { VerifiedResult } from '@breadcrumb/validation';
 import type { Citation } from './messages.js';
+
+/** The fetch shape the popup and the session client use, so tests can supply their own. */
+export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 export interface PopupRow {
   key: string;
@@ -19,9 +27,6 @@ export interface PopupRow {
   folder?: string;
   libraryInferred: boolean;
   selected: boolean;
-  outcome?: SubmissionOutcome;
-  /** What BreadCrumb's history says about this document, when it has an entry. */
-  known?: KnownEntry;
   /** What SharePoint said when asked with the browser's session (BC-049). */
   session?: SessionOutcome;
 }
@@ -36,21 +41,6 @@ export function verifiedFolder(verified: VerifiedResult): string {
   const name = verified.components.fileName;
   return name !== undefined && verified.path.endsWith(`/${name}`) ? verified.path.slice(0, verified.path.length - name.length - 1) : verified.path;
 }
-
-/** A history entry for the row's document, as answered by POST /api/lookup. */
-export interface KnownEntry {
-  id: number;
-  state: ConfidenceState | 'failed';
-  /** True when the entry was confirmed by Microsoft Graph. */
-  verified: boolean;
-  path?: string;
-  /** Containing folder of `path` (the path itself for a folder). */
-  folder?: string;
-  folderUrl?: string;
-}
-
-/** `recorded` is true when a session confirmation was stored as the entry's validation (BC-049). */
-export type SubmissionOutcome = { ok: true; id: number; state: ConfidenceState; recorded?: boolean } | { ok: false; message: string };
 
 function folderOf(result: ParseResult): string | undefined {
   if (!result.ok || result.path === undefined) {
@@ -71,7 +61,7 @@ export function buildRows(citations: readonly Citation[]): PopupRow[] {
       continue;
     }
     const result = parseLink(url);
-    // One row per document (the parser's documentKey, shared with the server's lookup).
+    // One row per document (the parser's documentKey).
     const identity = documentKey(result, url);
     if (seen.has(identity)) {
       continue;
@@ -122,28 +112,21 @@ export interface RowView {
   libraryInferred: boolean;
   originalUrl: string;
   folderUrl?: string;
-  /** The BreadCrumb history entry for this document, when there is one. */
-  entryId?: number;
   notes: RowNote[];
 }
 
 /**
- * Decides what a row shows. BreadCrumb's verified record wins, then a
- * SharePoint session confirmation (BC-049, which counts as Verified under
- * decision D9), then BreadCrumb's unverified record, then the parser.
+ * Decides what a row shows. A SharePoint session confirmation (BC-049, which
+ * counts as Verified under decision D9) wins over what the parser worked out
+ * on its own.
  */
 export function describeRow(row: PopupRow): RowView {
-  const known = row.known;
   const confirmed = row.session?.ok === true ? row.session.verified : undefined;
-  const verifiedInBreadCrumb = known?.verified === true;
-  const verifiedHere = !verifiedInBreadCrumb && confirmed !== undefined;
-  const state = verifiedInBreadCrumb ? known.state : verifiedHere ? 'Verified' : (known?.state ?? row.state);
+  const state = confirmed !== undefined ? 'Verified' : row.state;
   const parsed = row.result.ok ? row.result : undefined;
 
-  const location =
-    (verifiedInBreadCrumb ? known.folder : undefined) ?? (confirmed !== undefined ? verifiedFolder(confirmed) : undefined) ?? known?.folder ?? row.folder;
-  const folderUrl =
-    (verifiedInBreadCrumb ? known.folderUrl : undefined) ?? confirmed?.folderUrl ?? known?.folderUrl ?? (parsed?.state === 'Unresolved' ? undefined : parsed?.folderUrl);
+  const location = (confirmed !== undefined ? verifiedFolder(confirmed) : undefined) ?? row.folder;
+  const folderUrl = confirmed?.folderUrl ?? (parsed?.state === 'Unresolved' ? undefined : parsed?.folderUrl);
   const isFolder =
     confirmed !== undefined ? confirmed.components.fileName === undefined : parsed !== undefined && parsed.state !== 'Unresolved' && parsed.components.fileName === undefined;
 
@@ -153,7 +136,7 @@ export function describeRow(row: PopupRow): RowView {
     stateLabel,
     locationLabel: isFolder ? 'Folder location' : 'Document location',
     failed: !row.result.ok,
-    libraryInferred: row.libraryInferred && known === undefined && confirmed === undefined,
+    libraryInferred: row.libraryInferred && confirmed === undefined,
     originalUrl: row.url,
     notes: [],
   };
@@ -162,29 +145,20 @@ export function describeRow(row: PopupRow): RowView {
   } else if (!row.result.ok) {
     view.locationNote = row.result.message;
   } else {
-    view.locationNote = 'Unknown until the link is verified.';
+    view.locationNote = 'Unknown until the link is confirmed.';
   }
   if (folderUrl !== undefined) {
     view.folderUrl = folderUrl;
   }
-  const entryId = known?.id ?? (row.outcome?.ok === true ? row.outcome.id : undefined);
-  if (entryId !== undefined) {
-    view.entryId = entryId;
-  }
 
-  if (verifiedHere) {
+  if (confirmed !== undefined) {
     view.notes.push({ text: 'Confirmed with your SharePoint session.', tone: 'ok' });
   }
   if (state === 'Unresolved') {
-    view.notes.push({ text: 'Verifies in BreadCrumb once you are signed in there.', tone: 'muted' });
+    view.notes.push({ text: 'Allow this tenant on the options page to confirm it.', tone: 'muted' });
   }
   if (row.session?.ok === false && row.session.reason === 'failed' && state !== 'Verified') {
     view.notes.push({ text: 'Your SharePoint session could not confirm it.', tone: 'muted', detail: row.session.message });
-  }
-  if (row.outcome !== undefined) {
-    view.notes.push(
-      row.outcome.ok ? { text: verifiedInBreadCrumb ? 'Sent and verified.' : 'Sent.', tone: 'ok' } : { text: row.outcome.message, tone: 'fail' },
-    );
   }
   return view;
 }
@@ -195,7 +169,7 @@ export interface CopySelection {
   selected: number;
   /** The links, in list order, each once. */
   links: string[];
-  /** Ticked rows left out because they have no such link yet (an Unresolved folder). */
+  /** Ticked rows left out because they have no such link yet (an unconfirmed folder). */
   skipped: number;
 }
 
@@ -249,200 +223,4 @@ export function copySummary(kind: 'file' | 'folder', selection: CopySelection): 
 /** Splits a path after each "/" so it can wrap between segments rather than inside a name. */
 export function pathSegments(path: string): string[] {
   return path.split(/(?<=\/)/);
-}
-
-/**
- * BreadCrumb's history filtered to extension submissions, opened after
- * sending: a signed-in BreadCrumb page verifies unverified entries on its
- * own, and close=1 lets that background tab close itself once all are
- * Verified.
- */
-export function verificationUrl(baseUrl: string): string {
-  return `${baseUrl}/history?source=extension&close=1`;
-}
-
-/** Turns what the user typed into an API base URL, or undefined when unusable. */
-export function normaliseBaseUrl(input: string | undefined | null): string | undefined {
-  const text = (input ?? '').trim();
-  if (text === '') {
-    return undefined;
-  }
-  try {
-    const url = new URL(/^[a-z]+:\/\//i.test(text) ? text : `http://${text}`);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      return undefined;
-    }
-    return url.href.replace(/\/+$/, '');
-  } catch {
-    return undefined;
-  }
-}
-
-export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
-
-/** Submits the selected rows one at a time (no batch endpoint in v1) and records each outcome on the row. */
-export async function submitRows(rows: PopupRow[], baseUrl: string, fetchImpl: FetchLike = (u, i) => fetch(u, i)): Promise<PopupRow[]> {
-  for (const row of rows) {
-    if (!row.selected) {
-      continue;
-    }
-    try {
-      const response = await fetchImpl(`${baseUrl}/api/convert`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ link: row.url, source: 'extension' }),
-      });
-      const body = (await response.json().catch(() => ({}))) as { id?: number; result?: { state?: ConfidenceState }; message?: string; reason?: string };
-      if (response.ok && typeof body.id === 'number' && body.result?.state !== undefined) {
-        row.outcome = { ok: true, id: body.id, state: body.result.state };
-        if (row.session?.ok === true) {
-          row.outcome.recorded = await recordSessionConfirmation(row, body.id, body.result.state, baseUrl, fetchImpl);
-        }
-      } else {
-        row.outcome = { ok: false, message: body.message ?? `${baseUrl} answered ${response.status}.` };
-      }
-    } catch (error) {
-      row.outcome = {
-        ok: false,
-        message: `Could not reach ${baseUrl}: ${error instanceof Error ? error.message : String(error)}. Check that BreadCrumb is running, that this device is on its private network, and the API base URL in the extension options.`,
-      };
-    }
-  }
-  return rows;
-}
-
-/**
- * Stores a session confirmation as the new entry's validation, so BreadCrumb
- * shows it Verified (decision D9) without a background tab. Returns false
- * when BreadCrumb declines it; the background tab then verifies with Graph.
- */
-async function recordSessionConfirmation(row: PopupRow, id: number, previousState: ConfidenceState, baseUrl: string, fetchImpl: FetchLike): Promise<boolean> {
-  if (row.session?.ok !== true || previousState === 'Verified') {
-    return false;
-  }
-  const verified = row.session.verified;
-  try {
-    const response = await fetchImpl(`${baseUrl}/api/history/${id}/validate`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ previousState, verified }),
-    });
-    if (!response.ok) {
-      return false;
-    }
-  } catch {
-    return false;
-  }
-  row.known = { id, state: 'Verified', verified: true, path: verified.path, folder: verifiedFolder(verified), folderUrl: verified.folderUrl };
-  return true;
-}
-
-export type LookupAnswer =
-  | { link: string; found: false }
-  | {
-      link: string;
-      found: true;
-      id: number;
-      state: ConfidenceState | null;
-      verified: boolean;
-      path: string | null;
-      folderUrl: string | null;
-      fileUrl: string | null;
-      fileName: string | null;
-    };
-
-/** Links per lookup request; matches the server's limit. */
-export const MAX_LOOKUP_LINKS = 50;
-
-/**
- * Records BreadCrumb's answers on the rows they belong to. On the first
- * lookup (untickKnown) a document BreadCrumb already has starts unticked,
- * since it is already kept; later lookups leave the selection alone.
- */
-export function applyLookup(rows: PopupRow[], answers: readonly LookupAnswer[], options: { untickKnown?: boolean } = {}): PopupRow[] {
-  const byLink = new Map(answers.map((answer) => [answer.link, answer]));
-  for (const row of rows) {
-    const answer = byLink.get(row.url);
-    if (answer === undefined || !answer.found) {
-      continue;
-    }
-    const known: KnownEntry = { id: answer.id, state: answer.state ?? 'failed', verified: answer.verified };
-    if (answer.path !== null) {
-      known.path = answer.path;
-      const name = answer.fileName;
-      known.folder = name !== null && answer.path.endsWith(`/${name}`) ? answer.path.slice(0, answer.path.length - name.length - 1) : answer.path;
-    }
-    if (answer.folderUrl !== null) {
-      known.folderUrl = answer.folderUrl;
-    }
-    row.known = known;
-    if (options.untickKnown === true && row.outcome === undefined) {
-      row.selected = false;
-    }
-  }
-  return rows;
-}
-
-/** Asks BreadCrumb about the rows' links; undefined when it cannot be reached or answers badly. */
-export async function lookupRows(rows: readonly PopupRow[], baseUrl: string, fetchImpl: FetchLike = (u, i) => fetch(u, i)): Promise<LookupAnswer[] | undefined> {
-  const links = rows.map((row) => row.url).slice(0, MAX_LOOKUP_LINKS);
-  if (links.length === 0) {
-    return [];
-  }
-  try {
-    const response = await fetchImpl(`${baseUrl}/api/lookup`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ links }),
-    });
-    if (!response.ok) {
-      return undefined;
-    }
-    const body = (await response.json()) as { answers?: LookupAnswer[] };
-    return Array.isArray(body.answers) ? body.answers : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export interface PollOptions {
-  intervalMs?: number;
-  timeoutMs?: number;
-  sleep?: (ms: number) => Promise<void>;
-  now?: () => number;
-}
-
-/**
- * After sending, follows the sent rows until BreadCrumb has verified them all
- * (the background tab does the Graph work) or the time runs out, calling
- * onUpdate after each lookup so the popup can re-render.
- */
-export async function followUntilVerified(
-  rows: PopupRow[],
-  baseUrl: string,
-  onUpdate: () => void,
-  fetchImpl: FetchLike = (u, i) => fetch(u, i),
-  options: PollOptions = {},
-): Promise<'verified' | 'timeout' | 'nothing-sent'> {
-  const intervalMs = options.intervalMs ?? 2000;
-  const timeoutMs = options.timeoutMs ?? 90000;
-  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  const now = options.now ?? (() => Date.now());
-  const sent = rows.filter((row) => row.outcome?.ok === true);
-  if (sent.length === 0) {
-    return 'nothing-sent';
-  }
-  const deadline = now() + timeoutMs;
-  while (now() < deadline) {
-    await sleep(intervalMs);
-    const answers = await lookupRows(sent, baseUrl, fetchImpl);
-    if (answers !== undefined) {
-      applyLookup(sent, answers);
-      onUpdate();
-    }
-    if (sent.every((row) => row.known?.verified === true)) {
-      return 'verified';
-    }
-  }
-  return 'timeout';
 }
