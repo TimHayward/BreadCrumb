@@ -743,6 +743,56 @@ Priority: Must. Size: S. Depends on: BC-002.
 
 **Withdrawn:** 2026-09-17, with the web application and BC-003. Not run.
 
+#### BC-058 Send selected results to a SharePoint list
+
+As a team, we want selected results written to a SharePoint list we own, so that the folder locations we find are kept in our tenant and shared with colleagues.
+
+- Given a configured list and a selection in the popup, When the user sends the selection, Then one list item is created per document with the documented columns filled (BC-059), and each row reports its own outcome with the list item it became.
+- Given a document that is already in the list, When it is sent again, Then the existing item is updated rather than duplicated, matched on the stored document key (decision D12 records what update means).
+- Given the write route decided in D10, When the user sends a selection, Then no credential is stored by the extension: the write uses the user's own SharePoint session or a token held for the session only, and cookie values are never read.
+- Given a write that is refused, When the reason is a permission problem, a missing list, a missing column or throttling, Then the popup says which, names the list, and repeats the attempt only when the user asks; throttling shows the wait the service asked for.
+- Given enterprise mode is not configured, When the popup opens, Then nothing about lists is shown and every other feature works unchanged.
+- Given a sent result, When the user opens the list from the popup, Then the list opens in a new tab filtered to, or scrolled to, the item just written.
+
+Priority: Must. Size: L. Depends on: BC-059, S10, D10.
+
+**Withdrawn:** 2026-09-19, after market research. The output goes to an Obsidian note instead of a SharePoint list. Nothing was built under this ID. Replaced by BC-067.
+
+#### BC-059 SharePoint list schema and provisioning runbook
+
+As an administrator, I want a documented list to create, so that BreadCrumb has somewhere to write and the columns mean what the team expects.
+
+- Given the runbook, When an administrator follows it, Then they create a list with the documented columns (document key, file name, document location, folder URL, file URL, original link, confidence state, method text, site, library, captured by, captured at, source) and each column's type and purpose is stated.
+- Given the list created from the runbook, When the extension writes to it (BC-058), Then every column it needs exists and no write fails for a missing column.
+- Given a list that is missing a column, When the extension checks the list before its first write, Then it names the missing columns and refuses to write rather than writing a partial item.
+- Given the runbook, When it is followed with a script instead of by hand, Then the script creates the same list and is safe to run twice.
+- Given the runbook, When an administrator reads it, Then it states the minimum permission a user needs to add and update items, and says BreadCrumb never creates lists, site columns or content types itself.
+
+Priority: Must. Size: S. Depends on: S10.
+
+**Withdrawn:** 2026-09-19, with BC-058. Replaced by BC-068, the note and table format.
+
+#### BC-060 Enterprise mode is honest about what it sends
+
+As a person whose file names end up in a shared list, I want to see exactly what will be written before it is written, so that nothing sensitive is shared by accident.
+
+- Given a selection about to be sent, When the user asks what will be sent, Then the popup shows the field values for the first item and says the same fields go for every item.
+- Given the list target, When the popup is open in enterprise mode, Then the site and list being written to are named where the user can see them, not only in the options page.
+- Given a document whose state is Unresolved or failed, When the user sends a selection, Then it is not written to the list, and the popup says which were left out and why.
+- Given a write that partly succeeded, When the popup reports, Then it states which items were written, which were updated and which failed, and the local history records the same.
+
+Priority: Should. Size: S. Depends on: BC-058.
+
+**Withdrawn:** 2026-09-19, with BC-058. The same intent survives as BC-069, applied to the note.
+
+### Spike S10: writing a SharePoint list item from the extension
+
+| ID | Question | Timebox | Closing evidence | Blocks |
+|---|---|---|---|---|
+| S10 | Can the extension add and update items in a SharePoint list using only the user's browser session: does `POST /_api/contextinfo` yield a form digest the extension can use, does the list item write succeed with `credentials: 'include'` from the popup or service worker, and what does it return for a missing column, a missing list and throttling? If not, what does the same write need through Microsoft Graph (`POST /sites/{id}/lists/{id}/items`), and which delegated permission is the minimum? | 1 to 2 days | A recorded add and update against a list in the test tenant by both routes where they work, with request and response shapes anonymised, the permission set that succeeded, and a statement of which route BC-058 should use. Feeds decision D10. | BC-058, BC-059, D10 |
+
+**Withdrawn:** 2026-09-19, with the SharePoint list output. Not run. Its place is taken by S13, which asks the same question of an Obsidian vault.
+
 ## Superseded
 
 The architecture change of 17 September 2026 made BreadCrumb an extension only: the web application, its API, its SQLite database and the container deployment are gone. The stories below were genuinely delivered and their acceptance criteria passed at the time. They no longer describe the product. They are listed here so that no one reads them as current, and so the behaviour that moved into the extension can be traced to the story that replaces it.

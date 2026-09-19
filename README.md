@@ -4,7 +4,7 @@ BreadCrumb is a Microsoft Edge extension that turns the SharePoint and OneDrive 
 
 Installing the extension is the whole installation. There is no server, no database and no deployment: the extension decodes links in the browser with a shared parser and, where you allow it, confirms them with the Microsoft 365 session your browser already has.
 
-> **What it holds.** File names and folder paths from your tenant appear in the popup while it is open, and go to your clipboard when you copy. The extension stores nothing beyond the tenant you granted. Keeping results, and writing them to a SharePoint list your organisation owns, are the next two milestones (see `BACKLOG.md`, stories BC-055 and BC-058).
+> **What it holds.** File names and folder paths from your tenant appear in the popup while it is open, and go to your clipboard when you copy. The extension stores nothing beyond the tenant you granted. Keeping results, and writing them into an Obsidian note as rows in a Markdown table, are the next two milestones (see `BACKLOG.md`, stories BC-055 and BC-067).
 
 ## Repository layout
 

@@ -6,7 +6,7 @@
  *
  * There is no BreadCrumb server: the extension is the whole product
  * (architecture change of 2026-09-17). Keeping results is BC-055, and
- * sending them to a SharePoint list is BC-058; until those land, a result
+ * writing them into an Obsidian note is BC-067; until those land, a result
  * lives only as long as the popup is open.
  */
 import { documentKey, parseLink, type ConfidenceState, type ParseResult } from '@breadcrumb/parser';

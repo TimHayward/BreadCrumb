@@ -2,7 +2,8 @@
 
 Repository: github.com/TimHayward/BreadCrumb
 Document date: 10 September 2026
-Revised: 17 September 2026. **Architecture change: BreadCrumb is a browser extension only.** The self hosted web application, its API, its SQLite database and the whole container and Portainer deployment are withdrawn. The extension is the product, and an optional enterprise mode writes results to a SharePoint list. Work delivered under the previous architecture stays in `BACKLOG-completed.md`, with the superseded stories listed there under `## Superseded`.
+Revised: 17 September 2026. **Architecture change: BreadCrumb is a browser extension only.** The self hosted web application, its API, its SQLite database and the whole container and Portainer deployment are withdrawn. Work delivered under the previous architecture stays in `BACKLOG-completed.md`, with the superseded stories listed there under `## Superseded`. The removal was executed on 18 September 2026.
+Revised: 19 September 2026. **Output change, following market research: results go to an Obsidian note, not a SharePoint list.** The extension appends a row per document to a Markdown table in a note in the user's vault, creating the note and the table when they do not exist. The SharePoint list stories (BC-058, BC-059, BC-060) and spike S10 are withdrawn in `BACKLOG-completed.md`; nothing of them was built. The Obsidian stories take new IDs (BC-065 to BC-069), because an ID is never reused for different work.
 Status: planning artefact only. No application code, schema or configuration content appears in this document.
 
 **How to use this file.** Each story is self contained and written to be executed cold by an AI coding model or a developer with no other context. Pick a story, read its dependencies, implement, and satisfy every acceptance criterion. Where a story names a spike, the spike closes first and its evidence is linked from the story before implementation starts.
@@ -22,7 +23,7 @@ Conventions used throughout:
 
 ## 1. Product summary
 
-BreadCrumb is a Microsoft Edge extension that turns any Microsoft 365 SharePoint or OneDrive for Business link into the folder location it points at. It lifts file citations from Microsoft Copilot responses, decodes each one with a shared parser, and confirms it with the user's own SharePoint session where the user has allowed that tenant. The popup lists each cited file with its document location, its confidence state and copy actions for the original link and the folder link. A link that did not come from Copilot can be pasted into the extension by hand. Results are kept in the extension's own storage on the user's device, and in enterprise mode selected results are written as items to a SharePoint list the organisation controls. Every result states how it was obtained using four states: Verified, Derived, Inferred and Unresolved. There is no server, no database and no deployment: installing the extension is the whole installation.
+BreadCrumb is a Microsoft Edge extension that turns any Microsoft 365 SharePoint or OneDrive for Business link into the folder location it points at. It lifts file citations from Microsoft Copilot responses, decodes each one with a shared parser, and confirms it with the user's own SharePoint session where the user has allowed that tenant. The popup lists each cited file with its document location, its confidence state and copy actions for the original link and the folder link. A link that did not come from Copilot can be pasted into the extension by hand. Results are kept in the extension's own storage on the user's device, and selected results are written into an Obsidian note as rows in a Markdown table, in the user's own vault on the same device. Every result states how it was obtained using four states: Verified, Derived, Inferred and Unresolved. There is no server, no database and no deployment: installing the extension is the whole installation.
 
 ---
 
@@ -39,10 +40,12 @@ Each line is a gap in the brief that I filled. Correct any that are wrong before
 - Confirmation uses the user's existing SharePoint session first, because it needs no application registration and no tenant consent (BC-049, decision D9). Microsoft Graph is a fallback for what the session cannot confirm, and only when a signed in route exists (BC-061, decision D10).
 - Authenticated confirmation targets the global Microsoft cloud only. Sovereign cloud links parse in best effort mode only.
 - "Copilot response" means the assistant turns rendered in the chat pane of the three named hosts. Copilot panes inside Word, Teams or Outlook are separate surfaces and out of scope.
-- The extension's own history lives in browser extension storage on the device. It is the user's working copy, not a system of record: removing the extension removes it. Anything that must outlive the device goes to the SharePoint list.
-- Enterprise mode is optional and off until an administrator or the user configures a target list. Everything else in the extension works without it.
-- The SharePoint list already exists, or is created from the documented column set by an administrator (BC-059). The extension does not create site columns or content types.
-- One list serves a team. Per user lists, per site routing and multi list fan out are not needed.
+- The extension's own history lives in browser extension storage on the device. It is the user's working copy, not a system of record: removing the extension removes it. Anything that must outlive the device goes to the Obsidian note.
+- The Obsidian output is optional and off until the user picks a vault folder and a note path. Everything else in the extension works without it.
+- The user has Obsidian installed, with a vault that is an ordinary folder on the same device as the browser. Vaults on a network share or in a cloud folder are the user's own arrangement; BreadCrumb only writes a file.
+- The note is BreadCrumb's to append to, but not to own: it may hold other content, and the table may be edited by hand between sends. BreadCrumb touches only the table it writes to.
+- Obsidian itself is not scripted or automated. BreadCrumb writes a Markdown file; Obsidian picks the change up as it would any other external edit.
+- Sharing is the vault's business, not BreadCrumb's. Whether the note reaches colleagues depends on how the user syncs their vault.
 - The user interface is English only.
 
 ---
@@ -54,7 +57,7 @@ Each line is a gap in the brief that I filled. Correct any that are wrong before
 | E2 Shared link parser | One package that decodes every Microsoft 365 link form in best effort mode and labels its output honestly. Consumed by the extension and by the confirmation package (the existing validation package, which holds the Graph and SharePoint lookup logic). | Coverage and correctness live in one place and are tested once. |
 | E6 Copilot extension | A Manifest V3 extension for Microsoft Edge that lifts file citations from Copilot responses, resolves them with the shared parser, confirms them with the user's SharePoint session, and presents each one with its folder, its state and copy actions. | Citations become folder locations without copying links by hand. |
 | E8 Standalone extension | Everything the withdrawn web application used to provide, now inside the extension: paste a link by hand, keep a history, search it, export it. | The tool needs no host, no container and no network of its own. |
-| E9 Enterprise SharePoint list | An optional mode that writes selected results as items in a SharePoint list the organisation owns, configured on the options page or by enterprise policy. | Results outlive the device and are shared with the team, in the organisation's own tenant. |
+| E9 Obsidian note output | An optional mode that appends selected results as rows in a Markdown table in the user's Obsidian vault, creating the note and the table if they are not there, configured on the options page or by enterprise policy. | A folder location worked out once lands in the notes the user already keeps, and stays after the browser is closed. |
 
 Epics E1 (foundation and deployment), E3 (web conversion experience), E4 (conversion history in the server) and E7 (operability of the container) are withdrawn with the web application. Their delivered stories are listed under `## Superseded` in `BACKLOG-completed.md`.
 
@@ -140,7 +143,7 @@ As a user, I want every link I resolve to be remembered on my device, so that I 
 - Given an entry that was Inferred and is later confirmed, When the confirmation arrives, Then the entry records the upgrade and keeps the earlier state and values visible.
 - Given storage that is filling up, When the number of entries passes the documented cap, Then the oldest entries are dropped first, the cap is stated in the options page, and the user is told when dropping starts.
 - Given a failure to write to storage, When it happens, Then the popup says so plainly and the result is still shown; a failure to persist is never silent.
-- Given the user has enterprise mode configured (BC-058), When an entry is written to the SharePoint list, Then the local entry records that it was sent, with the list item it became.
+- Given the Obsidian output is configured (BC-067), When an entry is written to the note, Then the local entry records that it was written, and when.
 
 Priority: Must. Size: M. Depends on: BC-044.
 Decisions to close first: D8, D11, D15.
@@ -159,70 +162,98 @@ As a user, I want to browse what I have resolved, search it and get it out, so t
 Priority: Must. Size: M. Depends on: BC-055.
 Decisions to close first: D24.
 
-#### BC-057 Options page for tenant and enterprise settings
+#### BC-057 Options page for tenant and note settings
 
-As a user or an administrator, I want one place to set up the extension, so that granting tenant access and pointing at a list are obvious and reversible.
+As a user or an administrator, I want one place to set up the extension, so that granting tenant access and pointing at a note are obvious and reversible.
 
-- Given the options page, When it is opened, Then it offers the tenant host access grant (BC-049), the enterprise list target (BC-058), the history cap and nothing that refers to a BreadCrumb server.
+- Given the options page, When it is opened, Then it offers the tenant host access grant (BC-049), the vault folder and note path (BC-067), the history cap and nothing that refers to a BreadCrumb server.
+- Given the vault folder, When the user picks it, Then the picker runs from this page rather than the popup, the chosen folder is named back to the user, and the grant survives a browser restart or says plainly that it must be given again.
+- Given a vault folder granted earlier, When the user wants it gone, Then it can be revoked here, and after revoking the extension holds no file access at all.
 - Given a tenant host granted earlier, When the options page is opened, Then the granted hosts are listed with the date they were granted and each can be revoked, and revoking takes effect without reloading the extension.
 - Given a value supplied by enterprise policy (BC-063), When the options page is opened, Then that value is shown, marked as set by the organisation, and cannot be edited there.
 - Given a setting is changed, When it is saved, Then the popup uses the new value the next time it opens, and an invalid value is refused with a message naming the setting.
 
 Priority: Must. Size: S. Depends on: BC-053.
-Decisions to close first: D18.
+Decisions to close first: D10, D18.
 
-### E9 Enterprise SharePoint list
+### E9 Obsidian note output
 
-#### BC-058 Send selected results to a SharePoint list
+#### BC-067 Send selected results to an Obsidian note
 
-As a team, we want selected results written to a SharePoint list we own, so that the folder locations we find are kept in our tenant and shared with colleagues.
+As a knowledge worker, I want the files I find written into my Obsidian vault as rows in a table, so that a folder location I worked out once stays in my own notes.
 
-- Given a configured list and a selection in the popup, When the user sends the selection, Then one list item is created per document with the documented columns filled (BC-059), and each row reports its own outcome with the list item it became.
-- Given a document that is already in the list, When it is sent again, Then the existing item is updated rather than duplicated, matched on the stored document key (decision D12 records what update means).
-- Given the write route decided in D10, When the user sends a selection, Then no credential is stored by the extension: the write uses the user's own SharePoint session or a token held for the session only, and cookie values are never read.
-- Given a write that is refused, When the reason is a permission problem, a missing list, a missing column or throttling, Then the popup says which, names the list, and repeats the attempt only when the user asks; throttling shows the wait the service asked for.
-- Given enterprise mode is not configured, When the popup opens, Then nothing about lists is shown and every other feature works unchanged.
-- Given a sent result, When the user opens the list from the popup, Then the list opens in a new tab filtered to, or scrolled to, the item just written.
+- Given a configured vault and note, and a selection in the popup, When the user sends the selection, Then one table row is appended per document with the documented columns filled (BC-068), and each row in the popup reports its own outcome.
+- Given the configured note does not exist, When a selection is sent, Then the note is created at that path with the front matter and the table header from BC-068, then the rows are appended, and the popup says the note was created.
+- Given the note exists and already holds the table, When rows are appended, Then they go into that table, the existing rows and everything else in the note are unchanged, and the file ends with exactly one newline.
+- Given the note exists but has no table, When rows are appended, Then the table header is added under the documented heading and the rows follow, and any other content in the note is left alone.
+- Given a document that is already a row in the table, When it is sent again, Then it is handled as decision D12 says, matched on the column D19 settles as the key, and the popup says whether it was added, updated or skipped.
+- Given a write that fails, When the reason is a missing or revoked file permission, a vault folder that has moved, a note that cannot be parsed or a file locked by another program, Then the popup says which, names the note, and nothing is half written: either the whole append lands or the note is untouched.
+- Given the Obsidian output is not configured, When the popup opens, Then nothing about Obsidian is shown and every other feature works unchanged.
+- Given a successful write, When the user asks to see it, Then the popup offers to open the note in Obsidian.
 
-Priority: Must. Size: L. Depends on: BC-059, S10, D10.
-Decisions to close first: D10, D12, D21.
+Priority: Must. Size: L. Depends on: BC-068, S13, D10.
+Decisions to close first: D10, D12, D21, D25, D26.
 
-#### BC-059 SharePoint list schema and provisioning runbook
+#### BC-068 Note and table format
 
-As an administrator, I want a documented list to create, so that BreadCrumb has somewhere to write and the columns mean what the team expects.
+As someone who reads these notes later, I want the note and its table to be plain, predictable Markdown, so that the rows are useful in Obsidian and survive being edited by hand.
 
-- Given the runbook, When an administrator follows it, Then they create a list with the documented columns (document key, file name, document location, folder URL, file URL, original link, confidence state, method text, site, library, captured by, captured at, source) and each column's type and purpose is stated.
-- Given the list created from the runbook, When the extension writes to it (BC-058), Then every column it needs exists and no write fails for a missing column.
-- Given a list that is missing a column, When the extension checks the list before its first write, Then it names the missing columns and refuses to write rather than writing a partial item.
-- Given the runbook, When it is followed with a script instead of by hand, Then the script creates the same list and is safe to run twice.
-- Given the runbook, When an administrator reads it, Then it states the minimum permission a user needs to add and update items, and says BreadCrumb never creates lists, site columns or content types itself.
+- Given the documented format, When it is read, Then it states the note's front matter, the heading the table sits under, the column set and order settled in decision D19, what each column holds, and the date format used.
+- Given a row written by BreadCrumb, When it is read in Obsidian's reading view and in the editor, Then the table renders correctly, and a value containing a pipe, a newline or Markdown syntax does not break the table.
+- Given a long document location, When it is written, Then the row stays on one line: no wrapping, no line breaks inside a cell.
+- Given a table a person has edited by hand, for example by reordering or renaming columns, When BreadCrumb next appends, Then it maps its values onto the table's own header row where it can, and refuses with a plain message naming the mismatch where it cannot, rather than writing misaligned rows.
+- Given the format, When someone wants the links to be clickable in Obsidian, Then the document states how the folder link and original link are written as Markdown links, and shows a rendered example.
 
-Priority: Must. Size: S. Depends on: S10.
+Priority: Must. Size: S. Depends on: nothing outstanding.
 Decisions to close first: D19, D20.
 
-#### BC-060 Enterprise mode is honest about what it sends
+#### BC-069 Honest about what it writes
 
-As a person whose file names end up in a shared list, I want to see exactly what will be written before it is written, so that nothing sensitive is shared by accident.
+As a person whose file names end up in a note that may be synced or shared, I want to see exactly what will be written before it is written, so that nothing sensitive is written by accident.
 
-- Given a selection about to be sent, When the user asks what will be sent, Then the popup shows the field values for the first item and says the same fields go for every item.
-- Given the list target, When the popup is open in enterprise mode, Then the site and list being written to are named where the user can see them, not only in the options page.
-- Given a document whose state is Unresolved or failed, When the user sends a selection, Then it is not written to the list, and the popup says which were left out and why.
-- Given a write that partly succeeded, When the popup reports, Then it states which items were written, which were updated and which failed, and the local history records the same.
+- Given a selection about to be sent, When the user asks what will be sent, Then the popup shows the row as it will appear for the first item and says the same columns go for every item.
+- Given the configured target, When the popup is open with Obsidian output on, Then the vault and note path being written to are named where the user can see them, not only on the options page.
+- Given a document whose state is Unresolved or failed, When the user sends a selection, Then it is not written, and the popup says which were left out and why.
+- Given a write that partly succeeded, When the popup reports, Then it states which rows were added, which were updated and which failed, and the local history records the same.
 
-Priority: Should. Size: S. Depends on: BC-058.
+Priority: Should. Size: S. Depends on: BC-067.
 Decisions to close first: D20.
+
+#### BC-065 Write to Obsidian without granting file access
+
+As a user who will not give a browser extension access to a folder, I want another way to get rows into my note, so that the Obsidian output is still usable.
+
+- Given the fallback route chosen in D10, When the user sends a selection, Then the rows reach the configured note without the extension holding a file handle, and the popup says which route was used.
+- Given the fallback route needs Obsidian to be running or a plugin to be installed, When it is not available, Then the message says exactly what is missing and how to set it up, and nothing is silently lost.
+- Given either route, When the same selection is sent, Then the row content is identical: the format in BC-068 does not depend on how the write happens.
+- Given the fallback, When the user has no Obsidian at all, Then "Copy as table rows" (BC-066) is offered instead.
+
+Priority: Should. Size: M. Depends on: BC-067, S13.
+Decisions to close first: D10.
+
+#### BC-066 Copy the selection as Markdown table rows
+
+As a user, I want the selected results on my clipboard as table rows, so that I can paste them into any note, wherever it lives.
+
+- Given a selection, When the user copies it as table rows, Then the clipboard holds one Markdown table row per document in the BC-068 column order, ready to paste under an existing header.
+- Given nothing has been configured, When the copy action is used, Then it works: it needs no vault, no note and no Obsidian.
+- Given a paste into an empty note, When the user wants a whole table, Then the copy includes the header row when the user asks for it.
+- Given the same escaping rules as BC-068, When a value contains a pipe or a newline, Then the pasted row does not break the table.
+
+Priority: Should. Size: XS. Depends on: BC-068.
+Decisions to close first: D19.
 
 #### BC-061 Sign in to Microsoft from the extension
 
-As a user whose SharePoint session cannot confirm every citation, I want to sign in from the extension, so that the rest can be confirmed and written to the list.
+As a user whose SharePoint session cannot confirm every citation, I want to sign in from the extension, so that the rest can be confirmed before I write them to my note.
 
 - Given the sign in control in the extension, When the user signs in against the tenant, Then a delegated token is obtained through the route chosen in spike S12, the token is held only for the session, and nothing is written to disk that would let another program use it.
 - Given a signed in user, When a citation the SharePoint session could not confirm is looked up, Then it is confirmed through Graph and the method text names the call, exactly as the withdrawn web application did.
 - Given a signed in user, When they sign out, Then the token is discarded, and the extension keeps working in best effort and session modes.
-- Given no sign in, When the extension is used, Then every feature except Graph confirmation works, and nothing prompts for sign in unprompted.
-- Given consent is refused by the tenant, When sign in is attempted, Then the message names the permission that was refused and points at the administrator request in the runbook.
+- Given no sign in, When the extension is used, Then every feature except Graph confirmation works, including the Obsidian output, and nothing prompts for sign in unprompted.
+- Given consent is refused by the tenant, When sign in is attempted, Then the message names the permission that was refused and says what stays unconfirmed without it.
 
-Priority: Should. Size: M. Depends on: S12, D10.
+Priority: Could (the Obsidian output no longer depends on it; only Graph confirmation does). Size: M. Depends on: S12.
 Decisions to close first: D13.
 
 #### BC-062 Confirm what the session cannot, without a second window
@@ -241,7 +272,8 @@ Decisions to close first: D17, D23.
 
 As an administrator, I want to push BreadCrumb's settings by policy, so that a team does not configure each device by hand.
 
-- Given the extension installed by enterprise policy with managed settings, When it first runs, Then the list target and the granted tenant hosts come from policy, and the user is not asked for them.
+- Given the extension installed by enterprise policy with managed settings, When it first runs, Then the note path, the table format and the granted tenant hosts come from policy, and the user is not asked for them.
+- Given the vault folder, When policy is applied, Then it is still picked by the user, because a folder permission cannot be granted by policy; the options page says so plainly rather than appearing broken.
 - Given a policy value and a user value for the same setting, When they differ, Then the policy value wins and the options page says the organisation set it (BC-057).
 - Given policy is removed, When the extension next runs, Then it falls back to the user's own settings and says so, rather than failing.
 - Given the documentation, When an administrator reads it, Then it gives the exact policy keys and one worked example for Microsoft Edge.
@@ -267,10 +299,10 @@ Decisions to close first: D7.
 
 As a user of Chrome or another Chromium browser, I want the extension to work there too, so that I am not tied to Edge.
 
-- Given the extension loaded unpacked in current stable Chrome, When the acceptance criteria of BC-042 to BC-049 and BC-054 to BC-058 are run, Then they pass or each difference from Edge is recorded.
+- Given the extension loaded unpacked in current stable Chrome, When the acceptance criteria of BC-042 to BC-049, BC-054 to BC-057 and BC-065 to BC-069 are run, Then they pass or each difference from Edge is recorded, including how that browser handles the vault folder permission.
 - Given enterprise policy on Chrome, When BC-063 is run there, Then the policy keys are recorded for that browser too, or the difference is stated.
 
-Priority: Could (a want, low priority). Size: S. Depends on: BC-058.
+Priority: Could (a want, low priority). Size: S. Depends on: BC-067.
 
 ---
 
@@ -284,19 +316,19 @@ Stories: BC-053, BC-054, BC-055, BC-056, BC-057, BC-062.
 
 Demonstrable outcome: on a machine with no BreadCrumb server anywhere, the extension is installed in Microsoft Edge. A Copilot response citing SharePoint and OneDrive files is opened, and the popup lists the files with their document locations, confirming them with the browser's SharePoint session while the user watches. A link that never appeared in Copilot is pasted into the extension and resolves the same way. Both appear in the extension's own history, which survives a browser restart, can be searched and filtered, and exports as CSV and JSON. Nothing in the repository builds a container.
 
-Deliberately excluded: the SharePoint list, sign in to Microsoft, enterprise policy, Chrome.
+Deliberately excluded: the Obsidian output, sign in to Microsoft, enterprise policy, Chrome.
 
 Progress evidence at the boundary: a recording of the popup and the history page on a machine with no server running, and an exported file.
 
-### M6 Enterprise list
+### M6 Obsidian output
 
-Stories: BC-058, BC-059, BC-060, BC-061, BC-063, BC-064.
+Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-064.
 
-Demonstrable outcome: an administrator creates the list from the runbook and pushes the settings by policy. A user opens a Copilot response, selects citations, sends them, and the items appear in the SharePoint list with the documented columns filled. Sending the same document again updates its item rather than duplicating it. A citation the session cannot confirm is confirmed after signing in. The rollout uses a versioned package.
+Demonstrable outcome: a user points BreadCrumb at their vault and a note path. They open a Copilot response, select citations and send them. The note is created with its front matter, heading and table header, and a row appears per document. Sending more citations later appends to the same table without touching anything else in the note, and sending the same document again behaves as decision D12 says. Obsidian, open beside the browser, shows the rows arriving. The same selection can be copied as table rows and pasted into any other note. The rollout uses a versioned package, with the note path and table format pushed by policy.
 
-Deliberately excluded: creating lists or columns from the extension, per user or per site lists, scheduled or background writes, Chrome (BC-050, Could).
+Deliberately excluded: writing anywhere outside the configured note, editing or reorganising the user's notes, an Obsidian plugin of our own, vault sync, scheduled or background writes, Chrome (BC-050, Could).
 
-Progress evidence at the boundary: the list with items written by two different people, the policy file used, and the package that was installed.
+Progress evidence at the boundary: the note before and after two sends, the policy file used, and the package that was installed.
 
 ---
 
@@ -308,8 +340,8 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 |---|---|---|---|---|
 | S2 | Does the shares endpoint with a `u!` base64url encoded link return a driveItem for `/s/`, `/g/` and `/t/` tokens and for `-my` host tokens, what is the minimum delegated permission when Graph is used, does it work for a token created by another user, does the legacy `guestaccess.aspx` form resolve, and does a personal site resolve by path? | 1 day | A table of link variant against result and HTTP status from the test tenant, with the exact permission set that succeeded and the smallest set that failed. Removes the [unverified] markers in matrix rows 3b, 3c, 3d, 6 and 8. | BC-061 |
 | S3 | Which link forms does a modern tenant actually emit from its own copy link and share controls today: the SharePoint library "Copy link" for each audience option, OneDrive web, the Office desktop share dialogue, the Teams files tab, an Outlook attachment link, and a Copilot citation? Do `RootFolder`, `guestaccess.aspx` and the Safe Links `/ap/` variant still appear? What do `/g/` and `/t/` mean? | 1 day | One anonymised fixture per control and audience option added to the corpus (BC-022), and a note against each matrix row saying "emitted today", "legacy but seen" or "not observed". Removes the [unverified] markers in rows 1b, 3c, 3d, 8 and 10. | BC-022 completeness. Nothing else is blocked. |
-| S10 | Can the extension add and update items in a SharePoint list using only the user's browser session: does `POST /_api/contextinfo` yield a form digest the extension can use, does the list item write succeed with `credentials: 'include'` from the popup or service worker, and what does it return for a missing column, a missing list and throttling? If not, what does the same write need through Microsoft Graph (`POST /sites/{id}/lists/{id}/items`), and which delegated permission is the minimum? | 1 to 2 days | A recorded add and update against a list in the test tenant by both routes where they work, with request and response shapes anonymised, the permission set that succeeded, and a statement of which route BC-058 should use. Feeds decision D10. | BC-058, BC-059, D10 |
-| S11 | How are managed settings delivered to an extension in Microsoft Edge: which policy keys and file or registry locations, does `storage.managed` read them without extra permissions, and how does a policy value behave when it changes while the browser is running? | Half a day | A working policy on this machine that sets the list target, with the exact keys recorded and a note on what happened when the value changed. | BC-063 |
+| S13 | How does the extension get rows into a vault note? Three candidates: the File System Access API with a directory handle for the vault, picked once and kept in IndexedDB; the `obsidian://` URI scheme, with and without the Advanced URI community plugin; and a local REST API plugin. For the file route: does a picker work from the popup or only from the options page, does the handle survive a browser restart and an extension update, when is permission re-prompted, and does a user gesture suffice? For the URI route: can it append to an existing note without opening a window each time, and can it target a table rather than the end of the file? What does Obsidian do when a note it has open changes underneath it, and what happens when the vault is syncing? | 2 days | A row appended to a real vault note by each route that works, with the exact API calls, the permission behaviour after a restart and an update, a note on what Obsidian did with the open file, and a statement of which route BC-067 should use and which BC-065 becomes. Feeds decision D10. | BC-067, BC-065, D10 |
+| S11 | How are managed settings delivered to an extension in Microsoft Edge: which policy keys and file or registry locations, does `storage.managed` read them without extra permissions, and how does a policy value behave when it changes while the browser is running? Can anything about a file or folder permission be delivered this way, or must the vault always be picked by the user? | Half a day | A working policy on this machine that sets the note path and table format, with the exact keys recorded, a note on what happened when the value changed, and a statement on the vault folder. | BC-063 |
 | S12 | How should the extension obtain a delegated Microsoft token now that there is no web application: MSAL in an extension page, `chrome.identity.launchWebAuthFlow`, or a Microsoft 365 tab the user is already signed into? Which works in Manifest V3 in Microsoft Edge, what redirect URI does each need in the Entra app registration, and where does each keep the token? | 1 day | A sign in that returns a usable token in the extension, with the registration settings recorded, a statement of where the token lives and for how long, and the failure behaviour when consent is refused. | BC-061, D10 |
 
 ---
@@ -330,7 +362,7 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 
 **Storage tests.** The history layer is tested against a fake of the extension storage API: writing, updating by document key, the cap, the drop order, export shape and a write that fails. A migration of stored entries between versions is tested by seeding the previous shape and reading it with the new code.
 
-**SharePoint list tests.** Writes are tested against recorded responses, anonymised the same way as links, so the suite runs without a tenant: an add, an update, a missing column, a missing list, a permission refusal and a throttled response. One manual run per milestone boundary writes to the real test tenant list.
+**Obsidian note tests.** The note writer is pure text work and is tested as such: given the text of a note and a set of rows, it returns the new text. The cases are a missing note, an empty note, a note with the table already there, a note with other content above and below the table, a table whose header a person has reordered or renamed, a note with no trailing newline, values containing pipes, newlines and Markdown syntax, and a document key already present. The file access itself is tested against a fake of the directory handle, including a revoked permission, a missing folder and a file that cannot be written. One manual run per milestone boundary writes to a real vault with Obsidian open.
 
 **Confirmation tests.** The confirmation package is tested against recorded SharePoint and Graph responses. Every new recorded response is anonymised before it enters the repository.
 
@@ -344,13 +376,14 @@ Each spike is timeboxed. If the timebox ends without the closing evidence, the d
 | Packaging | A versioned package produced by a documented release step (BC-064), installable unpacked or by enterprise policy. |
 | Configuration | Settings come from the options page or enterprise policy (managed storage). No secrets in the repository, in the package or in logs. There is no client secret: any Entra registration is a public client. |
 | Persistence | The extension's history lives in extension storage on the device, within the browser's quota, with a documented cap and a stated drop order (BC-055). It is a working copy, not a system of record. |
-| Data sensitivity | History and list items hold client names and file titles. Local history is visible to anyone using that browser profile; list items are visible to everyone with access to the list. The README says both plainly, and the list target is always visible while enterprise mode is on. |
-| Network posture | The extension talks only to Microsoft 365 hosts: the Copilot hosts it runs on, the tenant SharePoint and OneDrive hosts the user has granted, and Microsoft Graph when signed in. It has no backend of its own and sends data to no third party. |
-| Error handling | No unhandled exception reaches a user. Every failure carries a reason code and a plain language message. A failure to persist or to write to the list is never silent. |
+| Data sensitivity | History and note rows hold client names and file titles. Local history is visible to anyone using that browser profile; the note is as private as the vault it sits in, which may be synced or shared. The README says both plainly, and the vault and note path are always visible while the Obsidian output is on. |
+| Network posture | The extension talks only to Microsoft 365 hosts: the Copilot hosts it runs on, the tenant SharePoint and OneDrive hosts the user has granted, and Microsoft Graph when signed in. The Obsidian output is local: a file write on the device, or a local URI handled by Obsidian. It has no backend of its own and sends data to no third party. |
+| Error handling | No unhandled exception reaches a user. Every failure carries a reason code and a plain language message. A failure to persist or to write to the note is never silent, and a failed note write never leaves the note half written. |
 | Performance | Conversion under 100 ms for any offline form. The popup lists citations within a second of opening, and confirmation updates rows as answers arrive rather than blocking the list. History search under one second at two thousand entries. |
 | Browser support | Microsoft Edge (current stable) is the primary and only required browser. Chrome and other Chromium browsers are a low priority want (BC-050). Firefox and Safari are out of scope. |
 | Accessibility | WCAG 2.2 AA for contrast and keyboard operation, state never conveyed by colour alone, in the popup, the options page and the history page. |
 | Privacy of credentials | Cookie values are never read. Tokens, where they exist at all, are held for the session and never written where another program could use them. |
+| File access | The extension holds access to exactly one folder, the vault the user picked, and writes to exactly one note inside it. The grant is visible on the options page and revocable there. Nothing else on the device is read or written. |
 
 ---
 
@@ -361,15 +394,17 @@ Likelihood and impact are High, Medium or Low. Owner is a placeholder role until
 | ID | Risk | Likelihood | Impact | Mitigation | Owner |
 |---|---|---|---|---|---|
 | R1 | Copilot citation markup changes without notice on any of the three hosts, breaking extraction. | High | Medium | Select on the most stable roles and attributes found in S1, keep DOM captures as fixtures, fail to a "no citations found" state with a report action (BC-043), and treat each host's selectors as separately replaceable. | Extension owner |
-| R2 | Delegated permission consent is refused or delayed in the production tenant. | Medium | Medium | Best effort parsing and session confirmation never need consent. Ask for the smallest permission S2 and S10 prove sufficient, and document the request for the tenant administrator before M6. | Product owner |
+| R2 | Delegated permission consent is refused or delayed in the production tenant. | Medium | Low | Best effort parsing and session confirmation never need consent, and the Obsidian output needs no Microsoft permission at all. Only Graph confirmation (BC-061, Could) would need it. | Product owner |
 | R3 | Some link forms cannot be resolved at all, even with a lookup. | Medium | Low | They remain Unresolved with an honest message. The matrix records the ceiling per form. | Parser owner |
-| R7 | Extension installation is blocked by browser policy on managed devices. | Medium | High | Now the whole product, not one of two ways in. Confirm with the device administrator that policy installation and the optional SharePoint host permission are allowed, and prove the policy path in S11 before M6. | Product owner |
+| R7 | Extension installation is blocked by browser policy on managed devices, or the device blocks a browser extension writing to local files. | Medium | High | Now the whole product, not one of two ways in. Confirm with the device administrator that policy installation, the optional SharePoint host permission and local file access are allowed; prove the policy path in S11 before M6. BC-065 and BC-066 are the routes that survive a file access block. | Product owner |
 | R9 | The library boundary heuristic is wrong often enough that Inferred results mislead. | Medium | Medium | Always label Inferred. Measure the hit rate against confirmed results and refine BC-018 from real data. | Parser owner |
 | R12 | The Verified state is asserted by the extension, so a modified extension could claim a false Verified. | Low | Low | Acceptable: the audience is the user's own team. Record the item id with every Verified result so it can be re-checked. | Product owner |
-| R13 | The SharePoint list write is refused from the extension: the form digest route does not work with the session, or the tenant blocks it. | Medium | High | Spike S10 before any of M6 is built, with the Graph route as the fallback (BC-061, decision D10). If neither route works, enterprise mode is re-planned as an export the user uploads. | Extension owner |
-| R14 | Local history is lost: the extension is removed, the profile is reset, or the browser evicts storage. | Medium | Medium | Say plainly that it is a working copy. Export (BC-056) and enterprise mode (BC-058) are the ways to keep anything that matters. Cap and drop order are documented. | Product owner |
-| R15 | A user writes file names into a shared list that colleagues should not see. | Medium | Medium | Show what will be written before writing (BC-060), name the target list in the popup, refuse to write Unresolved and failed rows, and leave the list's own permissions to the organisation. | Product owner |
-| R16 | The list schema drifts: a column is renamed or removed and writes start failing. | Medium | Medium | Check the list's columns before the first write and name what is missing (BC-059). Keep the runbook and the script as the single definition of the schema. | Extension owner |
+| R13 | No usable route into the vault: the browser will not keep a folder permission across restarts, the picker cannot be driven from the extension, or the URI route cannot target a table. | Medium | High | Spike S13 before any of M6 is built, trying three routes. BC-065 keeps a second route alive and BC-066 (copy as table rows) needs no integration at all, so the output degrades rather than disappearing. | Extension owner |
+| R14 | Local history is lost: the extension is removed, the profile is reset, or the browser evicts storage. | Medium | Medium | Say plainly that it is a working copy. Export (BC-056) and the vault note (BC-067) are the ways to keep anything that matters. Cap and drop order are documented. | Product owner |
+| R15 | A user writes file names into a note that is synced or shared more widely than they realise. | Medium | Medium | Show what will be written before writing (BC-069), name the vault and note in the popup, refuse to write Unresolved and failed rows, and say plainly that the note is only as private as the vault. | Product owner |
+| R16 | The note drifts: someone reorders or renames the table columns, edits rows by hand, or moves the table. | High | Medium | Read the table's own header before appending and map onto it; refuse with a plain message rather than writing misaligned rows (BC-068). Never rewrite anything except the table BreadCrumb appends to. | Extension owner |
+| R19 | Two writers at once: the note is open in Obsidian, or the vault is syncing, while BreadCrumb appends, and an edit is lost or a sync conflict file appears. | Medium | Medium | Read immediately before writing and write the whole file once; if the note changed since it was read, stop and tell the user rather than overwriting. Spike S13 records what Obsidian and the sync tool actually did. | Extension owner |
+| R20 | Obsidian changes its URI scheme, or the community plugin the fallback route relies on is abandoned. | Medium | Low | The file route (BC-067) depends on neither. The fallback is a second route, never the only one, and BC-066 needs nothing external. | Extension owner |
 | R17 | Removing the web application takes away the only place to paste a link that did not come from Copilot. | High | Medium | BC-054 delivers the paste path inside the extension before BC-053 removes the pages. | Product owner |
 | R18 | Everything now depends on one browser extension: a breaking browser change stops the whole product. | Low | High | Keep the parser and the confirmation package free of extension APIs so they can be reused, pin the manifest version in the release package, and test each Edge update at the milestone boundary. | Extension owner |
 
@@ -385,23 +420,25 @@ Each row says when it has to be settled. A story cannot start while a decision i
 |---|---|---|---|---|
 | D7 | How the extension is distributed. | Unpacked developer mode; enterprise policy from a private update URL; browser store. Now the only distribution question, since there is no server. | Before BC-064, and before M6 is demonstrated. Blocks BC-063, R7. | Product owner |
 | D8 | Whether failed conversions are kept in the extension's history by default. **Recommended: keep them, since local history is cheap and a failure is worth seeing again.** | Never kept; kept only when the user opts in; always kept (recommended). | Before BC-055 is built. | Product owner |
-| D10 | How the extension writes to the SharePoint list. **Recommended: the user's browser session with a form digest, falling back to Microsoft Graph with a delegated token only where the session route fails.** The session route needs no application registration and no tenant consent. | Session with form digest only; Graph with a delegated token only; session first with a Graph fallback (recommended); an export file the user uploads by hand. Decided from S10. | Before BC-058 starts. Blocks BC-059, BC-061. | Product owner, after S10 |
-| D11 | Whether the extension's local history stays once enterprise mode exists. **Recommended: keep both, the list as the shared record and local history as the working copy.** | Keep both (recommended); local only; list only when enterprise mode is on. | Before BC-055 is built. Blocks BC-056. | Product owner |
-| D12 | What "already in the list" means when a document is sent again. **Recommended: update the existing item in place.** | Update in place (recommended); add a new item and leave the old one; update and keep a revision note in the item. | Before BC-058 starts. | Product owner |
-| D13 | Whether Microsoft Graph confirmation survives at all, now that the SharePoint session covers the tested forms. | Keep it for what the session cannot confirm (assumed in BC-061 and BC-062); drop it and accept the session's ceiling; keep it only for the list write. | After S10 and S12, before M6 planning is fixed. Blocks BC-061. | Product owner |
+| D10 | How rows reach the vault. **Recommended: the File System Access API with a directory handle for the vault, picked once on the options page, with the `obsidian://` URI route as the fallback in BC-065.** The file route can read the note, place the row inside the table and write the whole file back, which the URI route may not be able to do. | File access with a vault folder handle (recommended); the Obsidian URI scheme, with or without the Advanced URI plugin; a local REST API plugin; clipboard only (BC-066). Decided from S13. | Before BC-067 starts. Blocks BC-065. | Product owner, after S13 |
+| D11 | Whether the extension's local history stays once the note output exists. **Recommended: keep both, the note as the record that lasts and local history as the working copy.** | Keep both (recommended); local only; write to the note and keep nothing locally. | Before BC-055 is built. Blocks BC-056. | Product owner |
+| D12 | What "already in the table" means when a document is sent again. **Recommended: update that row in place, matched on the document key column.** Rewriting one row is more intrusive than appending, so the alternative of skipping is a fair choice if the note is treated as a log. | Update the row in place (recommended); skip it and say so; append a second row with a new captured-at date. | Before BC-067 starts. | Product owner |
+| D13 | Whether Microsoft Graph confirmation survives at all, now that the SharePoint session covers the tested forms and the note output needs no Microsoft credential. | Keep it for what the session cannot confirm (assumed in BC-061 and BC-062); drop it and accept the session's ceiling. | After S12, before M6 planning is fixed. Blocks BC-061. | Product owner |
 | D14 | Where the paste input lives. **Recommended: in the popup, above the citation list, so there is one place to look.** | Popup only (recommended); a separate extension page; the browser side panel; both popup and page. | Before BC-054 starts. | Product owner |
-| D15 | The history cap and what is dropped first. **Recommended: two thousand entries, dropping the oldest that were never sent to the list.** | A fixed cap with oldest first; a cap the user sets; no cap until the browser complains; never drop, refuse to add. | Before BC-055 is built. Blocks the BC-056 performance criterion. | Product owner |
-| D16 | What the third row action becomes now that "In BreadCrumb" has nowhere to go. **Recommended: "In the list" when the document has been written, opening the list item; otherwise no third action.** | Open the list item (recommended); open the extension's own history entry; drop the third action. | Before BC-053 removes the web pages. | Product owner |
+| D15 | The history cap and what is dropped first. **Recommended: two thousand entries, dropping the oldest that were never written to the note.** | A fixed cap with oldest first; a cap the user sets; no cap until the browser complains; never drop, refuse to add. | Before BC-055 is built. Blocks the BC-056 performance criterion. | Product owner |
+| D16 | What the third row action becomes now that "In BreadCrumb" has nowhere to go. **Recommended: "Open in Obsidian" once the document has a row, using an `obsidian://` link to the note; otherwise no third action.** Taken as "no third action" on 2026-09-18 when the web pages went; revisit with BC-067. | Open the note in Obsidian (recommended); open the extension's own history entry; drop the third action. | Before BC-067 ships. | Product owner |
 | D17 | When extraction runs: on opening the popup, as now, or as the Copilot response arrives. | On popup open (as now); watch the page and keep a running list; watch only when the user turns it on. | Before M5 is demonstrated; affects BC-062 and R1. | Extension owner |
-| D18 | How the list target is expressed and whether more than one is allowed. **Recommended: one target, as a site URL plus a list title, resolved to ids once and cached.** | Site URL plus list title (recommended); list id; the full list URL pasted from the browser. One target or several. | Before BC-057 and BC-058 start. | Product owner |
-| D19 | Which of the documented columns are mandatory, and whether the extension writes by internal name or display name. **Recommended: write by internal name, treat document key, file name and document location as mandatory and the rest as optional.** | Internal names (recommended) or display names; all columns mandatory or a mandatory core. | Before BC-059 is written, since the runbook states it. | Extension owner |
-| D20 | What "captured by" holds, and whether it is recorded at all. | The signed in user the session reports; nothing, and rely on the list's own Created By; a free text note the user sets once. | Before BC-059 is written. Feeds R15. | Product owner |
-| D21 | Whether a result that has been written to the list is hidden, marked or left alone in the local history. **Recommended: marked, never hidden.** | Marked (recommended); hidden behind a filter; removed locally once written. | Before BC-058 starts. | Product owner |
+| D18 | How the note target is expressed, and whether more than one is allowed. **Recommended: one vault folder handle plus one note path relative to it, for example `BreadCrumb/Document locations.md`.** | One vault and one fixed note path (recommended); a note per month or per tenant, from a pattern; a note chosen per send. | Before BC-057 and BC-067 start. | Product owner |
+| D19 | The table's columns and how values are written. **Recommended: file name, document location, folder link, original link, state, captured at and document key, with the two links as Markdown links and the document key in the last column.** A hidden key is impossible in plain Markdown, so the key is a visible column or it is dropped and matching is by original link. | The column set and order; links as Markdown links or bare URLs; the document key visible, or dropped with matching by original link. | Before BC-068 is written. Blocks BC-066. | Product owner |
+| D20 | Whether a row records who captured it. **Recommended: no, since the vault belongs to one person; revisit only if a shared vault is a real case.** | Nothing (recommended); the signed in user the session reports; a free text note the user sets once. | Before BC-068 is written. Feeds R15. | Product owner |
+| D21 | Whether a result that has been written to the note is hidden, marked or left alone in the local history. **Recommended: marked, never hidden.** | Marked (recommended); hidden behind a filter; removed locally once written. | Before BC-067 starts. | Product owner |
 | D22 | Where diagnostics go now that the server log is gone. **Recommended: copy a redacted report to the clipboard, as "Report markup" already does.** | Clipboard only (recommended); a downloaded file; the browser console only; an opt in endpoint. | Before BC-053 removes the client log route. | Extension owner |
 | D23 | What happens on a tenant host the user has not granted. **Recommended: show best effort results and offer the grant in the row, never prompt on open.** | Offer in the row (recommended); prompt on opening the popup; say nothing and stay best effort. | Before M5 is demonstrated. | Product owner |
 | D24 | Whether the extension keeps a versioned export of history that another install can read, as insurance against R14. | JSON export that imports back (an import story would be added); export only, no import; neither. | Before BC-056 is built. | Product owner |
+| D25 | What happens when the note has changed since BreadCrumb read it, a moment before writing. **Recommended: stop, say so, and let the user send again.** Silently overwriting risks losing an edit made in Obsidian. | Stop and report (recommended); re-read and retry once, then stop; write anyway. | Before BC-067 starts. Feeds R19. | Extension owner |
+| D26 | Whether the Obsidian output is on by default once configured, or armed per send. **Recommended: a button the user presses, never automatic.** | A "Send to Obsidian" button (recommended); automatic on confirmation; automatic for Verified rows only. | Before BC-067 starts. | Product owner |
 
-Decisions D1, D2, D5 and D6 are closed by the architecture change: the web framework, the SQLite driver, history search and TLS on a private network no longer apply. D3 (where Graph tokens live) is replaced by D10 and by invariant 15 in its new form. D4 (application level access control) no longer applies: there is no application to control access to, and the list's own permissions govern the shared record. D9 (session confirmations count as Verified) stands.
+Decisions D1, D2, D5 and D6 are closed by the architecture change: the web framework, the SQLite driver, history search and TLS on a private network no longer apply. D3 (where Graph tokens live) is replaced by D10 and by invariant 15 in its new form. D4 (application level access control) no longer applies: there is no application to control access to, and the vault's own location governs who can read the note. D9 (session confirmations count as Verified) stands. D22 was taken as recommended on 2026-09-18: diagnostics go to the clipboard.
 
 ---
 
@@ -412,8 +449,11 @@ Decisions D1, D2, D5 and D6 are closed by the architecture change: the web frame
 - Authenticated confirmation for sovereign and government clouds. Those links parse in best effort mode only.
 - Extension support for Firefox, Safari or any non Chromium browser, and browser store publication.
 - Copilot surfaces other than the three named hosts, including Copilot panes inside Word, Excel, PowerPoint, Outlook and Teams.
-- Any write operation against SharePoint or OneDrive other than adding and updating items in the configured list: never files, folders, permissions or sharing.
-- Creating the list, its site columns or its content types from the extension.
+- Any write operation against SharePoint or OneDrive: never files, folders, permissions or sharing. BreadCrumb reads from Microsoft 365 and writes only to the user's own note.
+- Writing anywhere in the vault except the configured note, or changing anything in that note except the table BreadCrumb appends to.
+- An Obsidian plugin of our own, or any dependency on a specific community plugin for the main route.
+- Reading the vault to answer questions, indexing it, or syncing it.
+- A SharePoint list output, withdrawn on 2026-09-19 after market research.
 - Bulk import of link lists, scheduled or background writing, and automatic submission without a user selecting items.
 - SharePoint Server on premises links.
 - Multi language user interface.
@@ -435,12 +475,13 @@ The following are design rules for all future development. They restate the lock
 9. The extension is the whole product. BreadCrumb runs no service of its own, and nothing in the repository requires a host, a container or a database.
 10. All stored data goes through one storage layer. No popup, page or parser code touches the browser storage API directly.
 11. Stored data has a version, and a change to its shape ships with a migration that reads the previous shape.
-12. Persistence failures, local or to the list, are never silent.
-13. The extension's storage is a working copy on one device. Anything that must outlive the device goes to the SharePoint list or an export.
+12. Persistence failures, local or to the note, are never silent.
+13. The extension's storage is a working copy on one device. Anything that must outlive it goes to the Obsidian note or an export.
 14. Configuration comes from the options page or enterprise policy only. No secret is committed to the repository, packaged into the extension or written to logs.
 15. Credentials stay with Microsoft: cookie values are never read, and any token exists only for the session and is never persisted where another program could use it.
-16. The only writes BreadCrumb makes to Microsoft 365 are adding and updating items in the configured list, only when the user asks. It never writes files, folders, permissions or sharing links.
-17. The extension declares host permissions for the three named Copilot hosts. It may also hold the optional host permission `https://*.sharepoint.com/*`, which covers SharePoint, OneDrive for Business and the list site, requested at runtime for one tenant's hosts only when the user asks. Nothing broader. Consumer OneDrive and sovereign cloud hosts are not included.
+16. BreadCrumb never writes to Microsoft 365. Its only write anywhere is to the note the user chose, inside the vault folder the user picked, and only when the user asks. It appends to, and updates rows in, the table it maintains; it changes nothing else in that note and nothing else in the vault.
+17. The extension declares host permissions for the three named Copilot hosts. It may also hold the optional host permission `https://*.sharepoint.com/*`, which covers SharePoint and OneDrive for Business, requested at runtime for one tenant's hosts only when the user asks. Nothing broader. Consumer OneDrive and sovereign cloud hosts are not included.
 18. The consumer Copilot host shows a defined empty state, never an error.
 19. History is a log of lookups. Entries are appended, updated by document key and deleted, never silently edited.
-20. New stories should improve one or more stages of: find or paste a link, get the folder path, keep or share the result.
+20. A note BreadCrumb writes is a plain Markdown file that a person can read, edit and keep without BreadCrumb. No private syntax, no machine-only fields, nothing that breaks if the extension is removed.
+21. New stories should improve one or more stages of: find or paste a link, get the folder path, keep the result in the user's own notes.
