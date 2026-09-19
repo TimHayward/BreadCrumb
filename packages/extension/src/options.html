@@ -18,6 +18,19 @@
   <body>
     <h1 style="font-size: 16px">BreadCrumb options</h1>
 
+    <section aria-labelledby="obsidian-heading">
+      <h2 id="obsidian-heading" style="font-size: 15px">Send to Obsidian</h2>
+      <p class="note">BreadCrumb appends a row per document to a Markdown table in one note in your vault. Pick the vault folder once: the browser asks you to allow access, and BreadCrumb can then read and write that folder only. Nothing is sent anywhere; the note is written on this device.</p>
+      <p><button type="button" id="pick-vault">Choose vault folder</button> <button type="button" id="forget-vault" class="secondary">Forget vault</button></p>
+      <p id="vault-status" class="note" role="status"></p>
+
+      <label for="note-path" style="margin-top: 12px">Note path in the vault</label>
+      <input id="note-path" type="text" placeholder="BreadCrumb/Document locations.md" autocomplete="off" spellcheck="false" />
+      <p class="note">Folders are created if they are missing, and <code>.md</code> is added if you leave it off. The note is created with the table the first time you send.</p>
+      <button type="button" id="save-note-path">Save note path</button>
+      <p id="note-path-status" class="note" role="status"></p>
+    </section>
+
     <section aria-labelledby="sp-heading">
       <h2 id="sp-heading" style="font-size: 15px">Use my SharePoint session</h2>
       <p class="note">Lets the extension ask SharePoint where a linked file lives, using the Microsoft 365 session already open in this browser. Only SharePoint's answers are used; your session cookies are never read or sent anywhere. The browser will ask you to allow access to your tenant's SharePoint and OneDrive sites.</p>

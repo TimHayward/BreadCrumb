@@ -6,8 +6,22 @@
  */
 import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
-import { buildRows, clipboardText, copySummary, describeRow, pathSegments, selectedFileLinks, selectedFolderLinks, type PopupRow } from './popupModel.js';
+import { appendRows, rowsForClipboard } from './noteWriter.js';
+import {
+  buildRows,
+  clipboardText,
+  copySummary,
+  describeRow,
+  noteRowsFor,
+  pathSegments,
+  selectedFileLinks,
+  selectedFolderLinks,
+  sendSummary,
+  type PopupRow,
+} from './popupModel.js';
 import { confirmWithSession } from './session.js';
+import { getObsidianSettings } from './settings.js';
+import { loadVaultHandle, readNote, vaultPermission, writeNote } from './vault.js';
 
 const main = document.getElementById('main') as HTMLElement;
 /** Visually hidden live region: tells screen reader users what a copy did. */
@@ -166,6 +180,39 @@ function renderRow(row: PopupRow): HTMLLIElement {
   return item;
 }
 
+/**
+ * BC-067: appends the ticked rows to the configured note. The note is read
+ * and written back in one step; nothing outside its table changes, and a
+ * failure leaves the note untouched.
+ */
+async function sendToObsidian(rows: PopupRow[]): Promise<{ ok: boolean; message: string }> {
+  const settings = await getObsidianSettings();
+  const vault = await loadVaultHandle();
+  if (vault === undefined) {
+    return { ok: false, message: 'No vault folder is set. Open Options and choose your Obsidian vault folder first.' };
+  }
+  if ((await vaultPermission(vault)) !== 'granted') {
+    // Asking for the grant needs a top level page: the popup would close under the prompt.
+    return { ok: false, message: `The browser needs you to allow access to "${vault.name}" again. Open Options and choose the folder once more.` };
+  }
+  const selection = noteRowsFor(rows, new Date());
+  if (selection.rows.length === 0) {
+    const why = selection.skipped.length === 0 ? 'Tick at least one file first.' : `Nothing could be written: every ticked file was left out because ${[...new Set(selection.skipped.map((s) => s.reason))].join('; ')}.`;
+    return { ok: false, message: why };
+  }
+  try {
+    const current = await readNote(vault, settings.notePath);
+    const outcome = appendRows({ rows: selection.rows, now: new Date(), ...(current === undefined ? {} : { current }) });
+    if (!outcome.ok) {
+      return { ok: false, message: outcome.message };
+    }
+    await writeNote(vault, settings.notePath, outcome.text);
+    return { ok: true, message: sendSummary(outcome, selection.skipped, settings.notePath) };
+  } catch (error) {
+    return { ok: false, message: `Could not write ${settings.notePath}: ${error instanceof Error ? error.message : String(error)}. The note was not changed.` };
+  }
+}
+
 function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notice?: string): void {
   main.replaceChildren();
   if (notice !== undefined) {
@@ -181,9 +228,17 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
   main.append(list);
 
   const actions = el('div', { class: 'actions sticky' });
-  const copyFiles = el('button', { type: 'button' }, 'Copy selected file links');
+  const send = el('button', { type: 'button' }, 'Send selected to Obsidian');
+  const copyFiles = el('button', { type: 'button', class: 'secondary' }, 'Copy selected file links');
   const copyFolders = el('button', { type: 'button', class: 'secondary' }, 'Copy selected folder links');
   const status = el('p', { class: 'note actions-status', role: 'status' });
+  send.addEventListener('click', async () => {
+    send.disabled = true;
+    status.textContent = 'Writing to your note…';
+    const outcome = await sendToObsidian(rows);
+    status.textContent = outcome.message;
+    send.disabled = false;
+  });
   const copySelected = async (kind: 'file' | 'folder'): Promise<void> => {
     const selection = kind === 'file' ? selectedFileLinks(rows) : selectedFolderLinks(rows);
     if (selection.links.length > 0) {
@@ -197,7 +252,17 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
   };
   copyFiles.addEventListener('click', () => void copySelected('file'));
   copyFolders.addEventListener('click', () => void copySelected('folder'));
-  actions.append(copyFiles, copyFolders, status);
+  const copyRows = el('button', { type: 'button', class: 'row-link text-action' }, 'Copy as table rows');
+  copyRows.addEventListener('click', async () => {
+    const selection = noteRowsFor(rows, new Date());
+    if (selection.rows.length === 0) {
+      status.textContent = 'Nothing to copy: tick a file whose location is known.';
+      return;
+    }
+    const failure = await copyToClipboard(rowsForClipboard(selection.rows, { withHeader: true }));
+    status.textContent = failure === undefined ? `Copied ${selection.rows.length} table rows with their header.` : `Could not copy to the clipboard: ${failure}`;
+  });
+  actions.append(send, copyFiles, copyFolders, copyRows, status);
   main.append(actions);
 }
 

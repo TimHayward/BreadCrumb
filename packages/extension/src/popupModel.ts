@@ -12,6 +12,7 @@
 import { documentKey, parseLink, type ConfidenceState, type ParseResult } from '@breadcrumb/parser';
 import type { VerifiedResult } from '@breadcrumb/validation';
 import type { Citation } from './messages.js';
+import { formatProcessedAt, type NoteRow } from './noteWriter.js';
 
 /** The fetch shape the popup and the session client use, so tests can supply their own. */
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
@@ -112,6 +113,8 @@ export interface RowView {
   libraryInferred: boolean;
   originalUrl: string;
   folderUrl?: string;
+  /** The document's own path, file name included: what the note's File path column holds. */
+  documentPath?: string;
   notes: RowNote[];
 }
 
@@ -149,6 +152,10 @@ export function describeRow(row: PopupRow): RowView {
   }
   if (folderUrl !== undefined) {
     view.folderUrl = folderUrl;
+  }
+  const documentPath = confirmed?.path ?? parsed?.path;
+  if (documentPath !== undefined) {
+    view.documentPath = documentPath;
   }
 
   if (confirmed !== undefined) {
@@ -223,4 +230,55 @@ export function copySummary(kind: 'file' | 'folder', selection: CopySelection): 
 /** Splits a path after each "/" so it can wrap between segments rather than inside a name. */
 export function pathSegments(path: string): string[] {
   return path.split(/(?<=\/)/);
+}
+
+/** What the ticked rows become in the note, and what could not go (BC-067, BC-069). */
+export interface NoteSelection {
+  rows: NoteRow[];
+  /** Ticked rows left out, with the reason to show the user. */
+  skipped: Array<{ label: string; reason: string }>;
+}
+
+/**
+ * Turns the ticked rows into table rows. A row goes only when its document
+ * location is known: a link that failed to parse, or one still Unresolved,
+ * would write a half empty row, so it is left out and counted instead.
+ */
+export function noteRowsFor(rows: readonly PopupRow[], now: Date): NoteSelection {
+  const processedAt = formatProcessedAt(now);
+  const selection: NoteSelection = { rows: [], skipped: [] };
+  for (const row of rows) {
+    if (!row.selected) {
+      continue;
+    }
+    const view = describeRow(row);
+    if (view.failed) {
+      selection.skipped.push({ label: row.label, reason: 'the link could not be converted' });
+      continue;
+    }
+    if (view.documentPath === undefined) {
+      selection.skipped.push({ label: row.label, reason: 'its location is not known until it is confirmed' });
+      continue;
+    }
+    selection.rows.push({
+      documentName: row.label,
+      filePath: view.documentPath,
+      sourceUrl: row.url,
+      folderUrl: view.folderUrl ?? '',
+      processedAt,
+    });
+  }
+  return selection;
+}
+
+/** What to tell the user after a send (BC-067). */
+export function sendSummary(outcome: { rowsAdded: number; createdNote: boolean; createdTable: boolean }, skipped: NoteSelection['skipped'], notePath: string): string {
+  const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const where = outcome.createdNote ? `Created ${notePath} and added` : outcome.createdTable ? `Added the table to ${notePath} and wrote` : `Added`;
+  let text = `${where} ${plural(outcome.rowsAdded, 'row')}.`;
+  if (skipped.length > 0) {
+    const reasons = [...new Set(skipped.map((s) => s.reason))].join('; ');
+    text += ` ${plural(skipped.length, 'selected file')} left out: ${reasons}.`;
+  }
+  return text;
 }

@@ -4,7 +4,9 @@ BreadCrumb is a Microsoft Edge extension that turns the SharePoint and OneDrive 
 
 Installing the extension is the whole installation. There is no server, no database and no deployment: the extension decodes links in the browser with a shared parser and, where you allow it, confirms them with the Microsoft 365 session your browser already has.
 
-> **What it holds.** File names and folder paths from your tenant appear in the popup while it is open, and go to your clipboard when you copy. The extension stores nothing beyond the tenant you granted. Keeping results, and writing them into an Obsidian note as rows in a Markdown table, are the next two milestones (see `BACKLOG.md`, stories BC-055 and BC-067).
+It can also write what it finds into an Obsidian note, as rows in a Markdown table in your own vault.
+
+> **What it holds.** File names and folder paths from your tenant appear in the popup while it is open, go to your clipboard when you copy, and go into your note when you send. The extension itself stores only the tenant you granted, your vault folder and the note path. Keeping a searchable history in the extension is still to come (see `BACKLOG.md`, story BC-055).
 
 ## Repository layout
 
@@ -48,7 +50,15 @@ Open a Copilot response that cites files on `m365.cloud.microsoft` or `copilot.c
 - the document location, with a "library inferred" marker where the library boundary was a guess;
 - **Original link** and **Folder link**, which copy that link to the clipboard rather than opening a tab.
 
-Below the list, **Copy selected file links** and **Copy selected folder links** copy the ticked rows, one link per line. Each folder is copied once, and any ticked file whose folder is not known yet is left out and counted in the status line.
+Below the list, **Send selected to Obsidian** writes the ticked rows into your note. **Copy selected file links** and **Copy selected folder links** copy the ticked rows, one link per line: each folder is copied once, and any ticked file whose folder is not known yet is left out and counted in the status line. **Copy as table rows** puts the same rows on the clipboard in the note's table format, with its header, to paste anywhere.
+
+## Send to Obsidian
+
+Open the options page, choose your vault folder and allow the browser's prompt, then set the note path (`BreadCrumb/Document locations.md` by default). Tick the rows you want in the popup and press **Send selected to Obsidian**.
+
+The note is created if it is missing, with front matter, a heading and the table header. Rows are always appended, so sending the same document twice leaves two rows with different dates, and BreadCrumb never rewrites rows you already have. The columns are Document name, File path, Source URL, Folder URL and Date processed. A link that failed, or one still Unresolved, has no location to record and is left out with a count. See `docs/obsidian-note.md` for the format and the exact rules.
+
+BreadCrumb holds access to the one folder you picked and writes the one note you named. Nothing is sent anywhere: the note is written on this device.
 
 On `copilot.microsoft.com` the popup shows a defined empty state, because Copilot there cites web pages rather than files. When no citations are found on a work surface, "Report markup" copies a redacted sample of the response container to the clipboard so a markup change can be diagnosed; "Diagnose this page" does the same for the whole page.
 

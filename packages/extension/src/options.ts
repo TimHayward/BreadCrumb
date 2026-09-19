@@ -1,9 +1,83 @@
 /**
  * Options page: grant the extension access to a tenant's SharePoint hosts
- * (BC-049, invariant 17) and test what the browser session can confirm.
+ * (BC-049, invariant 17), point it at an Obsidian vault and note (BC-057,
+ * BC-067), and test what the browser session can confirm.
+ *
+ * The vault folder is picked here rather than in the popup: the picker needs
+ * a top level page, which is why the options page opens in a tab.
  */
+import { DEFAULT_NOTE_PATH, getObsidianSettings, setNotePath, setVaultName } from './settings.js';
 import type { LinkReport } from './spTest.js';
 import { tenantOrigins } from './spTest.js';
+import { forgetVaultHandle, loadVaultHandle, requestVaultPermission, saveVaultHandle, splitNotePath, vaultPermission, type DirectoryHandleLike } from './vault.js';
+
+const pickVault = document.getElementById('pick-vault') as HTMLButtonElement;
+const forgetVault = document.getElementById('forget-vault') as HTMLButtonElement;
+const vaultStatus = document.getElementById('vault-status') as HTMLElement;
+const notePathInput = document.getElementById('note-path') as HTMLInputElement;
+const saveNotePath = document.getElementById('save-note-path') as HTMLButtonElement;
+const notePathStatus = document.getElementById('note-path-status') as HTMLElement;
+
+async function showVault(): Promise<void> {
+  const handle = await loadVaultHandle();
+  if (handle === undefined) {
+    vaultStatus.textContent = 'No vault folder chosen yet. Nothing can be sent to Obsidian until you choose one.';
+    return;
+  }
+  const permission = await vaultPermission(handle);
+  vaultStatus.textContent =
+    permission === 'granted'
+      ? `Writing to the folder "${handle.name}".`
+      : `The folder "${handle.name}" is remembered, but the browser needs you to allow access again. Choose it again, or press Choose vault folder and pick the same folder.`;
+}
+
+void showVault();
+
+void getObsidianSettings().then((settings) => {
+  notePathInput.value = settings.notePath;
+});
+
+pickVault.addEventListener('click', async () => {
+  const picker = (window as unknown as { showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite'; id?: string }) => Promise<DirectoryHandleLike> }).showDirectoryPicker;
+  if (picker === undefined) {
+    vaultStatus.textContent = 'This browser cannot open a folder picker, so the Obsidian output is not available here. Microsoft Edge and Chrome can.';
+    return;
+  }
+  let handle: DirectoryHandleLike;
+  try {
+    handle = await picker({ mode: 'readwrite', id: 'breadcrumb-vault' });
+  } catch (error) {
+    vaultStatus.textContent = error instanceof DOMException && error.name === 'AbortError' ? 'No folder chosen; nothing changed.' : `The folder was not chosen: ${String(error)}`;
+    return;
+  }
+  const permission = await requestVaultPermission(handle);
+  if (permission !== 'granted') {
+    vaultStatus.textContent = 'Access to that folder was not granted, so nothing was saved.';
+    return;
+  }
+  await saveVaultHandle(handle);
+  await setVaultName(handle.name);
+  vaultStatus.textContent = `Writing to the folder "${handle.name}".`;
+});
+
+forgetVault.addEventListener('click', async () => {
+  await forgetVaultHandle();
+  await setVaultName(undefined);
+  vaultStatus.textContent = 'The vault folder is forgotten. BreadCrumb now holds no file access at all.';
+});
+
+saveNotePath.addEventListener('click', async () => {
+  const value = notePathInput.value.trim() === '' ? DEFAULT_NOTE_PATH : notePathInput.value;
+  const split = splitNotePath(value);
+  if (split === undefined) {
+    notePathStatus.textContent = 'That is not a usable note path. Use folders and a file name, for example BreadCrumb/Document locations.md.';
+    return;
+  }
+  const normalised = [...split.folders, split.fileName].join('/');
+  await setNotePath(normalised);
+  notePathInput.value = normalised;
+  notePathStatus.textContent = `Rows go to ${normalised} in your vault.`;
+});
 
 const tenantInput = document.getElementById('tenant') as HTMLInputElement;
 const grant = document.getElementById('grant') as HTMLButtonElement;

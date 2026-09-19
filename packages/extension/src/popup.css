@@ -91,9 +91,10 @@ button.row-link { min-height: 24px; padding: 0; text-align: start; border: 0; bo
 .tone-fail { color: var(--failed); }
 
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-3); }
-/* The two copy actions share the bar; the status line spans it. */
+/* Send spans the bar; the two copy actions share the row beneath it. */
 .actions.sticky { display: grid; grid-template-columns: 1fr 1fr; }
-.actions-status { grid-column: 1 / -1; }
+.actions.sticky > :first-child, .actions-status, .text-action { grid-column: 1 / -1; }
+.text-action { justify-self: start; }
 .actions.sticky button { padding: var(--space-1) var(--space-2); }
 .actions-status { margin: 0; }
 .actions-status:empty { display: none; }

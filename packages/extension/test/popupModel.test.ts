@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VerifiedResult } from '@breadcrumb/validation';
-import { buildRows, clipboardText, copySummary, describeRow, pathSegments, selectedFileLinks, selectedFolderLinks } from '../src/popupModel.js';
+import { buildRows, clipboardText, copySummary, describeRow, noteRowsFor, pathSegments, selectedFileLinks, selectedFolderLinks, sendSummary } from '../src/popupModel.js';
 
 const DIRECT = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf';
 const TOKEN = 'https://contoso.sharepoint.com/:b:/s/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd';
@@ -168,5 +168,64 @@ describe('copying selected links', () => {
     rows[1]!.selected = true;
     expect(copySummary('folder', selectedFolderLinks(rows))).toBe('The selected file has no known folder yet. Nothing was copied.');
     expect(copySummary('file', selectedFileLinks(rows))).toBe('Copied 1 file link.');
+  });
+});
+
+describe('rows for the Obsidian note (BC-067)', () => {
+  const NOW = new Date(2026, 8, 19, 14, 5);
+  const FILE = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf';
+
+  it('maps a ticked row onto the five columns', () => {
+    const rows = buildRows([{ url: FILE }]);
+    const selection = noteRowsFor(rows, NOW);
+    expect(selection.skipped).toEqual([]);
+    expect(selection.rows).toEqual([
+      {
+        documentName: 'Report.pdf',
+        filePath: '/sites/SiteA/Lib/Folder/Report.pdf',
+        sourceUrl: FILE,
+        folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder',
+        processedAt: '2026-09-19 14:05',
+      },
+    ]);
+  });
+
+  it('prefers what the SharePoint session confirmed', () => {
+    const rows = buildRows([{ url: TOKEN }]);
+    rows[0]!.session = {
+      ok: true,
+      verified: {
+        path: '/sites/SiteA/Shared Documents/Plans/Plan.pdf',
+        folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Plans',
+        components: { fileName: 'Plan.pdf' },
+      } as unknown as VerifiedResult,
+    };
+    expect(noteRowsFor(rows, NOW).rows[0]).toMatchObject({
+      filePath: '/sites/SiteA/Shared Documents/Plans/Plan.pdf',
+      folderUrl: 'https://contoso.sharepoint.com/sites/SiteA/Shared%20Documents/Plans',
+    });
+  });
+
+  it('leaves out ticked rows whose location is unknown, and says why', () => {
+    const rows = buildRows([{ url: FILE }, { url: TOKEN }, { url: 'https://1drv.ms/x/s!AaBbCcDdEeFfGgHh' }]);
+    rows[2]!.selected = true;
+    const selection = noteRowsFor(rows, NOW);
+    expect(selection.rows).toHaveLength(1);
+    expect(selection.skipped.map((s) => s.reason)).toEqual(['its location is not known until it is confirmed', 'the link could not be converted']);
+  });
+
+  it('ignores rows that are not ticked', () => {
+    const rows = buildRows([{ url: FILE }]);
+    rows[0]!.selected = false;
+    expect(noteRowsFor(rows, NOW)).toEqual({ rows: [], skipped: [] });
+  });
+
+  it('says what happened, including what was left out', () => {
+    const path = 'BreadCrumb/Document locations.md';
+    expect(sendSummary({ rowsAdded: 2, createdNote: true, createdTable: true }, [], path)).toBe('Created BreadCrumb/Document locations.md and added 2 rows.');
+    expect(sendSummary({ rowsAdded: 1, createdNote: false, createdTable: true }, [], path)).toBe('Added the table to BreadCrumb/Document locations.md and wrote 1 row.');
+    expect(sendSummary({ rowsAdded: 3, createdNote: false, createdTable: false }, [{ label: 'x', reason: 'the link could not be converted' }], path)).toBe(
+      'Added 3 rows. 1 selected file left out: the link could not be converted.',
+    );
   });
 });
