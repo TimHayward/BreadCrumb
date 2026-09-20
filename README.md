@@ -56,7 +56,7 @@ Below the list, **Send selected to Obsidian** writes the ticked rows into your n
 
 Open the options page, choose your vault folder and allow the browser's prompt, then set the note path (`BreadCrumb/Document locations.md` by default). Tick the rows you want in the popup and press **Send selected to Obsidian**.
 
-The note is created if it is missing, with front matter, a heading and the table header. Rows are always appended, so sending the same document twice leaves two rows with different dates, and BreadCrumb never rewrites rows you already have. The columns are Document name, File path, Source URL, Folder URL and Date processed. A link that failed, or one still Unresolved, has no location to record and is left out with a count. See `docs/obsidian-note.md` for the format and the exact rules.
+The action bar names the note and vault before you send. Afterwards each row says whether it was written, and the bar offers to open the note in Obsidian. The note is created if it is missing, with front matter, a heading and the table header. Rows are always appended, so sending the same document twice leaves two rows with different dates, and BreadCrumb never rewrites rows you already have. The columns are Document name, File path, Source URL, Folder URL and Date processed. A link that failed, or one still Unresolved, has no location to record and is left out with a count. See `docs/obsidian-note.md` for the format and the exact rules.
 
 BreadCrumb holds access to the one folder you picked and writes the one note you named. Nothing is sent anywhere: the note is written on this device.
 

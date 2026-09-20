@@ -93,7 +93,8 @@ button.row-link { min-height: 24px; padding: 0; text-align: start; border: 0; bo
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-3); }
 /* Send spans the bar; the two copy actions share the row beneath it. */
 .actions.sticky { display: grid; grid-template-columns: 1fr 1fr; }
-.actions.sticky > :first-child, .actions-status, .text-action { grid-column: 1 / -1; }
+.send-action, .actions-target, .actions-status, .text-action { grid-column: 1 / -1; }
+.actions-target { margin: 0; }
 .text-action { justify-self: start; }
 .actions.sticky button { padding: var(--space-1) var(--space-2); }
 .actions-status { margin: 0; }

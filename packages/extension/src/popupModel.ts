@@ -30,6 +30,8 @@ export interface PopupRow {
   selected: boolean;
   /** What SharePoint said when asked with the browser's session (BC-049). */
   session?: SessionOutcome;
+  /** What happened to this row on the last send to the note (BC-067). */
+  noteOutcome?: NoteOutcome;
 }
 
 /** A citation confirmed, or not, with the browser's SharePoint session (BC-049). */
@@ -167,6 +169,13 @@ export function describeRow(row: PopupRow): RowView {
   if (row.session?.ok === false && row.session.reason === 'failed' && state !== 'Verified') {
     view.notes.push({ text: 'Your SharePoint session could not confirm it.', tone: 'muted', detail: row.session.message });
   }
+  if (row.noteOutcome !== undefined) {
+    view.notes.push(
+      row.noteOutcome.ok
+        ? { text: `Added to your note at ${row.noteOutcome.processedAt}.`, tone: 'ok' }
+        : { text: `Not written to your note: ${row.noteOutcome.reason}.`, tone: 'fail' },
+    );
+  }
   return view;
 }
 
@@ -234,9 +243,12 @@ export function pathSegments(path: string): string[] {
 
 /** What the ticked rows become in the note, and what could not go (BC-067, BC-069). */
 export interface NoteSelection {
+  /** The rows that will be written, each with the popup row it came from. */
+  entries: Array<{ row: PopupRow; noteRow: NoteRow }>;
+  /** The same table rows alone, ready for the note or the clipboard. */
   rows: NoteRow[];
   /** Ticked rows left out, with the reason to show the user. */
-  skipped: Array<{ label: string; reason: string }>;
+  skipped: Array<{ row: PopupRow; label: string; reason: string }>;
 }
 
 /**
@@ -246,29 +258,44 @@ export interface NoteSelection {
  */
 export function noteRowsFor(rows: readonly PopupRow[], now: Date): NoteSelection {
   const processedAt = formatProcessedAt(now);
-  const selection: NoteSelection = { rows: [], skipped: [] };
+  const selection: NoteSelection = { entries: [], rows: [], skipped: [] };
   for (const row of rows) {
     if (!row.selected) {
       continue;
     }
     const view = describeRow(row);
     if (view.failed) {
-      selection.skipped.push({ label: row.label, reason: 'the link could not be converted' });
+      selection.skipped.push({ row, label: row.label, reason: 'the link could not be converted' });
       continue;
     }
     if (view.documentPath === undefined) {
-      selection.skipped.push({ label: row.label, reason: 'its location is not known until it is confirmed' });
+      selection.skipped.push({ row, label: row.label, reason: 'its location is not known until it is confirmed' });
       continue;
     }
-    selection.rows.push({
+    const noteRow: NoteRow = {
       documentName: row.label,
       filePath: view.documentPath,
       sourceUrl: row.url,
       folderUrl: view.folderUrl ?? '',
       processedAt,
-    });
+    };
+    selection.entries.push({ row, noteRow });
+    selection.rows.push(noteRow);
   }
   return selection;
+}
+
+/** What happened to one row on the last send (BC-067), shown on the row itself. */
+export type NoteOutcome = { ok: true; notePath: string; processedAt: string } | { ok: false; reason: string };
+
+/** Records the send's result on every ticked row, so each says its own outcome. */
+export function recordNoteOutcomes(selection: NoteSelection, result: { ok: true; notePath: string } | { ok: false; reason: string }): void {
+  for (const entry of selection.entries) {
+    entry.row.noteOutcome = result.ok ? { ok: true, notePath: result.notePath, processedAt: entry.noteRow.processedAt } : { ok: false, reason: result.reason };
+  }
+  for (const skipped of selection.skipped) {
+    skipped.row.noteOutcome = { ok: false, reason: skipped.reason };
+  }
 }
 
 /** What to tell the user after a send (BC-067). */

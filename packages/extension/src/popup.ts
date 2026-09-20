@@ -14,6 +14,7 @@ import {
   describeRow,
   noteRowsFor,
   pathSegments,
+  recordNoteOutcomes,
   selectedFileLinks,
   selectedFolderLinks,
   sendSummary,
@@ -21,9 +22,34 @@ import {
 } from './popupModel.js';
 import { confirmWithSession } from './session.js';
 import { getObsidianSettings } from './settings.js';
-import { loadVaultHandle, readNote, vaultPermission, writeNote } from './vault.js';
+import { loadVaultHandle, obsidianUri, readNote, vaultPermission, writeNote } from './vault.js';
 
 const main = document.getElementById('main') as HTMLElement;
+
+/** Where a send would write, read once when the popup opens so the bar can name it (BC-069). */
+let obsidianTarget: { notePath: string; vaultName?: string } | undefined;
+
+/** Reads the configured vault and note, and says whether there is one to name. */
+async function resolveObsidianTarget(): Promise<boolean> {
+  try {
+    const [settings, vault] = await Promise.all([getObsidianSettings(), loadVaultHandle()]);
+    if (vault === undefined) {
+      return false;
+    }
+    obsidianTarget = { notePath: settings.notePath, vaultName: settings.vaultName ?? vault.name };
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function targetLine(): HTMLElement {
+  if (obsidianTarget === undefined) {
+    return el('p', { class: 'note actions-target' }, 'Choose your Obsidian vault folder in Options before sending.');
+  }
+  const where = obsidianTarget.vaultName === undefined ? obsidianTarget.notePath : `${obsidianTarget.notePath} in ${obsidianTarget.vaultName}`;
+  return el('p', { class: 'note actions-target' }, `Rows go to ${where}.`);
+}
 /** Visually hidden live region: tells screen reader users what a copy did. */
 const announcer = document.getElementById('announcer') as HTMLElement;
 
@@ -76,6 +102,7 @@ const ICONS = {
   check: ['M20 6 9 17l-5-5'],
   link: ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'],
   folder: ['M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'],
+  note: ['M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z', 'M14 3v5h5'],
 } as const;
 
 function icon(name: keyof typeof ICONS): SVGSVGElement {
@@ -185,7 +212,14 @@ function renderRow(row: PopupRow): HTMLLIElement {
  * and written back in one step; nothing outside its table changes, and a
  * failure leaves the note untouched.
  */
-async function sendToObsidian(rows: PopupRow[]): Promise<{ ok: boolean; message: string }> {
+interface SendResult {
+  ok: boolean;
+  message: string;
+  /** Set when rows were written: an `obsidian://` link that opens the note. */
+  openUri?: string;
+}
+
+async function sendToObsidian(rows: PopupRow[]): Promise<SendResult> {
   const settings = await getObsidianSettings();
   const vault = await loadVaultHandle();
   if (vault === undefined) {
@@ -197,19 +231,25 @@ async function sendToObsidian(rows: PopupRow[]): Promise<{ ok: boolean; message:
   }
   const selection = noteRowsFor(rows, new Date());
   if (selection.rows.length === 0) {
-    const why = selection.skipped.length === 0 ? 'Tick at least one file first.' : `Nothing could be written: every ticked file was left out because ${[...new Set(selection.skipped.map((s) => s.reason))].join('; ')}.`;
+    const why =
+      selection.skipped.length === 0 ? 'Tick at least one file first.' : `Nothing could be written: every ticked file was left out because ${[...new Set(selection.skipped.map((s) => s.reason))].join('; ')}.`;
+    recordNoteOutcomes(selection, { ok: false, reason: 'its location is not known until it is confirmed' });
     return { ok: false, message: why };
   }
   try {
     const current = await readNote(vault, settings.notePath);
     const outcome = appendRows({ rows: selection.rows, now: new Date(), ...(current === undefined ? {} : { current }) });
     if (!outcome.ok) {
+      recordNoteOutcomes(selection, { ok: false, reason: 'the table in that note has different columns' });
       return { ok: false, message: outcome.message };
     }
     await writeNote(vault, settings.notePath, outcome.text);
-    return { ok: true, message: sendSummary(outcome, selection.skipped, settings.notePath) };
+    recordNoteOutcomes(selection, { ok: true, notePath: settings.notePath });
+    return { ok: true, message: sendSummary(outcome, selection.skipped, settings.notePath), openUri: obsidianUri(settings.vaultName ?? vault.name, settings.notePath) };
   } catch (error) {
-    return { ok: false, message: `Could not write ${settings.notePath}: ${error instanceof Error ? error.message : String(error)}. The note was not changed.` };
+    const reason = error instanceof Error ? error.message : String(error);
+    recordNoteOutcomes(selection, { ok: false, reason });
+    return { ok: false, message: `Could not write ${settings.notePath}: ${reason}. The note was not changed.` };
   }
 }
 
@@ -228,7 +268,7 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
   main.append(list);
 
   const actions = el('div', { class: 'actions sticky' });
-  const send = el('button', { type: 'button' }, 'Send selected to Obsidian');
+  const send = el('button', { type: 'button', class: 'send-action' }, 'Send selected to Obsidian');
   const copyFiles = el('button', { type: 'button', class: 'secondary' }, 'Copy selected file links');
   const copyFolders = el('button', { type: 'button', class: 'secondary' }, 'Copy selected folder links');
   const status = el('p', { class: 'note actions-status', role: 'status' });
@@ -236,8 +276,13 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
     send.disabled = true;
     status.textContent = 'Writing to your note…';
     const outcome = await sendToObsidian(rows);
-    status.textContent = outcome.message;
     send.disabled = false;
+    // Re-render so every row shows its own outcome, and keep the summary above the list.
+    renderRows(rows, tabId, surfaceNote, outcome.message);
+    if (outcome.openUri !== undefined) {
+      const open = el('a', { class: 'row-link', href: outcome.openUri }, icon('note'), el('span', {}, 'Open the note in Obsidian'));
+      document.querySelector('.actions-status')?.replaceChildren(open);
+    }
   });
   const copySelected = async (kind: 'file' | 'folder'): Promise<void> => {
     const selection = kind === 'file' ? selectedFileLinks(rows) : selectedFolderLinks(rows);
@@ -262,7 +307,7 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
     const failure = await copyToClipboard(rowsForClipboard(selection.rows, { withHeader: true }));
     status.textContent = failure === undefined ? `Copied ${selection.rows.length} table rows with their header.` : `Could not copy to the clipboard: ${failure}`;
   });
-  actions.append(send, copyFiles, copyFolders, copyRows, status);
+  actions.append(targetLine(), send, copyFiles, copyFolders, copyRows, status);
   main.append(actions);
 }
 
@@ -357,7 +402,14 @@ async function start(): Promise<void> {
     return;
   }
   const surfaceNote = surface === 'consumer' ? 'Links found in the response text on the consumer surface.' : undefined;
-  renderRows(rows, tab.id, surfaceNote);
+  const tabId = tab.id;
+  renderRows(rows, tabId, surfaceNote);
+  // Where a send would go, resolved in the background: the citation list never waits on the vault.
+  void resolveObsidianTarget().then((found) => {
+    if (found) {
+      renderRows(rows, tabId, surfaceNote);
+    }
+  });
   // BC-049: confirm what we can with the browser's SharePoint session, where the user granted access.
   await confirmWithSession(rows, {
     fetchImpl: (url, init) => fetch(url, init),

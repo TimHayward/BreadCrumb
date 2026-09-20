@@ -60,13 +60,29 @@ function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => 
   );
 }
 
+/**
+ * Gives up after a while: where IndexedDB is unavailable the open request can
+ * sit unanswered, and a popup that waits for it would never say anything.
+ */
+async function withTimeout<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), ms);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function saveVaultHandle(handle: DirectoryHandleLike): Promise<void> {
   await withStore('readwrite', (store) => store.put(handle, VAULT_KEY) as IDBRequest<unknown>);
 }
 
 export async function loadVaultHandle(): Promise<DirectoryHandleLike | undefined> {
   try {
-    const handle = await withStore<DirectoryHandleLike | undefined>('readonly', (store) => store.get(VAULT_KEY) as IDBRequest<DirectoryHandleLike | undefined>);
+    const handle = await withTimeout(withStore<DirectoryHandleLike | undefined>('readonly', (store) => store.get(VAULT_KEY) as IDBRequest<DirectoryHandleLike | undefined>), 3000, undefined);
     return handle ?? undefined;
   } catch {
     return undefined;

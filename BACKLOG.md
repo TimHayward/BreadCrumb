@@ -180,7 +180,7 @@ Decisions to close first: D10, D18.
 
 #### BC-067 Send selected results to an Obsidian note
 
-**Sprint 1 shipped 2026-09-19:** the vault folder picker and note path on the options page, the file route (a directory handle kept in IndexedDB, read and write through the File System Access API), "Send selected to Obsidian" in the popup, note and table creation, always-append, the header mismatch refusal, and skipping rows whose location is unknown. The format is documented in `docs/obsidian-note.md`. **Still open in this story:** "Open in Obsidian" after a send (the `obsidian://` link is built but not offered yet), per row outcomes in the list rather than one summary line, and the real-browser run against a vault with Obsidian open, which only Tim can do.
+**Sprint 1 shipped 2026-09-19:** the vault folder picker and note path on the options page, the file route (a directory handle kept in IndexedDB, read and write through the File System Access API), "Send selected to Obsidian" in the popup, note and table creation, always-append, the header mismatch refusal, and skipping rows whose location is unknown. The format is documented in `docs/obsidian-note.md`. **Added 2026-09-20:** every row now says whether it was written or why it was not, the bar names the vault and note before a send (a BC-069 criterion met early), and a successful send offers "Open the note in Obsidian". A hung vault lookup now gives up after three seconds rather than leaving the button disabled. **Still open in this story:** the real-browser run against a vault with Obsidian open, which only Tim can do.
 
 As a knowledge worker, I want the files I find written into my Obsidian vault as rows in a table, so that a folder location I worked out once stays in my own notes.
 
@@ -216,7 +216,7 @@ Decisions: D19 is closed. D20 is closed by it: no column records who captured th
 As a person whose file names end up in a note that may be synced or shared, I want to see exactly what will be written before it is written, so that nothing sensitive is written by accident.
 
 - Given a selection about to be sent, When the user asks what will be sent, Then the popup shows the row as it will appear for the first item and says the same columns go for every item.
-- Given the configured target, When the popup is open with Obsidian output on, Then the vault and note path being written to are named where the user can see them, not only on the options page.
+- Given the configured target, When the popup is open with Obsidian output on, Then the vault and note path being written to are named where the user can see them, not only on the options page. **Done 2026-09-20 with BC-067.**
 - Given a document whose state is Unresolved or failed, When the user sends a selection, Then it is not written, and the popup says which were left out and why.
 - Given a write that partly succeeded, When the popup reports, Then it states which rows were added, which were updated and which failed, and the local history records the same.
 

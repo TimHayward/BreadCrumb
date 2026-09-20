@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VerifiedResult } from '@breadcrumb/validation';
-import { buildRows, clipboardText, copySummary, describeRow, noteRowsFor, pathSegments, selectedFileLinks, selectedFolderLinks, sendSummary } from '../src/popupModel.js';
+import { buildRows, clipboardText, copySummary, describeRow, noteRowsFor, pathSegments, recordNoteOutcomes, selectedFileLinks, selectedFolderLinks, sendSummary } from '../src/popupModel.js';
 
 const DIRECT = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf';
 const TOKEN = 'https://contoso.sharepoint.com/:b:/s/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd';
@@ -217,15 +217,50 @@ describe('rows for the Obsidian note (BC-067)', () => {
   it('ignores rows that are not ticked', () => {
     const rows = buildRows([{ url: FILE }]);
     rows[0]!.selected = false;
-    expect(noteRowsFor(rows, NOW)).toEqual({ rows: [], skipped: [] });
+    expect(noteRowsFor(rows, NOW)).toEqual({ entries: [], rows: [], skipped: [] });
   });
 
   it('says what happened, including what was left out', () => {
     const path = 'BreadCrumb/Document locations.md';
     expect(sendSummary({ rowsAdded: 2, createdNote: true, createdTable: true }, [], path)).toBe('Created BreadCrumb/Document locations.md and added 2 rows.');
     expect(sendSummary({ rowsAdded: 1, createdNote: false, createdTable: true }, [], path)).toBe('Added the table to BreadCrumb/Document locations.md and wrote 1 row.');
-    expect(sendSummary({ rowsAdded: 3, createdNote: false, createdTable: false }, [{ label: 'x', reason: 'the link could not be converted' }], path)).toBe(
+    expect(sendSummary({ rowsAdded: 3, createdNote: false, createdTable: false }, [{ row: buildRows([{ url: 'nope' }])[0]!, label: 'x', reason: 'the link could not be converted' }], path)).toBe(
       'Added 3 rows. 1 selected file left out: the link could not be converted.',
     );
+  });
+});
+
+describe('what each row says after a send (BC-067)', () => {
+  const NOW = new Date(2026, 8, 20, 10, 15);
+  const FILE = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf';
+
+  it('marks the rows that were written and the ones that were left out', () => {
+    const rows = buildRows([{ url: FILE }, { url: TOKEN }]);
+    const selection = noteRowsFor(rows, NOW);
+    recordNoteOutcomes(selection, { ok: true, notePath: 'BreadCrumb/Document locations.md' });
+
+    expect(rows[0]?.noteOutcome).toEqual({ ok: true, notePath: 'BreadCrumb/Document locations.md', processedAt: '2026-09-20 10:15' });
+    expect(describeRow(rows[0]!).notes).toContainEqual({ text: 'Added to your note at 2026-09-20 10:15.', tone: 'ok' });
+
+    expect(rows[1]?.noteOutcome).toEqual({ ok: false, reason: 'its location is not known until it is confirmed' });
+    expect(describeRow(rows[1]!).notes).toContainEqual({
+      text: 'Not written to your note: its location is not known until it is confirmed.',
+      tone: 'fail',
+    });
+  });
+
+  it('marks every ticked row when the write itself failed', () => {
+    const rows = buildRows([{ url: FILE }]);
+    const selection = noteRowsFor(rows, NOW);
+    recordNoteOutcomes(selection, { ok: false, reason: 'the vault folder is no longer available' });
+    expect(describeRow(rows[0]!).notes).toContainEqual({ text: 'Not written to your note: the vault folder is no longer available.', tone: 'fail' });
+  });
+
+  it('leaves untouched rows without an outcome', () => {
+    const rows = buildRows([{ url: FILE }, { url: TOKEN }]);
+    rows[1]!.selected = false;
+    recordNoteOutcomes(noteRowsFor(rows, NOW), { ok: true, notePath: 'note.md' });
+    expect(rows[1]?.noteOutcome).toBeUndefined();
+    expect(describeRow(rows[1]!).notes.some((n) => n.text.includes('your note'))).toBe(false);
   });
 });
