@@ -18,6 +18,19 @@ It can also write what it finds into an Obsidian note, as rows in a Markdown tab
 | `docs/` | The worked example, the Obsidian note format, and notes from the tenant and extension runs. |
 | `BACKLOG.md`, `BACKLOG-completed.md` | Open and completed product backlog. |
 
+## Install without building
+
+Download `breadcrumb-extension-<version>.zip` from the [latest release](https://github.com/TimHayward/BreadCrumb/releases/latest) and unzip it somewhere you can leave it: the browser loads the extension from that folder every time it starts, so deleting the folder uninstalls it.
+
+1. Go to `edge://extensions`.
+2. Turn on **Developer mode**.
+3. Choose **Load unpacked** and select the unzipped folder, the one holding `manifest.json`.
+4. Open the **Extensions** button in the toolbar and pin BreadCrumb.
+
+Then set it up as below. To update, unzip the newer release over the same folder and press **Reload** on the BreadCrumb card.
+
+Everything from here to "Using it" is for building from source instead.
+
 ## Prerequisites
 
 Only for building. Once the extension is loaded, nothing but Microsoft Edge is needed to run it.
@@ -36,6 +49,13 @@ pnpm test     # optional: the whole suite
 `pnpm build` writes the loadable extension to `packages/extension/dist`. That folder is what Edge loads: the manifest, four bundled scripts, the popup and options pages, the popup stylesheet and the icons. It is not committed, so it has to be built before the first load.
 
 The icons are drawn by `scripts/make-icons.mjs`, which writes the PNGs in `packages/extension/icons`. They are committed, so that only needs running if the drawing changes.
+
+To make a release zip of your own build:
+
+```sh
+pnpm build
+node scripts/package-extension.mjs   # writes release/breadcrumb-extension-<version>.zip
+```
 
 ## Install in Microsoft Edge
 

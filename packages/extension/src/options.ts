@@ -6,10 +6,15 @@
  * The vault folder is picked here rather than in the popup: the picker needs
  * a top level page, which is why the options page opens in a tab.
  */
+import { PARSER_VERSION } from '@breadcrumb/parser';
 import { DEFAULT_NOTE_PATH, getObsidianSettings, setNotePath, setVaultName } from './settings.js';
 import type { LinkReport } from './spTest.js';
 import { tenantOrigins } from './spTest.js';
 import { forgetVaultHandle, loadVaultHandle, requestVaultPermission, saveVaultHandle, splitNotePath, vaultPermission, type DirectoryHandleLike } from './vault.js';
+
+// Which version is installed, for anyone reporting what they saw (BC-064).
+const versionLine = document.getElementById('version') as HTMLElement;
+versionLine.textContent = `BreadCrumb ${chrome.runtime.getManifest().version}, link parser ${PARSER_VERSION}.`;
 
 const pickVault = document.getElementById('pick-vault') as HTMLButtonElement;
 const forgetVault = document.getElementById('forget-vault') as HTMLButtonElement;
