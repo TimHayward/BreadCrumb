@@ -233,7 +233,8 @@ async function sendToObsidian(rows: PopupRow[]): Promise<SendResult> {
   if (selection.rows.length === 0) {
     const why =
       selection.skipped.length === 0 ? 'Tick at least one file first.' : `Nothing could be written: every ticked file was left out because ${[...new Set(selection.skipped.map((s) => s.reason))].join('; ')}.`;
-    recordNoteOutcomes(selection, { ok: false, reason: 'its location is not known until it is confirmed' });
+    // Only the skipped rows are marked here, each with its own reason; there are no written rows to mark.
+    recordNoteOutcomes(selection, { ok: false, reason: 'nothing was written' });
     return { ok: false, message: why };
   }
   try {
@@ -283,6 +284,8 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
       const open = el('a', { class: 'row-link', href: outcome.openUri }, icon('note'), el('span', {}, 'Open the note in Obsidian'));
       document.querySelector('.actions-status')?.replaceChildren(open);
     }
+    // The list was rebuilt under the keyboard: put focus back where it was.
+    (document.querySelector('.send-action') as HTMLButtonElement | null)?.focus();
   });
   const copySelected = async (kind: 'file' | 'folder'): Promise<void> => {
     const selection = kind === 'file' ? selectedFileLinks(rows) : selectedFolderLinks(rows);

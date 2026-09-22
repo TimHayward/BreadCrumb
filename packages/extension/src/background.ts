@@ -1,8 +1,8 @@
 /**
- * Service worker. The popup asks the content script for citations and talks
- * to the API itself; the worker hosts spike S9, the SharePoint session test,
- * because it is the context that may send the user's SharePoint cookies to
- * hosts they granted on the options page.
+ * Service worker. The popup asks the content script for citations and does
+ * the rest itself; the worker hosts only the SharePoint session test from the
+ * options page (spike S9), because it is a context that may send the user's
+ * SharePoint cookies to hosts they granted.
  */
 import { runSessionTest } from './spTest.js';
 

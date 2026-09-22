@@ -55,14 +55,24 @@ pickVault.addEventListener('click', async () => {
     vaultStatus.textContent = 'Access to that folder was not granted, so nothing was saved.';
     return;
   }
-  await saveVaultHandle(handle);
-  await setVaultName(handle.name);
+  try {
+    await saveVaultHandle(handle);
+    await setVaultName(handle.name);
+  } catch (error) {
+    vaultStatus.textContent = `The folder could not be remembered: ${error instanceof Error ? error.message : String(error)}`;
+    return;
+  }
   vaultStatus.textContent = `Writing to the folder "${handle.name}".`;
 });
 
 forgetVault.addEventListener('click', async () => {
-  await forgetVaultHandle();
-  await setVaultName(undefined);
+  try {
+    await forgetVaultHandle();
+    await setVaultName(undefined);
+  } catch (error) {
+    vaultStatus.textContent = `The vault folder could not be forgotten: ${error instanceof Error ? error.message : String(error)}`;
+    return;
+  }
   vaultStatus.textContent = 'The vault folder is forgotten. BreadCrumb now holds no file access at all.';
 });
 

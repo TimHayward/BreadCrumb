@@ -15,32 +15,45 @@ It can also write what it finds into an Obsidian note, as rows in a Markdown tab
 | `packages/extension` | `@breadcrumb/extension`. The product: a Manifest V3 extension for Microsoft Edge. |
 | `packages/parser` | `@breadcrumb/parser`. Pure link parser, the single implementation of every link form. No runtime dependencies, no network, no DOM. |
 | `packages/validation` | `@breadcrumb/validation`. Turns a parsed link into a confirmed result through a Microsoft Graph shaped lookup, which the extension calls against SharePoint with your browser session. |
-| `docs/` | Worked example, spike write-ups and run notes. |
+| `docs/` | The worked example, the Obsidian note format, and notes from the tenant and extension runs. |
 | `BACKLOG.md`, `BACKLOG-completed.md` | Open and completed product backlog. |
 
 ## Prerequisites
 
+Only for building. Once the extension is loaded, nothing but Microsoft Edge is needed to run it.
+
 - Node 24 LTS (see `.nvmrc`)
 - pnpm 10 (`corepack enable` installs the pinned version)
 
-## Install, build and test
+## Build
 
 ```sh
 pnpm install
 pnpm build
-pnpm test
+pnpm test     # optional: the whole suite
 ```
 
-`pnpm build` writes the loadable extension to `packages/extension/dist`.
+`pnpm build` writes the loadable extension to `packages/extension/dist`. That folder is what Edge loads: the manifest, four bundled scripts, the popup and options pages and the popup stylesheet. It is not committed, so it has to be built before the first load.
 
-## Install the extension
+## Install in Microsoft Edge
 
-```sh
-pnpm build
-# Edge: edge://extensions → Developer mode → Load unpacked → packages/extension/dist
-```
+1. Go to `edge://extensions`.
+2. Turn on **Developer mode**.
+3. Choose **Load unpacked** and select `packages/extension/dist`. Select that folder itself, not `packages/extension`.
+4. BreadCrumb has no icon of its own yet, so it appears with the default puzzle piece. Open the **Extensions** button in the toolbar and pin BreadCrumb, so the popup is one click away.
 
-Then open the extension's options page and grant access to your tenant, by entering the tenant name (the first label of your SharePoint host, so `contoso` for `contoso.sharepoint.com`) and allowing access when the browser asks. Without that grant the extension still decodes links; with it, citations are confirmed against SharePoint and shown as Verified.
+After changing the code, run `pnpm build` again and press **Reload** on the BreadCrumb card in `edge://extensions`. Your settings survive a reload. Access to the vault folder may not: if it has lapsed, the popup says so and Options takes a moment to restore.
+
+Chrome and other Chromium browsers follow the same steps at `chrome://extensions` and are expected to work, but they are untested (backlog story BC-050).
+
+## Set it up
+
+Open **Options** from the popup, or use **Details → Extension options** on the extensions page. It opens as a full tab, because the folder picker cannot run inside the small settings panel.
+
+- **Your tenant:** type the tenant name, the first label of your SharePoint host, so `contoso` for `contoso.sharepoint.com`, then choose **Allow access to this tenant** and accept the browser's prompt. Without this the extension still decodes links; with it, citations are confirmed against SharePoint and shown as Verified.
+- **Your vault:** choose **Choose vault folder**, pick your Obsidian vault and accept the prompt, then set the note path. This is only needed if you want to send rows to a note.
+
+Edge grants folder access for the session. After a browser restart, or an extension reload, the popup will say the access has to be given again: open Options and pick the same folder.
 
 ## Using it
 
@@ -54,7 +67,7 @@ Below the list, **Send selected to Obsidian** writes the ticked rows into your n
 
 ## Send to Obsidian
 
-Open the options page, choose your vault folder and allow the browser's prompt, then set the note path (`BreadCrumb/Document locations.md` by default). Tick the rows you want in the popup and press **Send selected to Obsidian**.
+With the vault folder and note path set, tick the rows you want and press **Send selected to Obsidian**. The note path is `BreadCrumb/Document locations.md` unless you change it.
 
 The action bar names the note and vault before you send. Afterwards each row says whether it was written, and the bar offers to open the note in Obsidian. The note is created if it is missing, with front matter, a heading and the table header. Rows are always appended, so sending the same document twice leaves two rows with different dates, and BreadCrumb never rewrites rows you already have. The columns are Document name, File path, Source URL, Folder URL and Date processed. A link that failed, or one still Unresolved, has no location to record and is left out with a count. See `docs/obsidian-note.md` for the format and the exact rules.
 

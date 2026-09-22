@@ -55,7 +55,10 @@ function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => 
         const request = run(transaction.objectStore(STORE));
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
+        // Close on every ending, not just the happy one, so a failed request leaves no open connection.
         transaction.oncomplete = () => db.close();
+        transaction.onabort = () => db.close();
+        transaction.onerror = () => db.close();
       }),
   );
 }
@@ -76,8 +79,25 @@ async function withTimeout<T>(work: Promise<T>, ms: number, fallback: T): Promis
   }
 }
 
+/** Fails rather than hanging, so the options page always has something to say. */
+async function withDeadline<T>(work: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} did not answer within ${ms / 1000} seconds.`)), ms);
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function saveVaultHandle(handle: DirectoryHandleLike): Promise<void> {
-  await withStore('readwrite', (store) => store.put(handle, VAULT_KEY) as IDBRequest<unknown>);
+  await withDeadline(
+    withStore('readwrite', (store) => store.put(handle, VAULT_KEY) as IDBRequest<unknown>),
+    3000,
+    'Remembering the vault folder',
+  );
 }
 
 export async function loadVaultHandle(): Promise<DirectoryHandleLike | undefined> {
@@ -90,7 +110,11 @@ export async function loadVaultHandle(): Promise<DirectoryHandleLike | undefined
 }
 
 export async function forgetVaultHandle(): Promise<void> {
-  await withStore('readwrite', (store) => store.delete(VAULT_KEY) as IDBRequest<undefined>);
+  await withDeadline(
+    withStore('readwrite', (store) => store.delete(VAULT_KEY) as IDBRequest<undefined>),
+    3000,
+    'Forgetting the vault folder',
+  );
 }
 
 /**
@@ -140,6 +164,16 @@ export function splitNotePath(path: string): { folders: string[]; fileName: stri
   return { folders: segments, fileName };
 }
 
+/**
+ * "The note is not there" and "the note could not be read" must never be
+ * confused: the caller writes a fresh note when this returns undefined, so
+ * swallowing a permission or read error here would overwrite a note that
+ * already had content. Only a genuine NotFoundError means missing.
+ */
+function isMissing(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'NotFoundError';
+}
+
 /** The note's text, or undefined when the note does not exist yet. */
 export async function readNote(vault: DirectoryHandleLike, path: string): Promise<string | undefined> {
   const split = splitNotePath(path);
@@ -150,15 +184,21 @@ export async function readNote(vault: DirectoryHandleLike, path: string): Promis
   for (const folder of split.folders) {
     try {
       directory = await directory.getDirectoryHandle(folder);
-    } catch {
-      return undefined;
+    } catch (error) {
+      if (isMissing(error)) {
+        return undefined;
+      }
+      throw error;
     }
   }
   try {
     const file = await directory.getFileHandle(split.fileName);
     return await (await file.getFile()).text();
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (isMissing(error)) {
+      return undefined;
+    }
+    throw error;
   }
 }
 

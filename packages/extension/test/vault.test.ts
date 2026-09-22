@@ -100,3 +100,54 @@ describe('opening the note in Obsidian', () => {
     expect(obsidianUri('My Vault', 'BreadCrumb/Document locations.md')).toBe('obsidian://open?vault=My%20Vault&file=BreadCrumb%2FDocument%20locations');
   });
 });
+
+describe('a note that exists but cannot be read (code review, 2026-09-21)', () => {
+  it('raises the error rather than reporting the note as missing', async () => {
+    const refusing: DirectoryHandleLike = {
+      name: 'MyVault',
+      async getDirectoryHandle() {
+        throw new DOMException('not allowed', 'NotAllowedError');
+      },
+      async getFileHandle() {
+        throw new DOMException('not allowed', 'NotAllowedError');
+      },
+    };
+    // Reporting undefined here would make the caller write a fresh note over the old one.
+    await expect(readNote(refusing, 'notes.md')).rejects.toThrow('not allowed');
+    await expect(readNote(refusing, 'BreadCrumb/notes.md')).rejects.toThrow('not allowed');
+  });
+
+  it('still reports a genuinely missing note as missing', async () => {
+    const empty: DirectoryHandleLike = {
+      name: 'MyVault',
+      async getDirectoryHandle() {
+        throw new DOMException('no such folder', 'NotFoundError');
+      },
+      async getFileHandle() {
+        throw new DOMException('no such file', 'NotFoundError');
+      },
+    };
+    expect(await readNote(empty, 'notes.md')).toBeUndefined();
+    expect(await readNote(empty, 'BreadCrumb/notes.md')).toBeUndefined();
+  });
+
+  it('raises when the file is there but reading its contents fails', async () => {
+    const unreadable: DirectoryHandleLike = {
+      name: 'MyVault',
+      async getDirectoryHandle() {
+        throw new DOMException('no such folder', 'NotFoundError');
+      },
+      async getFileHandle() {
+        return {
+          async getFile() {
+            throw new DOMException('the file is locked', 'NotReadableError');
+          },
+          async createWritable() {
+            throw new DOMException('no', 'NotAllowedError');
+          },
+        };
+      },
+    };
+    await expect(readNote(unreadable, 'notes.md')).rejects.toThrow('the file is locked');
+  });
+});

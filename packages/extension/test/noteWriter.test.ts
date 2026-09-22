@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COLUMNS, appendRows, escapeCell, formatProcessedAt, formatRow, rowsForClipboard, type NoteRow } from '../src/noteWriter.js';
+import { COLUMNS, appendRows, escapeCell, formatProcessedAt, formatRow, rowsForClipboard, tableHeader, type NoteRow } from '../src/noteWriter.js';
 
 const NOW = new Date(2026, 8, 19, 14, 5);
 
@@ -129,5 +129,73 @@ describe('copying rows for another note (BC-066)', () => {
     expect(withHeader[0]).toBe('| Document name | File path | Source URL | Folder URL | Date processed |');
     expect(withHeader[1]).toBe('| --- | --- | --- | --- | --- |');
     expect(withHeader).toHaveLength(4);
+  });
+});
+
+describe('notes that hold more than our table (code review, 2026-09-21)', () => {
+  it('ignores a table of the user own above ours and appends to ours', () => {
+    const current = [
+      '# Research',
+      '',
+      '| Task | Owner |',
+      '| --- | --- |',
+      '| Write up | me |',
+      '',
+      '## Document locations',
+      '',
+      ...tableHeader(),
+      formatRow(row()),
+      '',
+    ].join('\n');
+    const outcome = appendRows({ current, rows: [row({ documentName: 'Budget.xlsx' })], now: NOW });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.createdTable).toBe(false);
+    expect(outcome.text).toContain('| Write up | me |');
+    const lines = outcome.text.split('\n');
+    expect(lines.indexOf('| Write up | me |')).toBeLessThan(lines.findIndex((l) => l.startsWith('| Budget.xlsx')));
+    expect(lines.filter((l) => l.startsWith('| Task | Owner |'))).toHaveLength(1);
+  });
+
+  it('adds its own table below a note that only has someone else table', () => {
+    const current = ['# Research', '', '| Task | Owner |', '| --- | --- |', '| Write up | me |', ''].join('\n');
+    const outcome = appendRows({ current, rows: [row()], now: NOW });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.createdTable).toBe(true);
+    expect(outcome.text).toContain('| Write up | me |');
+    expect(outcome.text).toContain('## Document locations');
+    expect(outcome.text).toContain('| Report.pdf |');
+  });
+
+  it('refuses only when the table under our own heading has different columns', () => {
+    const current = ['## Document locations', '', '| Name | Where |', '| --- | --- |', '| Old.pdf | /sites/x |', ''].join('\n');
+    const outcome = appendRows({ current, rows: [row()], now: NOW });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.message).toContain('Document locations');
+    expect(outcome.message).toContain('Name, Where');
+  });
+
+  it('puts the table back when our heading is there but the table was deleted', () => {
+    const current = ['# Research', '', '## Document locations', '', 'Nothing here yet.', '', '## Later', '', 'More notes.', ''].join('\n');
+    const outcome = appendRows({ current, rows: [row()], now: NOW });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.createdTable).toBe(true);
+    const lines = outcome.text.split('\n');
+    expect(lines.indexOf('## Document locations')).toBeLessThan(lines.findIndex((l) => l.startsWith('| Report.pdf')));
+    expect(lines.findIndex((l) => l.startsWith('| Report.pdf'))).toBeLessThan(lines.indexOf('## Later'));
+    expect(outcome.text).toContain('Nothing here yet.');
+    expect(outcome.text).toContain('More notes.');
+  });
+
+  it('finds our table even without the heading, by its columns', () => {
+    const current = [...tableHeader(), formatRow(row()), ''].join('\n');
+    const outcome = appendRows({ current, rows: [row({ documentName: 'Budget.xlsx' })], now: NOW });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.createdTable).toBe(false);
+    expect(outcome.text.split('\n').filter((l) => l.startsWith('| '))).toHaveLength(4);
   });
 });
