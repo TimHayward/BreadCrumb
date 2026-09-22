@@ -691,6 +691,24 @@ Priority: Must. Size: M. Depends on: BC-044.
 
 **Completed:** 2026-09-15 · d81dfd5, 4931d99
 
+#### BC-064 Packaged release of the extension
+
+As the person rolling BreadCrumb out, I want a versioned package to install, so that installation does not mean handing someone a build directory.
+
+**Part done 2026-09-22:** the extension has its own icon, a trail of crumbs, drawn by `scripts/make-icons.mjs` and declared for the toolbar and the extensions page.
+
+- Given a release build, When it runs, Then it produces a versioned package of the extension and records the parser version it contains.
+- Given the package, When it is installed in Microsoft Edge by policy or unpacked, Then the extension works with no further build step.
+- Given a released version, When a user asks which version they are running, Then the options page shows the extension version and the parser version.
+- Given the release steps, When they are documented, Then someone other than the author can produce the same package.
+
+Priority: Should. Size: S. Depends on: BC-053.
+Decisions to close first: D7.
+
+**Note:** the package is `release/breadcrumb-extension-<version>.zip`, written by `scripts/package-extension.mjs` with no build dependencies. Version 0.3.0 is published as the first GitHub release, with the zip attached so nobody has to build to install.
+
+**Completed:** 2026-09-22 · b546ea3
+
 ## Withdrawn
 
 #### BC-027 Server side short link expansion

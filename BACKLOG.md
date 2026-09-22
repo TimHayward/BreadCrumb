@@ -303,20 +303,6 @@ As a user with a long Copilot conversation, I want the popup to stay quick and r
 Priority: Must. Size: M. Depends on: BC-044.
 Decisions: none outstanding. The row cap and the number of lookups at once are in the code, not settings; make them settings only if testing shows the defaults are wrong.
 
-#### BC-064 Packaged release of the extension
-
-As the person rolling BreadCrumb out, I want a versioned package to install, so that installation does not mean handing someone a build directory.
-
-**Part done 2026-09-22:** the extension has its own icon, a trail of crumbs, drawn by `scripts/make-icons.mjs` and declared for the toolbar and the extensions page.
-
-- Given a release build, When it runs, Then it produces a versioned package of the extension and records the parser version it contains.
-- Given the package, When it is installed in Microsoft Edge by policy or unpacked, Then the extension works with no further build step.
-- Given a released version, When a user asks which version they are running, Then the options page shows the extension version and the parser version.
-- Given the release steps, When they are documented, Then someone other than the author can produce the same package.
-
-Priority: Should. Size: S. Depends on: BC-053.
-Decisions to close first: D7.
-
 ### E6 Copilot extension
 
 #### BC-050 Chrome and other Chromium browsers
@@ -346,7 +332,7 @@ Progress evidence at the boundary: a recording of the popup and the history page
 
 ### M6 Obsidian output
 
-Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-064, BC-070.
+Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-070.
 
 **Sprint 1 (started 2026-09-19): rows in a note.** BC-068 (the format), the core of BC-067 (pick a vault folder on the options page, set a note path, append rows from the popup with a button, create the note and the table when they are not there, report what happened per row) and BC-066 (copy the selection as table rows). Deliberately left for later in the milestone: the fallback route (BC-065), the full "show me what will be written" preview (BC-069, though the vault and note path are already named in the popup), enterprise policy (BC-063) and the packaged release (BC-064).
 
