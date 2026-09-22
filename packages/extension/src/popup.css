@@ -110,3 +110,13 @@ button.row-link { min-height: 24px; padding: 0; text-align: start; border: 0; bo
 @media (prefers-reduced-motion: no-preference) {
   .row-link { transition: text-decoration-thickness 0.1s; }
 }
+
+/* Above the list: what to read, how many there are, and ticking them all. */
+.scope-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+.scope { display: inline-flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.scope-option { min-height: 26px; padding: 2px var(--space-2); border: 0; border-radius: 0; background: var(--bg); color: var(--accent); font: inherit; cursor: pointer; }
+.scope-option + .scope-option { border-left: 1px solid var(--border); }
+.scope-option.chosen { background: var(--accent); color: #fff; }
+.scope-count { margin-left: auto; }
+.scope-select { display: inline-flex; gap: var(--space-3); flex-basis: 100%; }
+.more-line { margin: var(--space-2) 0 0; }

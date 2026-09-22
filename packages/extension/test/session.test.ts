@@ -57,3 +57,33 @@ describe('confirmWithSession (BC-049)', () => {
   });
 
 });
+
+describe('a long chat (2026-09-22)', () => {
+  it('asks SharePoint about a few rows at a time and reports progress', async () => {
+    const links = Array.from({ length: 12 }, (_, i) => `https://contoso.sharepoint.com/sites/SiteA/Lib/File${i}.docx`);
+    const rows = buildRows(links.map((url) => ({ url })));
+    let inFlight = 0;
+    let highWater = 0;
+    const progress: Array<[number, number]> = [];
+    const slow: FetchLike = async (url, init) => {
+      inFlight += 1;
+      highWater = Math.max(highWater, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      inFlight -= 1;
+      return sharePoint(url, init);
+    };
+
+    await confirmWithSession(rows, { fetchImpl: slow, hasPermission: async () => true, concurrency: 3, onProgress: (done, total) => progress.push([done, total]) });
+
+    expect(highWater).toBeLessThanOrEqual(3);
+    expect(rows.every((row) => row.session !== undefined)).toBe(true);
+    expect(progress.at(-1)).toEqual([12, 12]);
+  });
+
+  it('counts only the rows it can ask about', async () => {
+    const rows = buildRows([{ url: DOC }, { url: SOVEREIGN }]);
+    const progress: Array<[number, number]> = [];
+    await confirmWithSession(rows, { fetchImpl: sharePoint, hasPermission: async () => true, onProgress: (done, total) => progress.push([done, total]) });
+    expect(progress).toEqual([[1, 1]]);
+  });
+});

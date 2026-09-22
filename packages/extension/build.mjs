@@ -23,3 +23,4 @@ await build({
 for (const file of ['manifest.json', 'src/popup.html', 'src/popup.css', 'src/options.html']) {
   cpSync(file, `dist/${file.replace(/^src\//, '')}`);
 }
+cpSync('icons', 'dist/icons', { recursive: true });

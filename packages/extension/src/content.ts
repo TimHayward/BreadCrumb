@@ -17,8 +17,9 @@ chrome.runtime.onMessage.addListener((message: PopupToContent, _sender, sendResp
   const surface = surfaceOf(host);
   try {
     if (message.type === 'breadcrumb:extract') {
-      const { citations, strategy } = extractCitations(document, surface);
-      sendResponse({ type: 'breadcrumb:extracted', surface, host, citations, strategy });
+      const scope = message.scope ?? 'latest';
+      const { citations, strategy } = extractCitations(document, surface, scope);
+      sendResponse({ type: 'breadcrumb:extracted', surface, host, citations, strategy, scope });
     } else if (message.type === 'breadcrumb:sample') {
       sendResponse({ type: 'breadcrumb:sample', sample: redactedSample(document, surface) });
     } else if (message.type === 'breadcrumb:probe') {
@@ -30,7 +31,7 @@ chrome.runtime.onMessage.addListener((message: PopupToContent, _sender, sendResp
     } else if (message.type === 'breadcrumb:probe') {
       sendResponse({ type: 'breadcrumb:probe', report: null, error: errorText(error) });
     } else {
-      sendResponse({ type: 'breadcrumb:extracted', surface, host, citations: [], strategy: `extraction failed: ${errorText(error)}` });
+      sendResponse({ type: 'breadcrumb:extracted', surface, host, citations: [], strategy: `extraction failed: ${errorText(error)}`, scope: 'latest' });
     }
   }
   return false;

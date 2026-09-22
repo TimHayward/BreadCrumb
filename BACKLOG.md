@@ -287,9 +287,27 @@ As an administrator, I want to push BreadCrumb's settings by policy, so that a t
 Priority: Should. Size: S. Depends on: BC-057, S11.
 Decisions to close first: D7.
 
+#### BC-070 The popup copes with a long chat
+
+**Mostly shipped 2026-09-22**, raised by Tim before user testing: a long conversation can cite far more files than a popup can sensibly list, and confirming them all at once is slow and rude to the tenant.
+
+As a user with a long Copilot conversation, I want the popup to stay quick and readable, so that fifty citations are no worse to work with than five.
+
+- Given a conversation with many answers, When the popup opens, Then it reads only the latest answer, and a control offers the whole chat instead. **Done.**
+- Given the whole chat is chosen, When the citations are listed, Then the count is shown, the first twenty five rows are rendered, and the rest appear on one press. **Done.**
+- Given many rows, When they are confirmed with the SharePoint session, Then a few go at a time rather than all at once, and the status line says how far it has got. **Done.**
+- Given many rows, When the user wants most of them, Then "Select all" and "Select none" tick them together. **Done.**
+- Given a very long chat, When confirmation would take a long time, Then the rows the user can see are confirmed first, and the rest follow.
+- Given the same document cited in several answers, When the whole chat is read, Then it appears once, as it already does within one answer.
+
+Priority: Must. Size: M. Depends on: BC-044.
+Decisions: none outstanding. The row cap and the number of lookups at once are in the code, not settings; make them settings only if testing shows the defaults are wrong.
+
 #### BC-064 Packaged release of the extension
 
 As the person rolling BreadCrumb out, I want a versioned package to install, so that installation does not mean handing someone a build directory.
+
+**Part done 2026-09-22:** the extension has its own icon, a trail of crumbs, drawn by `scripts/make-icons.mjs` and declared for the toolbar and the extensions page.
 
 - Given a release build, When it runs, Then it produces a versioned package of the extension and records the parser version it contains.
 - Given the package, When it is installed in Microsoft Edge by policy or unpacked, Then the extension works with no further build step.
@@ -328,7 +346,7 @@ Progress evidence at the boundary: a recording of the popup and the history page
 
 ### M6 Obsidian output
 
-Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-064.
+Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-064, BC-070.
 
 **Sprint 1 (started 2026-09-19): rows in a note.** BC-068 (the format), the core of BC-067 (pick a vault folder on the options page, set a note path, append rows from the popup with a button, create the note and the table when they are not there, report what happened per row) and BC-066 (copy the selection as table rows). Deliberately left for later in the milestone: the fallback route (BC-065), the full "show me what will be written" preview (BC-069, though the vault and note path are already named in the popup), enterprise policy (BC-063) and the packaged release (BC-064).
 

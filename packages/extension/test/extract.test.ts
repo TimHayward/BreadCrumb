@@ -120,3 +120,33 @@ describe('redactedSample (report markup)', () => {
     expect(sample).toContain('truncated at 500');
   });
 });
+
+describe('how much of the page to read (a long chat, 2026-09-22)', () => {
+  const chat = `
+    <main>
+      <div data-testid="chatMessages">
+        <div data-testid="markdown-reply"><a href="https://contoso.sharepoint.com/sites/SiteA/Lib/First.docx">First</a></div>
+        <div data-testid="markdown-reply"><a href="https://contoso.sharepoint.com/sites/SiteA/Lib/Second.docx">Second</a></div>
+        <div data-testid="lastChatMessage">
+          <div data-testid="markdown-reply"><a href="https://contoso.sharepoint.com/sites/SiteA/Lib/Latest.docx">Latest</a></div>
+        </div>
+      </div>
+    </main>`;
+
+  it('reads only the latest answer by default', () => {
+    const { citations, strategy } = extractCitations(page(chat), 'work');
+    expect(citations.map((c) => c.text)).toEqual(['Latest']);
+    expect(strategy).toContain('lastChatMessage');
+  });
+
+  it('reads every answer when asked for the whole chat', () => {
+    const { citations, strategy } = extractCitations(page(chat), 'work', 'chat');
+    expect(citations.map((c) => c.text)).toEqual(['First', 'Second', 'Latest']);
+    expect(strategy).toContain('chatMessages');
+  });
+
+  it('falls back to the main region for the whole chat when the chat container is not recognised', () => {
+    const { citations } = extractCitations(page('<main><a href="https://contoso.sharepoint.com/sites/SiteA/Lib/One.docx">One</a></main>'), 'work', 'chat');
+    expect(citations.map((c) => c.text)).toEqual(['One']);
+  });
+});

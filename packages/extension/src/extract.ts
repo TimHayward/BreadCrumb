@@ -9,7 +9,7 @@
  */
 import { classifyHost } from '@breadcrumb/parser';
 import { surfaceOf, type SurfaceKind } from './hosts.js';
-import type { Citation } from './messages.js';
+import type { Citation, ExtractScope } from './messages.js';
 
 /**
  * Candidate response containers per surface, most specific first. The first
@@ -28,6 +28,17 @@ export const RESPONSE_SELECTORS: Record<SurfaceKind, string[]> = {
     'main',
   ],
   consumer: ['[data-testid*="response"]', '[role="article"]', 'main'],
+  other: ['main'],
+};
+
+/**
+ * Reading the whole conversation rather than one answer. A long chat can
+ * hold a great many citations, which is why this is asked for and never
+ * assumed.
+ */
+export const CHAT_SELECTORS: Record<SurfaceKind, string[]> = {
+  work: ['[data-testid="chatMessages"]', '[role="log"]', '[role="feed"]', 'main'],
+  consumer: ['[role="log"]', '[role="feed"]', 'main'],
   other: ['main'],
 };
 
@@ -53,12 +64,13 @@ function* allElements(root: ParentNode): Generator<Element> {
   }
 }
 
-function findContainer(doc: Document, surface: SurfaceKind): { container: ParentNode; strategy: string } {
-  for (const selector of RESPONSE_SELECTORS[surface]) {
+function findContainer(doc: Document, surface: SurfaceKind, scope: ExtractScope = 'latest'): { container: ParentNode; strategy: string } {
+  for (const selector of scope === 'chat' ? CHAT_SELECTORS[surface] : RESPONSE_SELECTORS[surface]) {
     const matches = doc.querySelectorAll(selector);
-    const last = matches[matches.length - 1];
-    if (last !== undefined) {
-      return { container: last, strategy: `container ${selector} (last of ${matches.length})` };
+    // The latest answer is the last match; the whole chat is the first, widest one.
+    const chosen = scope === 'chat' ? matches[0] : matches[matches.length - 1];
+    if (chosen !== undefined) {
+      return { container: chosen, strategy: `container ${selector} (${scope === 'chat' ? 'first' : 'last'} of ${matches.length})` };
     }
   }
   return { container: doc.body, strategy: 'document body (no known container)' };
@@ -108,8 +120,12 @@ export function urlsInJson(value: string): Array<{ url: string; title?: string }
  * hold a URL) and from bare URLs in text, deduplicated by URL, in document
  * order.
  */
-export function extractCitations(doc: Document, surface: SurfaceKind = surfaceOf(doc.location.hostname)): { citations: Citation[]; strategy: string } {
-  const { container, strategy } = findContainer(doc, surface);
+export function extractCitations(
+  doc: Document,
+  surface: SurfaceKind = surfaceOf(doc.location.hostname),
+  scope: ExtractScope = 'latest',
+): { citations: Citation[]; strategy: string } {
+  const { container, strategy } = findContainer(doc, surface, scope);
   const seen = new Map<string, Citation>();
   const add = (url: string, text?: string): void => {
     const cleaned = trimUrl(url.trim());

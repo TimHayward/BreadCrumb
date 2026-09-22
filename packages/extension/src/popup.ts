@@ -5,7 +5,7 @@
  * clipboard. There is no BreadCrumb server to send anything to.
  */
 import { surfaceOf } from './hosts.js';
-import type { ContentToPopup, ExtractResponse, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
+import type { ContentToPopup, ExtractResponse, ExtractScope, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
 import { appendRows, rowsForClipboard } from './noteWriter.js';
 import {
   buildRows,
@@ -29,6 +29,23 @@ const main = document.getElementById('main') as HTMLElement;
 /** Where a send would write, read once when the popup opens so the bar can name it (BC-069). */
 let obsidianTarget: { notePath: string; vaultName?: string } | undefined;
 
+/**
+ * A long chat can cite dozens of files. The popup reads the latest answer
+ * unless the user asks for the whole conversation, and lists the first
+ * handful of rows with the rest one press away.
+ */
+const FIRST_ROWS = 25;
+let scope: ExtractScope = 'latest';
+let shownRows = FIRST_ROWS;
+
+/** Writes to the status line under the buttons, when one is on screen. */
+function setStatus(text: string): void {
+  const status = document.querySelector('.actions-status');
+  if (status !== null) {
+    status.textContent = text;
+  }
+}
+
 /** Reads the configured vault and note, and says whether there is one to name. */
 async function resolveObsidianTarget(): Promise<boolean> {
   try {
@@ -50,6 +67,7 @@ function targetLine(): HTMLElement {
   const where = obsidianTarget.vaultName === undefined ? obsidianTarget.notePath : `${obsidianTarget.notePath} in ${obsidianTarget.vaultName}`;
   return el('p', { class: 'note actions-target' }, `Rows go to ${where}.`);
 }
+
 /** Visually hidden live region: tells screen reader users what a copy did. */
 const announcer = document.getElementById('announcer') as HTMLElement;
 
@@ -254,6 +272,43 @@ async function sendToObsidian(rows: PopupRow[]): Promise<SendResult> {
   }
 }
 
+/** What to read, how many were found, and ticking them all at once. */
+function scopeBar(rows: PopupRow[], tabId: number, surfaceNote?: string): HTMLElement {
+  const bar = el('div', { class: 'scope-bar' });
+  const group = el('div', { class: 'scope', role: 'group', 'aria-label': 'What to read' });
+  for (const [value, label] of [
+    ['latest', 'Latest answer'],
+    ['chat', 'Whole chat'],
+  ] as const) {
+    const chosen = scope === value;
+    const option = el('button', { type: 'button', class: `scope-option${chosen ? ' chosen' : ''}`, 'aria-pressed': String(chosen) }, label);
+    option.addEventListener('click', () => {
+      if (scope !== value) {
+        scope = value;
+        void loadCitations(tabId, surfaceNote);
+      }
+    });
+    group.append(option);
+  }
+  bar.append(group, el('span', { class: 'note scope-count' }, `${rows.length} ${rows.length === 1 ? 'file' : 'files'}`));
+
+  const selectable = rows.filter((row) => row.result.ok);
+  if (selectable.length > 1) {
+    const setAll = (selected: boolean) => () => {
+      for (const row of selectable) {
+        row.selected = selected;
+      }
+      renderRows(rows, tabId, surfaceNote);
+    };
+    const all = el('button', { type: 'button', class: 'row-link text-action' }, 'Select all');
+    const none = el('button', { type: 'button', class: 'row-link text-action' }, 'Select none');
+    all.addEventListener('click', setAll(true));
+    none.addEventListener('click', setAll(false));
+    bar.append(el('span', { class: 'scope-select' }, all, none));
+  }
+  return bar;
+}
+
 function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notice?: string): void {
   main.replaceChildren();
   if (notice !== undefined) {
@@ -262,11 +317,23 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
   if (surfaceNote !== undefined) {
     main.append(el('p', { class: 'note' }, surfaceNote));
   }
+  main.append(scopeBar(rows, tabId, surfaceNote));
+
   const list = el('ul', { class: 'rows', 'aria-label': 'Cited files' });
-  for (const row of rows) {
+  const shown = rows.slice(0, shownRows);
+  for (const row of shown) {
     list.append(renderRow(row));
   }
   main.append(list);
+
+  if (rows.length > shown.length) {
+    const more = el('button', { type: 'button', class: 'row-link text-action' }, `Show the other ${rows.length - shown.length}`);
+    more.addEventListener('click', () => {
+      shownRows = rows.length;
+      renderRows(rows, tabId, surfaceNote, notice);
+    });
+    main.append(el('p', { class: 'note more-line' }, `Showing ${shown.length} of ${rows.length}. `, more));
+  }
 
   const actions = el('div', { class: 'actions sticky' });
   const send = el('button', { type: 'button', class: 'send-action' }, 'Send selected to Obsidian');
@@ -380,6 +447,51 @@ function setupDiagnostics(tabId: number): void {
   footer.replaceChildren(button, status);
 }
 
+/**
+ * Reads the page at the current scope, lists what it found, then confirms as
+ * many rows as the session can, a few at a time so a long chat does not fire
+ * dozens of lookups at once.
+ */
+async function loadCitations(tabId: number, surfaceNote?: string): Promise<void> {
+  main.replaceChildren(el('p', {}, scope === 'chat' ? 'Reading the whole chat…' : 'Looking for citations…'));
+  let extracted: ExtractResponse;
+  try {
+    extracted = await askContent<ExtractResponse>(tabId, { type: 'breadcrumb:extract', scope });
+  } catch (error) {
+    main.replaceChildren(el('p', {}, `The page did not answer (${error instanceof Error ? error.message : String(error)}). Reload the Copilot page and open the popup again.`));
+    return;
+  }
+  const rows = buildRows(extracted.citations);
+  shownRows = FIRST_ROWS;
+  if (rows.length === 0) {
+    renderEmpty(extracted.surface === 'consumer' ? 'consumer' : 'work', tabId, extracted.strategy);
+    return;
+  }
+  renderRows(rows, tabId, surfaceNote);
+  // Where a send would go, resolved in the background: the list never waits on the vault.
+  void resolveObsidianTarget().then((found) => {
+    if (found) {
+      renderRows(rows, tabId, surfaceNote);
+    }
+  });
+  // BC-049: confirm what we can with the browser's SharePoint session, where the user granted access.
+  await confirmWithSession(rows, {
+    fetchImpl: (url, init) => fetch(url, init),
+    hasPermission: (host) => chrome.permissions.contains({ origins: [`https://${host}/*`] }),
+    onProgress: (done, total) => {
+      if (done < total) {
+        setStatus(`Confirming ${done} of ${total} with your SharePoint session…`);
+      }
+    },
+  });
+  const confirmed = rows.filter((row) => row.session?.ok === true).length;
+  const noAccess = rows.some((row) => row.session?.ok === false && row.session.reason === 'no-access');
+  const parts: string[] = [];
+  if (confirmed > 0) parts.push(`${confirmed} confirmed with your SharePoint session.`);
+  if (noAccess) parts.push('Allow your tenant on the options page to confirm the others instantly.');
+  renderRows(rows, tabId, surfaceNote, parts.length > 0 ? parts.join(' ') : undefined);
+}
+
 async function start(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id === undefined || tab.url === undefined) {
@@ -392,40 +504,7 @@ async function start(): Promise<void> {
     return;
   }
   setupDiagnostics(tab.id);
-  let extracted: ExtractResponse;
-  try {
-    extracted = await askContent<ExtractResponse>(tab.id, { type: 'breadcrumb:extract' });
-  } catch (error) {
-    main.replaceChildren(el('p', {}, `The page did not answer (${error instanceof Error ? error.message : String(error)}). Reload the Copilot page and open the popup again.`));
-    return;
-  }
-  const rows = buildRows(extracted.citations);
-  if (rows.length === 0) {
-    renderEmpty(surface, tab.id, extracted.strategy);
-    return;
-  }
-  const surfaceNote = surface === 'consumer' ? 'Links found in the response text on the consumer surface.' : undefined;
-  const tabId = tab.id;
-  renderRows(rows, tabId, surfaceNote);
-  // Where a send would go, resolved in the background: the citation list never waits on the vault.
-  void resolveObsidianTarget().then((found) => {
-    if (found) {
-      renderRows(rows, tabId, surfaceNote);
-    }
-  });
-  // BC-049: confirm what we can with the browser's SharePoint session, where the user granted access.
-  await confirmWithSession(rows, {
-    fetchImpl: (url, init) => fetch(url, init),
-    hasPermission: (host) => chrome.permissions.contains({ origins: [`https://${host}/*`] }),
-  });
-  const confirmed = rows.filter((row) => row.session?.ok === true).length;
-  const noAccess = rows.some((row) => row.session?.ok === false && row.session.reason === 'no-access');
-  if (confirmed > 0 || noAccess) {
-    const parts: string[] = [];
-    if (confirmed > 0) parts.push(`${confirmed} confirmed with your SharePoint session.`);
-    if (noAccess) parts.push('Allow your tenant on the options page to confirm the others instantly.');
-    renderRows(rows, tab.id, surfaceNote, parts.join(' '));
-  }
+  await loadCitations(tab.id, surface === 'consumer' ? 'Links found in the response text on the consumer surface.' : undefined);
 }
 
 void start();

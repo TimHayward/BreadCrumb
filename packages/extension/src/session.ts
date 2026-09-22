@@ -48,7 +48,17 @@ export interface SessionDeps {
   fetchImpl: FetchLike;
   /** Whether the user granted the extension access to this host (chrome.permissions.contains). */
   hasPermission: (host: string) => Promise<boolean>;
+  /**
+   * How many rows to ask SharePoint about at once. A long chat can cite
+   * dozens of files, and firing every lookup together is both slow and rude
+   * to the tenant, so they go a few at a time.
+   */
+  concurrency?: number;
+  /** Called as each row is answered, so the popup can show progress. */
+  onProgress?: (done: number, total: number) => void;
 }
+
+export const DEFAULT_CONCURRENCY = 4;
 
 /**
  * Confirms every row that sits on a SharePoint host, in parallel, recording
@@ -58,22 +68,35 @@ export interface SessionDeps {
  */
 export async function confirmWithSession(rows: PopupRow[], deps: SessionDeps): Promise<PopupRow[]> {
   const access = new Map<string, Promise<boolean>>();
-  await Promise.all(
-    rows.map(async (row) => {
-      const host = sessionHost(row);
-      if (host === undefined) {
+  const queue = rows.filter((row) => sessionHost(row) !== undefined);
+  let done = 0;
+
+  const confirm = async (row: PopupRow): Promise<void> => {
+    const host = sessionHost(row) as string;
+    if (!access.has(host)) {
+      access.set(host, deps.hasPermission(host).catch(() => false));
+    }
+    if (!(await access.get(host))) {
+      row.session = { ok: false, reason: 'no-access', message: `The extension has no access to ${host}; allow it on the options page.` };
+      return;
+    }
+    const outcome = await validateResult(row.result as ParseSuccess, sessionClient(host, deps.fetchImpl), { authority: 'sharepoint-session' });
+    row.session = outcome.ok ? { ok: true, verified: outcome.verified } : { ok: false, reason: 'failed', message: outcome.message };
+  };
+
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (let i = next++; i < queue.length; i = next++) {
+      const row = queue[i];
+      if (row === undefined) {
         return;
       }
-      if (!access.has(host)) {
-        access.set(host, deps.hasPermission(host).catch(() => false));
-      }
-      if (!(await access.get(host))) {
-        row.session = { ok: false, reason: 'no-access', message: `The extension has no access to ${host}; allow it on the options page.` };
-        return;
-      }
-      const outcome = await validateResult(row.result as ParseSuccess, sessionClient(host, deps.fetchImpl), { authority: 'sharepoint-session' });
-      row.session = outcome.ok ? { ok: true, verified: outcome.verified } : { ok: false, reason: 'failed', message: outcome.message };
-    }),
-  );
+      await confirm(row);
+      done += 1;
+      deps.onProgress?.(done, queue.length);
+    }
+  };
+  const lanes = Math.max(1, Math.min(deps.concurrency ?? DEFAULT_CONCURRENCY, queue.length));
+  await Promise.all(Array.from({ length: lanes }, () => worker()));
   return rows;
 }

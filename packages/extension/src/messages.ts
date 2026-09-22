@@ -8,8 +8,15 @@ export interface Citation {
   text?: string;
 }
 
+/**
+ * How much of the page to read. A long chat can cite dozens of files, so the
+ * default is the latest answer only; "chat" is the whole conversation.
+ */
+export type ExtractScope = 'latest' | 'chat';
+
 export interface ExtractRequest {
   type: 'breadcrumb:extract';
+  scope?: ExtractScope;
 }
 
 export interface ExtractResponse {
@@ -19,6 +26,8 @@ export interface ExtractResponse {
   citations: Citation[];
   /** How the citations were found, for diagnostics. */
   strategy: string;
+  /** The scope that was read. */
+  scope: ExtractScope;
 }
 
 export interface SampleRequest {

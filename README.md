@@ -33,14 +33,16 @@ pnpm build
 pnpm test     # optional: the whole suite
 ```
 
-`pnpm build` writes the loadable extension to `packages/extension/dist`. That folder is what Edge loads: the manifest, four bundled scripts, the popup and options pages and the popup stylesheet. It is not committed, so it has to be built before the first load.
+`pnpm build` writes the loadable extension to `packages/extension/dist`. That folder is what Edge loads: the manifest, four bundled scripts, the popup and options pages, the popup stylesheet and the icons. It is not committed, so it has to be built before the first load.
+
+The icons are drawn by `scripts/make-icons.mjs`, which writes the PNGs in `packages/extension/icons`. They are committed, so that only needs running if the drawing changes.
 
 ## Install in Microsoft Edge
 
 1. Go to `edge://extensions`.
 2. Turn on **Developer mode**.
 3. Choose **Load unpacked** and select `packages/extension/dist`. Select that folder itself, not `packages/extension`.
-4. BreadCrumb has no icon of its own yet, so it appears with the default puzzle piece. Open the **Extensions** button in the toolbar and pin BreadCrumb, so the popup is one click away.
+4. Open the **Extensions** button in the toolbar and pin BreadCrumb, so its trail of crumbs sits in the toolbar and the popup is one click away.
 
 After changing the code, run `pnpm build` again and press **Reload** on the BreadCrumb card in `edge://extensions`. Your settings survive a reload. Access to the vault folder may not: if it has lapsed, the popup says so and Options takes a moment to restore.
 
@@ -57,11 +59,13 @@ Edge grants folder access for the session. After a browser restart, or an extens
 
 ## Using it
 
-Open a Copilot response that cites files on `m365.cloud.microsoft` or `copilot.cloud.microsoft`, then open the popup. It lists every SharePoint or OneDrive for Business citation once, and each row shows:
+Open a Copilot response that cites files on `m365.cloud.microsoft` or `copilot.cloud.microsoft`, then open the popup. It lists each SharePoint or OneDrive for Business citation once, and each row shows:
 
 - the file name, a tick box, and the confidence state;
 - the document location, with a "library inferred" marker where the library boundary was a guess;
 - **Original link** and **Folder link**, which copy that link to the clipboard rather than opening a tab.
+
+Above the list, **Latest answer** and **Whole chat** choose how much of the page to read. A long conversation can cite a great many files, so the popup reads only the latest answer unless you ask for the rest. The count beside the buttons says how many were found, **Select all** and **Select none** tick them together, and the first twenty five are listed with the rest one press away. Confirmation runs a few files at a time and says how far it has got.
 
 Below the list, **Send selected to Obsidian** writes the ticked rows into your note. **Copy selected file links** and **Copy selected folder links** copy the ticked rows, one link per line: each folder is copied once, and any ticked file whose folder is not known yet is left out and counted in the status line. **Copy as table rows** puts the same rows on the clipboard in the note's table format, with its header, to paste anywhere.
 
