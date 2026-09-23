@@ -11,8 +11,12 @@ import type { ParseSuccess } from '@breadcrumb/parser';
 import { isValidatable, validateResult, type GraphClient } from '@breadcrumb/validation';
 import type { FetchLike, PopupRow } from './popupModel.js';
 
-/** A GraphClient that talks to `https://{host}/_api/v2.0` with the browser's session. */
-export function sessionClient(host: string, fetchImpl: FetchLike): GraphClient {
+/**
+ * A GraphClient that talks to `https://{host}/_api/v2.0` with the browser's
+ * session. `onStatus` sees every HTTP status, so the caller can tell "you are
+ * not signed in here" (401 or 403) from any other failure.
+ */
+export function sessionClient(host: string, fetchImpl: FetchLike, onStatus?: (status: number) => void): GraphClient {
   return {
     async get(path, headers = {}) {
       const response = await fetchImpl(`https://${host}/_api/v2.0${path}`, {
@@ -20,6 +24,7 @@ export function sessionClient(host: string, fetchImpl: FetchLike): GraphClient {
         credentials: 'include',
         headers: { accept: 'application/json', ...headers },
       });
+      onStatus?.(response.status);
       const responseHeaders: Record<string, string> = {};
       response.headers.forEach((value, key) => {
         responseHeaders[key.toLowerCase()] = value;
@@ -77,11 +82,24 @@ export async function confirmWithSession(rows: PopupRow[], deps: SessionDeps): P
       access.set(host, deps.hasPermission(host).catch(() => false));
     }
     if (!(await access.get(host))) {
-      row.session = { ok: false, reason: 'no-access', message: `The extension has no access to ${host}; allow it on the options page.` };
+      row.session = { ok: false, reason: 'no-access', message: `The extension has no access to ${host}; allow it on the options page.`, host };
       return;
     }
-    const outcome = await validateResult(row.result as ParseSuccess, sessionClient(host, deps.fetchImpl), { authority: 'sharepoint-session' });
-    row.session = outcome.ok ? { ok: true, verified: outcome.verified } : { ok: false, reason: 'failed', message: outcome.message };
+    const statuses: number[] = [];
+    const outcome = await validateResult(row.result as ParseSuccess, sessionClient(host, deps.fetchImpl, (status) => statuses.push(status)), {
+      authority: 'sharepoint-session',
+    });
+    if (outcome.ok) {
+      row.session = { ok: true, verified: outcome.verified };
+      return;
+    }
+    // 401 or 403 from SharePoint means this browser has no session on that
+    // host yet, which opening the site once fixes. Everything else is a
+    // genuine failure to look the file up.
+    const signedOut = statuses.some((status) => status === 401 || status === 403);
+    row.session = signedOut
+      ? { ok: false, reason: 'signed-out', message: `SharePoint answered ${statuses.find((s) => s === 401 || s === 403) ?? 401} for ${host}: this browser has no signed in session there yet.`, host }
+      : { ok: false, reason: 'failed', message: outcome.message, host };
   };
 
   let next = 0;

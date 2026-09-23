@@ -95,6 +95,9 @@ saveNotePath.addEventListener('click', async () => {
 });
 
 const tenantInput = document.getElementById('tenant') as HTMLInputElement;
+const openSites = document.getElementById('open-sites') as HTMLElement;
+const openSharePoint = document.getElementById('open-sp') as HTMLAnchorElement;
+const openOneDrive = document.getElementById('open-od') as HTMLAnchorElement;
 const grant = document.getElementById('grant') as HTMLButtonElement;
 const revoke = document.getElementById('revoke') as HTMLButtonElement;
 const grantStatus = document.getElementById('grant-status') as HTMLElement;
@@ -105,12 +108,28 @@ const output = document.getElementById('test-output') as HTMLPreElement;
 
 const TENANT_KEY = 'spTenant';
 
+/** Shows the two sites to open, so the browser has a session on each (user testing, 2026-09-23). */
+function showSiteLinks(tenant: string): void {
+  const name = tenant.trim().toLowerCase();
+  if (name === '') {
+    openSites.hidden = true;
+    return;
+  }
+  openSharePoint.href = `https://${name}.sharepoint.com/`;
+  openSharePoint.textContent = `Open ${name}.sharepoint.com`;
+  openOneDrive.href = `https://${name}-my.sharepoint.com/`;
+  openOneDrive.textContent = `Open ${name}-my.sharepoint.com (OneDrive)`;
+  openSites.hidden = false;
+}
+
 async function showGrant(): Promise<void> {
   const origins = tenantOrigins(tenantInput.value);
   if (origins === undefined) {
     grantStatus.textContent = 'Enter the tenant name, for example contoso for contoso.sharepoint.com.';
+    openSites.hidden = true;
     return;
   }
+  showSiteLinks(tenantInput.value);
   const granted = await chrome.permissions.contains({ origins });
   grantStatus.textContent = granted ? `Access granted to ${origins.join(' and ')}.` : `No access yet to ${origins.join(' and ')}.`;
 }

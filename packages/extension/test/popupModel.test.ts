@@ -264,3 +264,16 @@ describe('what each row says after a send (BC-067)', () => {
     expect(describeRow(rows[1]!).notes.some((n) => n.text.includes('your note'))).toBe(false);
   });
 });
+
+describe('what a signed out row says (user testing, 2026-09-23)', () => {
+  it('points at the site to open rather than blaming the session', () => {
+    const rows = buildRows([{ url: 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf' }]);
+    rows[0]!.session = { ok: false, reason: 'signed-out', message: 'SharePoint answered 401 for contoso.sharepoint.com.', host: 'contoso.sharepoint.com' };
+    const notes = describeRow(rows[0]!).notes;
+    expect(notes).toContainEqual({
+      text: 'Open contoso.sharepoint.com once to sign in, then check again.',
+      tone: 'muted',
+      detail: 'SharePoint answered 401 for contoso.sharepoint.com.',
+    });
+  });
+});

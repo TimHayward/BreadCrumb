@@ -34,10 +34,14 @@ export interface PopupRow {
   noteOutcome?: NoteOutcome;
 }
 
-/** A citation confirmed, or not, with the browser's SharePoint session (BC-049). */
+/**
+ * A citation confirmed, or not, with the browser's SharePoint session
+ * (BC-049). "signed-out" is the common one: the browser has no SharePoint
+ * session for that host yet, which is fixed by opening the site once.
+ */
 export type SessionOutcome =
   | { ok: true; verified: VerifiedResult }
-  | { ok: false; reason: 'no-access' | 'failed'; message: string };
+  | { ok: false; reason: 'no-access' | 'signed-out' | 'failed'; message: string; host?: string };
 
 /** The containing folder of a verified result (the path itself for a folder). */
 export function verifiedFolder(verified: VerifiedResult): string {
@@ -165,6 +169,9 @@ export function describeRow(row: PopupRow): RowView {
   }
   if (state === 'Unresolved') {
     view.notes.push({ text: 'Allow this tenant on the options page to confirm it.', tone: 'muted' });
+  }
+  if (row.session?.ok === false && row.session.reason === 'signed-out' && state !== 'Verified') {
+    view.notes.push({ text: `Open ${row.session.host ?? 'the site'} once to sign in, then check again.`, tone: 'muted', detail: row.session.message });
   }
   if (row.session?.ok === false && row.session.reason === 'failed' && state !== 'Verified') {
     view.notes.push({ text: 'Your SharePoint session could not confirm it.', tone: 'muted', detail: row.session.message });

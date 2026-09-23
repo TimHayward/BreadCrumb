@@ -287,6 +287,20 @@ As an administrator, I want to push BreadCrumb's settings by policy, so that a t
 Priority: Should. Size: S. Depends on: BC-057, S11.
 Decisions to close first: D7.
 
+#### BC-071 The popup helps rather than blames
+
+**Shipped 2026-09-23**, both raised by Tim in user testing.
+
+As a user, I want the popup to behave well when it has nothing to show and when it cannot confirm anything, so that I know what happened and what to do next.
+
+- Given an answer that cites no files, which is the ordinary case, When the popup opens, Then it says so as an outcome rather than an error, explains in one line what BreadCrumb lists, and offers to look in the whole chat. **Done.**
+- Given that the answer did cite files and extraction missed them, When the user wants to report it, Then the markup detail and the redacted sample sit behind a disclosure rather than in the way. **Done.**
+- Given a tenant the user has granted but no SharePoint session in this browser, When confirmation fails with 401 or 403, Then the popup names the sites with no session, offers a link to open each, and a "Check again" button that re-runs confirmation. **Done.**
+- Given the same case, When a row is read on its own, Then it says to open that site and check again, rather than "your session could not confirm it". **Done.**
+- Given the options page with a tenant set, When it is read, Then it offers the same two links, because that is where the grant is given. **Done.**
+
+Priority: Must. Size: S. Depends on: BC-049.
+
 #### BC-070 The popup copes with a long chat
 
 **Mostly shipped 2026-09-22**, raised by Tim before user testing: a long conversation can cite far more files than a popup can sensibly list, and confirming them all at once is slow and rude to the tenant.
@@ -332,7 +346,7 @@ Progress evidence at the boundary: a recording of the popup and the history page
 
 ### M6 Obsidian output
 
-Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-070.
+Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-070, BC-071.
 
 **Sprint 1 (started 2026-09-19): rows in a note.** BC-068 (the format), the core of BC-067 (pick a vault folder on the options page, set a note path, append rows from the popup with a button, create the note and the table when they are not there, report what happened per row) and BC-066 (copy the selection as table rows). Deliberately left for later in the milestone: the fallback route (BC-065), the full "show me what will be written" preview (BC-069, though the vault and note path are already named in the popup), enterprise policy (BC-063) and the packaged release (BC-064).
 

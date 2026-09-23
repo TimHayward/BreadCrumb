@@ -47,11 +47,12 @@ describe('confirmWithSession (BC-049)', () => {
     expect(seen[0]?.url.startsWith('https://contoso.sharepoint.com/_api/v2.0/shares/u!')).toBe(true);
   });
 
-  it('leaves rows to the Graph route when access is missing or SharePoint says no, and skips what it cannot confirm', async () => {
+  it('leaves rows the session cannot confirm, and skips what it cannot ask about', async () => {
     const rows = buildRows([{ url: DOC }, { url: ONEDRIVE }, { url: SOVEREIGN }]);
     await confirmWithSession(rows, { fetchImpl: sharePoint, hasPermission: async (host) => host === 'contoso-my.sharepoint.com' });
     expect(rows[0]?.session).toMatchObject({ ok: false, reason: 'no-access' });
-    expect(rows[1]?.session).toMatchObject({ ok: false, reason: 'failed' });
+    // OneDrive answers 401 until it has been opened in the browser once: that is the signed out case.
+    expect(rows[1]?.session).toMatchObject({ ok: false, reason: 'signed-out', host: 'contoso-my.sharepoint.com' });
     expect(rows[2]?.session).toBeUndefined();
     expect(sessionHost(rows[2]!)).toBeUndefined();
   });
@@ -85,5 +86,38 @@ describe('a long chat (2026-09-22)', () => {
     const progress: Array<[number, number]> = [];
     await confirmWithSession(rows, { fetchImpl: sharePoint, hasPermission: async () => true, onProgress: (done, total) => progress.push([done, total]) });
     expect(progress).toEqual([[1, 1]]);
+  });
+});
+
+describe('no signed in session on the host (user testing, 2026-09-23)', () => {
+  it('says the browser is signed out, and names the host to open', async () => {
+    const unauthenticated: FetchLike = async () => json({ error: { code: 'unauthenticated' } }, 401);
+    const rows = buildRows([{ url: DOC }]);
+    await confirmWithSession(rows, { fetchImpl: unauthenticated, hasPermission: async () => true });
+    expect(rows[0]?.session).toMatchObject({ ok: false, reason: 'signed-out', host: 'contoso.sharepoint.com' });
+    if (rows[0]?.session?.ok === false) {
+      expect(rows[0].session.message).toContain('401');
+      expect(rows[0].session.message).toContain('contoso.sharepoint.com');
+    }
+  });
+
+  it('treats a refusal as signed out too, since opening the site fixes both', async () => {
+    const forbidden: FetchLike = async () => json({ error: { code: 'accessDenied' } }, 403);
+    const rows = buildRows([{ url: DOC }]);
+    await confirmWithSession(rows, { fetchImpl: forbidden, hasPermission: async () => true });
+    expect(rows[0]?.session).toMatchObject({ ok: false, reason: 'signed-out' });
+  });
+
+  it('keeps a genuine lookup failure separate, so the helper is not offered for it', async () => {
+    const missing: FetchLike = async () => json({ error: { code: 'itemNotFound' } }, 404);
+    const rows = buildRows([{ url: DOC }]);
+    await confirmWithSession(rows, { fetchImpl: missing, hasPermission: async () => true });
+    expect(rows[0]?.session).toMatchObject({ ok: false, reason: 'failed', host: 'contoso.sharepoint.com' });
+  });
+
+  it('carries the host on a row the extension has no access to', async () => {
+    const rows = buildRows([{ url: DOC }]);
+    await confirmWithSession(rows, { fetchImpl: sharePoint, hasPermission: async () => false });
+    expect(rows[0]?.session).toMatchObject({ ok: false, reason: 'no-access', host: 'contoso.sharepoint.com' });
   });
 });

@@ -97,7 +97,7 @@ The action bar names the note and vault before you send. Afterwards each row say
 
 BreadCrumb holds access to the one folder you picked and writes the one note you named. Nothing is sent anywhere: the note is written on this device.
 
-On `copilot.microsoft.com` the popup shows a defined empty state, because Copilot there cites web pages rather than files. When no citations are found on a work surface, "Report markup" copies a redacted sample of the response container to the clipboard so a markup change can be diagnosed; "Diagnose this page" does the same for the whole page.
+When an answer cites no files, which is normal, the popup says so plainly and offers to look in the whole chat instead. The markup detail is folded away behind "The answer did cite files?", for the rarer case where extraction has broken. On `copilot.microsoft.com` the popup explains that Copilot there cites web pages rather than files. When no citations are found on a work surface, "Report markup" copies a redacted sample of the response container to the clipboard so a markup change can be diagnosed; "Diagnose this page" does the same for the whole page.
 
 ## Confidence states
 
@@ -116,7 +116,7 @@ Personal (consumer) OneDrive is not supported. Links on `onedrive.live.com` and 
 
 For a tenant you have granted, the extension calls that tenant's own SharePoint host at `/_api/v2.0/...` with `credentials: 'include'`, so the browser attaches the session you already have. Only SharePoint's answers are used: cookie values are never read, and nothing is sent anywhere else. The optional host permission is `https://*.sharepoint.com/*`, requested at runtime for one tenant's hosts and revocable from the options page.
 
-OneDrive for Business links need OneDrive to have been opened in the browser at least once, otherwise SharePoint answers 401 for the `-my` host and the row keeps its best effort result.
+A session only exists once the site has been opened in that browser. Until then SharePoint answers 401, and the popup says so: it names each site, offers a link to open it, and a **Check again** button for when you come back. OneDrive for Business counts as its own site, so the `-my` host usually needs opening separately. The options page offers the same two links once a tenant is set.
 
 ## Development
 

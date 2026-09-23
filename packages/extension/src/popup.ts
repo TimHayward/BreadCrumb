@@ -272,6 +272,52 @@ async function sendToObsidian(rows: PopupRow[]): Promise<SendResult> {
   }
 }
 
+/**
+ * Confirmation needs a signed in SharePoint session on the file's own host,
+ * and the browser only has one after the site has been opened once. When
+ * that is what went wrong, say so and offer the door rather than leaving
+ * rows Inferred with no explanation.
+ */
+function signInHelper(rows: PopupRow[], tabId: number, surfaceNote?: string): HTMLElement | undefined {
+  const hosts = [...new Set(rows.flatMap((row) => (row.session?.ok === false && row.session.reason === 'signed-out' && row.session.host !== undefined ? [row.session.host] : [])))];
+  if (hosts.length === 0) {
+    return undefined;
+  }
+  const box = el('div', { class: 'helper', role: 'status' });
+  const count = rows.filter((row) => row.session?.ok === false && row.session.reason === 'signed-out').length;
+  box.append(
+    el(
+      'p',
+      { class: 'helper-line' },
+      `${count === 1 ? 'One file could not be confirmed' : `${count} files could not be confirmed`} because this browser has no signed in session on ${hosts.length === 1 ? hosts[0] : 'those sites'} yet. Open ${hosts.length === 1 ? 'it' : 'them'} once, sign in, then check again.`,
+    ),
+  );
+  const actions = el('div', { class: 'helper-actions' });
+  for (const host of hosts) {
+    const open = el('a', { class: 'row-link', href: `https://${host}/`, 'aria-label': `Open ${host} in a new tab and sign in` }, icon('link'), el('span', {}, `Open ${host}`));
+    open.addEventListener('click', (event) => {
+      event.preventDefault();
+      void chrome.tabs.create({ url: `https://${host}/`, active: true });
+    });
+    actions.append(open);
+  }
+  box.append(actions);
+
+  const again = el('button', { type: 'button', class: 'secondary helper-retry' }, 'Check again');
+  again.addEventListener('click', async () => {
+    again.disabled = true;
+    again.textContent = 'Checking…';
+    for (const row of rows) {
+      if (row.session?.ok === false && row.session.reason !== 'no-access') {
+        delete row.session;
+      }
+    }
+    await confirmRows(rows, tabId, surfaceNote);
+  });
+  box.append(again);
+  return box;
+}
+
 /** What to read, how many were found, and ticking them all at once. */
 function scopeBar(rows: PopupRow[], tabId: number, surfaceNote?: string): HTMLElement {
   const bar = el('div', { class: 'scope-bar' });
@@ -318,6 +364,10 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
     main.append(el('p', { class: 'note' }, surfaceNote));
   }
   main.append(scopeBar(rows, tabId, surfaceNote));
+  const helper = signInHelper(rows, tabId, surfaceNote);
+  if (helper !== undefined) {
+    main.append(helper);
+  }
 
   const list = el('ul', { class: 'rows', 'aria-label': 'Cited files' });
   const shown = rows.slice(0, shownRows);
@@ -381,29 +431,65 @@ function renderRows(rows: PopupRow[], tabId: number, surfaceNote?: string, notic
   main.append(actions);
 }
 
-function renderEmpty(kind: 'work' | 'consumer', tabId: number, strategy: string): void {
+/**
+ * Nothing to show. Most of the time this is not a fault at all: the answer
+ * simply cited no files. So it reads as an ordinary outcome, offers the one
+ * thing worth trying next, and keeps the markup detail folded away for the
+ * rarer case where extraction really has broken.
+ */
+function renderEmpty(kind: 'work' | 'consumer', tabId: number, strategy: string, surfaceNote?: string): void {
   main.replaceChildren();
   const box = el('div', { class: 'empty' });
+
   if (kind === 'consumer') {
     box.append(
-      el('h2', {}, 'No SharePoint or OneDrive citations here'),
-      el('p', {}, 'Copilot on this site cites web pages. SharePoint and OneDrive file citations appear only on the work surfaces (m365.cloud.microsoft and copilot.cloud.microsoft).'),
+      el('h2', {}, 'No work files here'),
+      el('p', {}, 'Copilot on this site cites web pages. It is the work surfaces, m365.cloud.microsoft and copilot.cloud.microsoft, that cite SharePoint and OneDrive for Business files.'),
     );
-  } else {
-    box.append(
-      el('h2', {}, 'No citations found'),
-      el('p', {}, 'No SharePoint or OneDrive links were found in this response. If the response does cite files, the page markup may have changed.'),
-      el('p', { class: 'note' }, `Looked in: ${strategy}.`),
-    );
-    const report = el('button', { type: 'button', class: 'secondary' }, 'Report markup');
-    const note = el('span', { class: 'note', role: 'status' });
-    report.addEventListener('click', async () => {
-      const response = await askContent<SampleResponse>(tabId, { type: 'breadcrumb:sample' });
-      await navigator.clipboard.writeText(response.sample);
-      note.textContent = 'A redacted sample of the response markup is on the clipboard. Paste it into an issue.';
-    });
-    box.append(el('div', { class: 'actions' }, report, note));
+    main.append(box);
+    return;
   }
+
+  const wholeChat = scope === 'chat';
+  box.append(
+    el('h2', {}, wholeChat ? 'No files cited in this chat' : 'No files cited in this answer'),
+    el(
+      'p',
+      {},
+      wholeChat
+        ? 'BreadCrumb lists the SharePoint and OneDrive for Business files a Copilot answer cites, so you can find the folder each one lives in. Nothing in this conversation cites a file.'
+        : 'BreadCrumb lists the SharePoint and OneDrive for Business files a Copilot answer cites, so you can find the folder each one lives in. This answer does not cite any.',
+    ),
+  );
+
+  const actions = el('div', { class: 'actions' });
+  if (!wholeChat) {
+    const wider = el('button', { type: 'button' }, 'Look in the whole chat');
+    wider.addEventListener('click', () => {
+      scope = 'chat';
+      void loadCitations(tabId, surfaceNote);
+    });
+    actions.append(wider);
+  }
+  box.append(actions);
+
+  // Folded away: only useful when the answer did cite files and extraction missed them.
+  const note = el('p', { class: 'note', role: 'status' });
+  const report = el('button', { type: 'button', class: 'row-link text-action' }, 'Copy a redacted sample of the page');
+  report.addEventListener('click', async () => {
+    const response = await askContent<SampleResponse>(tabId, { type: 'breadcrumb:sample' });
+    const failure = await copyToClipboard(response.sample);
+    note.textContent = failure === undefined ? 'The sample is on your clipboard. Paste it into an issue so the markup can be followed.' : `Could not copy the sample: ${failure}`;
+  });
+  const details = el('details', { class: 'empty-details' });
+  details.append(
+    el('summary', {}, 'The answer did cite files?'),
+    el('p', { class: 'note' }, 'Then the page markup has probably changed, and BreadCrumb is looking in the wrong place. A redacted sample helps put that right: it keeps the shape of the page and replaces the words.'),
+    el('p', { class: 'note' }, `Looked in ${strategy}.`),
+    report,
+    note,
+  );
+  box.append(details);
   main.append(box);
 }
 
@@ -464,7 +550,7 @@ async function loadCitations(tabId: number, surfaceNote?: string): Promise<void>
   const rows = buildRows(extracted.citations);
   shownRows = FIRST_ROWS;
   if (rows.length === 0) {
-    renderEmpty(extracted.surface === 'consumer' ? 'consumer' : 'work', tabId, extracted.strategy);
+    renderEmpty(extracted.surface === 'consumer' ? 'consumer' : 'work', tabId, extracted.strategy, surfaceNote);
     return;
   }
   renderRows(rows, tabId, surfaceNote);
@@ -474,7 +560,15 @@ async function loadCitations(tabId: number, surfaceNote?: string): Promise<void>
       renderRows(rows, tabId, surfaceNote);
     }
   });
-  // BC-049: confirm what we can with the browser's SharePoint session, where the user granted access.
+  await confirmRows(rows, tabId, surfaceNote);
+}
+
+/**
+ * BC-049: confirms what the browser's SharePoint session can, where the user
+ * granted access, then re-renders. Also used by "Check again" after the user
+ * has opened the site and signed in.
+ */
+async function confirmRows(rows: PopupRow[], tabId: number, surfaceNote?: string): Promise<void> {
   await confirmWithSession(rows, {
     fetchImpl: (url, init) => fetch(url, init),
     hasPermission: (host) => chrome.permissions.contains({ origins: [`https://${host}/*`] }),
