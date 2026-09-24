@@ -1,6 +1,6 @@
 {
   "name": "@breadcrumb/extension",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Manifest V3 extension for Microsoft Edge that lifts SharePoint and OneDrive citations out of Copilot responses, resolves them with @breadcrumb/parser and confirms them with the browser SharePoint session.",
   "type": "module",
