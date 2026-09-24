@@ -287,6 +287,21 @@ As an administrator, I want to push BreadCrumb's settings by policy, so that a t
 Priority: Should. Size: S. Depends on: BC-057, S11.
 Decisions to close first: D7.
 
+#### BC-072 Say what the refusal actually was
+
+**Shipped 2026-09-24**, raised by Tim in user testing: the popup claimed six files had no signed in session on two hosts, while thirty one files on those same hosts had just been confirmed. One of the six was a file in a colleague’s OneDrive.
+
+As a user, I want each unconfirmed file to say what actually stopped it, so that I do not go looking for a sign in problem that is not there.
+
+- Given a file on a host where another file has just been confirmed, When SharePoint refuses it, Then it is never reported as a missing session, because the session plainly works. **Done.**
+- Given a 403, When it is reported, Then it says the account has no access to that item, and says so in OneDrive terms when the host is a personal one. **Done.**
+- Given a 404, When it is reported, Then it says the file is no longer there, and names the usual causes. **Done.**
+- Given a link the validator cannot look up at all, When it is reported, Then it says the link does not point at a file, rather than blaming access. **Done.**
+- Given a mix of these, When the summary line is written, Then each group is counted separately rather than lumped into one number. **Done.**
+- Given a host that really has no session, When nothing on it has confirmed, Then the sign in helper appears exactly as before. **Done.**
+
+Priority: Must. Size: S. Depends on: BC-049, BC-071.
+
 #### BC-071 The popup helps rather than blames
 
 **Shipped 2026-09-23**, both raised by Tim in user testing.
@@ -346,7 +361,7 @@ Progress evidence at the boundary: a recording of the popup and the history page
 
 ### M6 Obsidian output
 
-Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-070, BC-071.
+Stories: BC-067, BC-068, BC-069, BC-065, BC-066, BC-063, BC-070, BC-071, BC-072.
 
 **Sprint 1 (started 2026-09-19): rows in a note.** BC-068 (the format), the core of BC-067 (pick a vault folder on the options page, set a note path, append rows from the popup with a button, create the note and the table when they are not there, report what happened per row) and BC-066 (copy the selection as table rows). Deliberately left for later in the milestone: the fallback route (BC-065), the full "show me what will be written" preview (BC-069, though the vault and note path are already named in the popup), enterprise policy (BC-063) and the packaged release (BC-064).
 

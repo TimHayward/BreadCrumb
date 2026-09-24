@@ -579,10 +579,17 @@ async function confirmRows(rows: PopupRow[], tabId: number, surfaceNote?: string
     },
   });
   const confirmed = rows.filter((row) => row.session?.ok === true).length;
-  const noAccess = rows.some((row) => row.session?.ok === false && row.session.reason === 'no-access');
+  const count = (reason: string): number => rows.filter((row) => row.session?.ok === false && row.session.reason === reason).length;
   const parts: string[] = [];
   if (confirmed > 0) parts.push(`${confirmed} confirmed with your SharePoint session.`);
-  if (noAccess) parts.push('Allow your tenant on the options page to confirm the others instantly.');
+  // Say what each group of refusals actually was, rather than one number for all of them.
+  const refused = count('no-permission');
+  const missing = count('not-found');
+  if (refused > 0) parts.push(`${refused} ${refused === 1 ? 'is' : 'are'} in sites or OneDrive folders you do not have access to.`);
+  if (missing > 0) parts.push(`${missing} ${missing === 1 ? 'is' : 'are'} no longer there.`);
+  const notFiles = count('unsupported');
+  if (notFiles > 0) parts.push(`${notFiles} ${notFiles === 1 ? 'is not a link to a file' : 'are not links to files'}, so there is nothing to look up.`);
+  if (count('no-access') > 0) parts.push('Allow your tenant on the options page to confirm the others instantly.');
   renderRows(rows, tabId, surfaceNote, parts.length > 0 ? parts.join(' ') : undefined);
 }
 

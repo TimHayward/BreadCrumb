@@ -118,6 +118,13 @@ For a tenant you have granted, the extension calls that tenant's own SharePoint 
 
 A session only exists once the site has been opened in that browser. Until then SharePoint answers 401, and the popup says so: it names each site, offers a link to open it, and a **Check again** button for when you come back. OneDrive for Business counts as its own site, so the `-my` host usually needs opening separately. The options page offers the same two links once a tenant is set.
 
+A refusal is not always about signing in, so each one says what it was:
+
+- **No session yet** on that host, which opening the site fixes. Never said of a host where another file has just been confirmed.
+- **No access to that file**, which is what SharePoint means by 403: a site you are not in, or a file in someone else’s OneDrive.
+- **No longer there**: moved, renamed, deleted, or a sharing link that has been withdrawn.
+- **Not a link to a file**, where the link points at something BreadCrumb cannot look up.
+
 ## Development
 
 The parser is the single implementation of link decoding (architectural invariant 1) and is pure: no network, no DOM, no Node built-ins. It carries a fixture corpus covering every row of the link form matrix in `BACKLOG.md`, and the extension has a contract test that feeds the same corpus through its popup model.

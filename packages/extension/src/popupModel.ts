@@ -41,7 +41,7 @@ export interface PopupRow {
  */
 export type SessionOutcome =
   | { ok: true; verified: VerifiedResult }
-  | { ok: false; reason: 'no-access' | 'signed-out' | 'failed'; message: string; host?: string };
+  | { ok: false; reason: 'no-access' | 'signed-out' | 'no-permission' | 'not-found' | 'unsupported' | 'failed'; message: string; host?: string };
 
 /** The containing folder of a verified result (the path itself for a folder). */
 export function verifiedFolder(verified: VerifiedResult): string {
@@ -170,11 +170,27 @@ export function describeRow(row: PopupRow): RowView {
   if (state === 'Unresolved') {
     view.notes.push({ text: 'Allow this tenant on the options page to confirm it.', tone: 'muted' });
   }
-  if (row.session?.ok === false && row.session.reason === 'signed-out' && state !== 'Verified') {
-    view.notes.push({ text: `Open ${row.session.host ?? 'the site'} once to sign in, then check again.`, tone: 'muted', detail: row.session.message });
-  }
-  if (row.session?.ok === false && row.session.reason === 'failed' && state !== 'Verified') {
-    view.notes.push({ text: 'Your SharePoint session could not confirm it.', tone: 'muted', detail: row.session.message });
+  if (row.session?.ok === false && state !== 'Verified') {
+    // Each refusal means something different to the reader, so each says its own thing.
+    const host = row.session.host ?? 'the site';
+    const personal = host.toLowerCase().includes('-my.');
+    const text =
+      row.session.reason === 'signed-out'
+        ? `Open ${host} once to sign in, then check again.`
+        : row.session.reason === 'no-permission'
+          ? personal
+            ? 'In a OneDrive you do not have access to, so its folder cannot be confirmed.'
+            : 'You do not have access to this file, so its folder cannot be confirmed.'
+          : row.session.reason === 'not-found'
+            ? 'No longer there: it may have been moved, renamed or deleted.'
+            : row.session.reason === 'unsupported'
+              ? 'Not a file or folder BreadCrumb can look up, so there is no location to confirm.'
+              : row.session.reason === 'failed'
+                ? 'Your SharePoint session could not confirm it.'
+                : undefined;
+    if (text !== undefined) {
+      view.notes.push({ text, tone: 'muted', detail: row.session.message });
+    }
   }
   if (row.noteOutcome !== undefined) {
     view.notes.push(
