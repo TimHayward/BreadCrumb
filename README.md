@@ -77,6 +77,19 @@ Open **Options** from the popup, or use **Details → Extension options** on the
 
 Edge grants folder access for the session. After a browser restart, or an extension reload, the popup will say the access has to be given again: open Options and pick the same folder.
 
+## What it remembers
+
+Every link you resolve, extracted or pasted, is kept on this device, so a folder found once does not have to be found again. Each entry holds the link, the document key, the file name, the path and folder, how it was worked out, the page it came from and when it was seen.
+
+- The same document seen again under a different link form **updates its entry** rather than adding a second one.
+- A result that starts Inferred and is later confirmed **records the upgrade** and keeps what it improved on.
+- A link that could not be converted is kept too, with the reason.
+- Results written to your Obsidian note are **marked as written**, never hidden.
+- The newest **two thousand** are kept. Older ones make way, and anything already written to the note is kept in preference. The popup says when older results made way.
+- A write that fails is reported in the popup rather than passing silently.
+
+The options page says how many are kept and offers **Clear what is remembered**. Nothing is ever sent anywhere, and removing the extension removes all of it. Browsing and searching this history is still to come (backlog story BC-056).
+
 ## Paste a link
 
 A link sent in Teams or by email never passed through Copilot, so there is nothing to extract. Open the popup and choose **Paste a link**, paste it, and press **Convert**.

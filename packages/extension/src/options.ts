@@ -7,6 +7,7 @@
  * a top level page, which is why the options page opens in a tab.
  */
 import { PARSER_VERSION } from '@breadcrumb/parser';
+import { HISTORY_CAP, clearHistory, readHistory } from './history.js';
 import { DEFAULT_NOTE_PATH, getObsidianSettings, setNotePath, setVaultName } from './settings.js';
 import type { LinkReport } from './spTest.js';
 import { tenantOrigins } from './spTest.js';
@@ -15,6 +16,31 @@ import { forgetVaultHandle, loadVaultHandle, requestVaultPermission, saveVaultHa
 // Which version is installed, for anyone reporting what they saw (BC-064).
 const versionLine = document.getElementById('version') as HTMLElement;
 versionLine.textContent = `BreadCrumb ${chrome.runtime.getManifest().version}, link parser ${PARSER_VERSION}.`;
+
+const historyCount = document.getElementById('history-count') as HTMLElement;
+const clearHistoryButton = document.getElementById('clear-history') as HTMLButtonElement;
+
+/** What is kept on this device, and the room left before older results make way (BC-055). */
+async function showHistoryCount(): Promise<void> {
+  const { entries } = await readHistory();
+  const sent = entries.filter((entry) => entry.sentToNoteAt !== undefined).length;
+  historyCount.textContent =
+    entries.length === 0
+      ? `Nothing remembered yet. Up to ${HISTORY_CAP.toLocaleString()} results are kept.`
+      : `${entries.length.toLocaleString()} of ${HISTORY_CAP.toLocaleString()} kept${sent > 0 ? `, ${sent.toLocaleString()} of them written to your note` : ''}.`;
+}
+
+void showHistoryCount();
+
+clearHistoryButton.addEventListener('click', async () => {
+  try {
+    await clearHistory();
+  } catch (error) {
+    historyCount.textContent = `It could not be cleared: ${error instanceof Error ? error.message : String(error)}`;
+    return;
+  }
+  historyCount.textContent = 'Cleared. BreadCrumb now remembers nothing on this device.';
+});
 
 const pickVault = document.getElementById('pick-vault') as HTMLButtonElement;
 const forgetVault = document.getElementById('forget-vault') as HTMLButtonElement;

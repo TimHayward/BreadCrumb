@@ -4,6 +4,8 @@
  * what it can with the browser's SharePoint session, and copies links to the
  * clipboard. There is no BreadCrumb server to send anything to.
  */
+import { documentKey } from '@breadcrumb/parser';
+import { markSentToNote, recordRows } from './history.js';
 import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, ExtractScope, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
 import { appendRows, rowsForClipboard } from './noteWriter.js';
@@ -37,6 +39,10 @@ let obsidianTarget: { notePath: string; vaultName?: string } | undefined;
  */
 const FIRST_ROWS = 25;
 let scope: ExtractScope = 'latest';
+/** The page the popup was opened on, kept with each history entry (BC-055). */
+let pageUrl: string | undefined;
+/** False on a page with no Copilot answers to read, where only pasting makes sense. */
+let canReadPage = true;
 let shownRows = FIRST_ROWS;
 
 /** Writes to the status line under the buttons, when one is on screen. */
@@ -265,6 +271,11 @@ async function sendToObsidian(rows: PopupRow[]): Promise<SendResult> {
     }
     await writeNote(vault, settings.notePath, outcome.text);
     recordNoteOutcomes(selection, { ok: true, notePath: settings.notePath });
+    // Mark those documents as written, so history says what reached the note (D21).
+    void markSentToNote(
+      selection.entries.map(({ row }) => documentKey(row.result, row.url)),
+      new Date(),
+    );
     return { ok: true, message: sendSummary(outcome, selection.skipped, settings.notePath), openUri: obsidianUri(settings.vaultName ?? vault.name, settings.notePath) };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
@@ -389,6 +400,11 @@ function revealPasteField(): void {
 function scopeBar(rows: PopupRow[], tabId: number, surfaceNote?: string): HTMLElement {
   const bar = el('div', { class: 'scope-bar' });
   const group = el('div', { class: 'scope', role: 'group', 'aria-label': 'What to read' });
+  // Nothing to re-read on a page that is not a Copilot answer.
+  if (!canReadPage) {
+    bar.append(el('span', { class: 'note scope-count' }, `${rows.length} ${rows.length === 1 ? 'file' : 'files'}`), pasteControl(rows, tabId, surfaceNote));
+    return bar;
+  }
   for (const [value, label] of [
     ['latest', 'Latest answer'],
     ['chat', 'Whole chat'],
@@ -660,6 +676,13 @@ async function confirmRows(rows: PopupRow[], tabId: number, surfaceNote?: string
   const notFiles = count('unsupported');
   if (notFiles > 0) parts.push(`${notFiles} ${notFiles === 1 ? 'is not a link to a file' : 'are not links to files'}, so there is nothing to look up.`);
   if (count('no-access') > 0) parts.push('Allow your tenant on the options page to confirm the others instantly.');
+  // BC-055: keep what was worked out, so the same folder is never worked out twice.
+  const kept = await recordRows(renderList, pageUrl === undefined ? {} : { pageUrl });
+  if (!kept.ok) {
+    parts.push(`Nothing could be kept on this device: ${kept.message ?? 'the browser refused to store it'}.`);
+  } else if (kept.dropped > 0) {
+    parts.push(`${kept.dropped} of the oldest kept results made way for these.`);
+  }
   renderRows(renderList, tabId, surfaceNote, parts.length > 0 ? parts.join(' ') : undefined);
 }
 
@@ -673,6 +696,7 @@ async function start(): Promise<void> {
   if (surface === 'other') {
     // Not a Copilot page, so there are no citations to read. A link from
     // Teams, an email or anywhere else can still be pasted here (BC-054).
+    canReadPage = false;
     const box = el('div', { class: 'empty' });
     box.append(
       el('h2', {}, 'Paste a link to find its folder'),
@@ -682,6 +706,7 @@ async function start(): Promise<void> {
     main.replaceChildren(box);
     return;
   }
+  pageUrl = tab.url;
   setupDiagnostics(tab.id);
   await loadCitations(tab.id, surface === 'consumer' ? 'Links found in the response text on the consumer surface.' : undefined);
 }
