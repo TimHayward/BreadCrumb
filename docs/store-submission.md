@@ -218,40 +218,50 @@ Obsidian
 
 ## Submit: Notes for certification
 
-This box appears after pressing **Publish** on the Store listings page. It is the
-single most important field for an extension a reviewer cannot otherwise
-exercise, so do not leave it empty.
+The **Submit your extension** page asks two things.
+
+### "Does a tester need credentials, accounts, or any other info to test your extension?"
+
+**Select: `Yes, I need to provide credentials, accounts, or other info for testers`**
+
+Not because of credentials. There are none, and there is no test account to
+supply. Select Yes because choosing No greys the notes box out and fills it with
+"No Certification Notes required", and BreadCrumb genuinely has information a
+tester needs: its citation reading is conditional on the tester's own Microsoft
+365 account, and the optional note output depends on another product. Those are
+two of the three examples the page itself gives.
+
+### Notes for certification (under 2,000 characters)
+
+The text below is 1985 characters. Partner Center warns that a submission with
+no certification notes may be flagged or failed, so this goes in every time,
+including on updates.
 
 ```
-BreadCrumb can be tested without a Microsoft 365 tenant, and no test credentials are needed.
+No credentials are needed and there is no test account to supply. The information below is the "other info" a tester needs, because some functionality is conditional on the tester's own Microsoft 365 account.
 
-To see what the extension does, with no account and no sign-in:
+TESTING WITH NO ACCOUNT AT ALL
 
-1. Install, then click the BreadCrumb toolbar button on any ordinary web page.
-   The popup shows the "Paste a link to find its folder" view.
+1. Install, then click the BreadCrumb toolbar button on any ordinary web page. The popup shows the "Paste a link to find its folder" view.
 2. Click "Paste a link" and paste this example:
-   https://contoso.sharepoint.com/sites/Finance/Shared%20Documents/2026/Quarterly%20Review.docx
-3. Press Convert. BreadCrumb decodes the link locally in the browser and lists
-   the document with its readable folder path, the folder link, and a confidence
-   state. The Copy buttons put those links on the clipboard.
-4. Click "History" in the popup to see the result recorded, and to search,
-   export and delete it.
+https://contoso.sharepoint.com/sites/Finance/Shared%20Documents/2026/Quarterly%20Review.docx
+3. Press Convert. BreadCrumb decodes the link locally and lists the document with its readable folder path, the folder link and a confidence state. The Copy buttons put those links on the clipboard.
+4. Click "History" in the popup to see the result recorded, and to search, export and delete it.
 
-That path exercises the product end to end, because decoding happens in the
-browser with no network request at all.
+That needs no sign-in and makes no network request: decoding happens in the browser.
 
-Confirming a location against a live tenant is the one part that needs a
-Microsoft 365 work or school account, because it uses the browser's existing
-SharePoint session. It is optional. The extension declares
-https://*.sharepoint.com/* as an OPTIONAL host permission and asks for it only
-when a user chooses to grant it, on the options page, for their own
-organisation's hostname. Everything in the steps above works without it. A
-reviewer who has a work or school account can enable it by signing in to that
-tenant's SharePoint in a tab and then granting access on the options page. No
-credentials from the developer are involved at any point.
+CONDITIONAL FUNCTIONALITY
 
-The extension has no login of its own, no paid tier, and no hidden or locked
-features.
+Reading citations automatically requires the tester to be signed in to a Microsoft 365 work or school account and viewing a Microsoft Copilot answer that cites SharePoint or OneDrive for Business files. Without that, the popup shows the paste view above, which exercises the same resolution code.
+
+Confirming a location against a live tenant is optional. The extension declares https://*.sharepoint.com/* as an OPTIONAL host permission and requests it only when a user grants it, on the options page, for their own organisation's hostname. Everything above works without it. A tester with such an account can enable it by signing in to that tenant's SharePoint in a tab, then granting access on the options page.
+
+DEPENDENCIES ON OTHER PRODUCTS
+
+Microsoft 365 work or school, for the two features above.
+Obsidian, only for the optional "send to note" action, which appends a Markdown table row to a note in a vault folder the user picks. Nothing else depends on it.
+
+The extension has no login of its own, no paid tier, and no hidden or locked features.
 ```
 
 ---
