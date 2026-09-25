@@ -1,8 +1,21 @@
 # BreadCrumb
 
+[![Buy Me a Coffee](https://img.shields.io/badge/-Buy%20Me%20a%20Coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/timhayward)
+
+
+Nobody likes having to try and find where, in SharePoint a file is located. You might have the link to the document, but where that file actually lives, that can be like finding a needle in a haystack.
+
+There is a common hypothetical question in every office "Would you rather find a file in SharePoint, or *insert undesirable activity here*".
+
+**Meet BreadCrumb**
+
 BreadCrumb is a Microsoft Edge extension that turns the SharePoint and OneDrive for Business citations in a Microsoft Copilot response into the folder location each file sits in, and puts those links on your clipboard.
 
-Installing the extension is the whole installation. There is no server, no database and no deployment: the extension decodes links in the browser with a shared parser and, where you allow it, confirms them with the Microsoft 365 session your browser already has.
+The extension works in Copilot chat and CoWork to provide the location of any document that has been referenced in the chat, and if you a link from another source, for example, in a Teams chat or an email, you can copy it in the box at the top of the menu.
+
+![alt text](/docs/BreadCrumb.jpg)
+
+Installing the extension is the whole installation. No server, no database and no deployment: the extension decodes links in the browser with a shared parser and, where you allow it, confirms them with the Microsoft 365 session your browser already has.
 
 It can also write what it finds into an Obsidian note, as rows in a Markdown table in your own vault.
 
