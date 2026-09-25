@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BreadCrumb history</title>
+    <link rel="stylesheet" href="history.css" />
+  </head>
+  <body>
+    <header>
+      <h1>What BreadCrumb remembers</h1>
+      <a id="options-link" href="#" class="small">Options</a>
+    </header>
+
+    <main id="main">
+      <form id="filters" class="filters" role="search">
+        <div class="field grow">
+          <label for="search">Search</label>
+          <input id="search" type="search" placeholder="File name, folder or link" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="field">
+          <label for="state">State</label>
+          <select id="state"><option value="any">Any</option></select>
+        </div>
+        <div class="field">
+          <label for="source">Found by</label>
+          <select id="source">
+            <option value="any">Any</option>
+            <option value="extracted">Copilot citation</option>
+            <option value="pasted">Pasted by hand</option>
+          </select>
+        </div>
+        <div class="field check">
+          <input id="sent-only" type="checkbox" />
+          <label for="sent-only">Written to my note</label>
+        </div>
+      </form>
+
+      <div class="summary">
+        <p id="count" class="note" role="status"></p>
+        <div class="summary-actions">
+          <button type="button" id="select-all" class="row-link text-action">Select all</button>
+          <button type="button" id="select-none" class="row-link text-action">Select none</button>
+          <button type="button" id="delete-selected" class="secondary">Delete selected</button>
+          <button type="button" id="export-csv" class="secondary">Export CSV</button>
+          <button type="button" id="export-json" class="secondary">Export JSON</button>
+        </div>
+      </div>
+
+      <p id="confirm" class="confirm" hidden></p>
+      <ul id="entries" class="entries" aria-label="Remembered results"></ul>
+      <p id="more-line" class="note" hidden></p>
+    </main>
+
+    <p id="announcer" class="visually-hidden" role="status" aria-live="polite"></p>
+    <script type="module" src="historyPage.js"></script>
+  </body>
+</html>

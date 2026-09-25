@@ -11,6 +11,7 @@ await build({
     options: 'src/options.ts',
     content: 'src/content.ts',
     background: 'src/background.ts',
+    historyPage: 'src/historyPage.ts',
   },
   bundle: true,
   format: 'esm',
@@ -20,7 +21,7 @@ await build({
   logLevel: 'info',
 });
 
-for (const file of ['manifest.json', 'src/popup.html', 'src/popup.css', 'src/options.html']) {
+for (const file of ['manifest.json', 'src/popup.html', 'src/popup.css', 'src/options.html', 'src/history.html', 'src/history.css']) {
   cpSync(file, `dist/${file.replace(/^src\//, '')}`);
 }
 cpSync('icons', 'dist/icons', { recursive: true });

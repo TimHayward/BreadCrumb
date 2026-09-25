@@ -229,6 +229,22 @@ export async function markSentToNote(documentKeys: readonly string[], when: Date
   }
 }
 
+/** Removes exactly the entries named, and nothing else (BC-056). */
+export async function deleteEntries(documentKeys: readonly string[], store?: StorageAreaLike): Promise<WriteOutcome> {
+  if (documentKeys.length === 0) {
+    return { ok: true, written: 0, dropped: 0, total: 0 };
+  }
+  try {
+    const file = await readHistory(store);
+    const unwanted = new Set(documentKeys);
+    const entries = file.entries.filter((entry) => !unwanted.has(entry.documentKey));
+    await area(store).set({ [KEY]: { version: HISTORY_VERSION, entries } });
+    return { ok: true, written: 0, dropped: file.entries.length - entries.length, total: entries.length };
+  } catch (error) {
+    return { ok: false, written: 0, dropped: 0, total: 0, message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export async function clearHistory(store?: StorageAreaLike): Promise<void> {
   await area(store).set({ [KEY]: { version: HISTORY_VERSION, entries: [] } });
 }

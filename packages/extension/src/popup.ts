@@ -95,6 +95,13 @@ async function copyToClipboard(text: string): Promise<string | undefined> {
   }
 }
 
+const historyLink = document.getElementById('history-link') as HTMLAnchorElement;
+historyLink.addEventListener('click', (event) => {
+  event.preventDefault();
+  // A full page, because two thousand remembered results want the room.
+  void chrome.tabs.create({ url: chrome.runtime.getURL('history.html') });
+});
+
 const optionsLink = document.getElementById('options-link') as HTMLAnchorElement;
 optionsLink.addEventListener('click', (event) => {
   event.preventDefault();

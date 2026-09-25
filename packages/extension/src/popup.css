@@ -142,3 +142,5 @@ button.row-link { min-height: 24px; padding: 0; text-align: start; border: 0; bo
 .paste-status { margin: var(--space-1) 0 0; }
 .paste-status:empty { display: none; }
 .empty .paste { margin-top: var(--space-3); }
+
+.header-links { display: inline-flex; gap: var(--space-3); align-items: baseline; }

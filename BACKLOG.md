@@ -155,17 +155,19 @@ Decisions: D8, D11, D15 and D21 closed 2026-09-25.
 
 #### BC-056 History page: search, filter, delete and export
 
+**Shipped 2026-09-25.** A full page, opened from the popup, because two thousand results want the room.
+
 As a user, I want to browse what I have resolved, search it and get it out, so that the history is useful beyond the last popup.
 
-- Given the extension's history page, When it is opened, Then entries are listed newest first with file name, document location, state and when they were captured, and the list is usable at two thousand entries.
-- Given a search term, When it is typed, Then entries whose file name, path or original link contain it are shown, matching is case insensitive, and the first results appear within one second at two thousand entries.
-- Given the filters, When a state or a source (extracted, pasted) is chosen, Then only matching entries are listed and the filter is visible in the page.
-- Given one entry or a selection, When delete is chosen, Then those entries are removed after a confirmation that names how many will go, and nothing else is touched.
-- Given the current filtered set, When export is chosen, Then it downloads as CSV and as JSON with every stored field, and the file opens in a spreadsheet with the columns intact.
-- Given the page, When it is operated with the keyboard only and with a screen reader, Then every control is reachable and labelled, and state is never conveyed by colour alone.
+- Given the history page, When it is opened, Then entries are listed newest first with file name, document location, state and when they were captured, and the list is usable at two thousand entries. **Done:** a hundred rows are built at a time, with the rest one press away.
+- Given a search term, When it is typed, Then entries whose file name, path or original link contain it are shown, matching is case insensitive, and the first results appear within one second at two thousand entries. **Done, and timed in a test.**
+- Given the filters, When a state or a source (extracted, pasted) is chosen, Then only matching entries are listed and the filter is visible in the page. **Done**, with a third filter for what has reached the note.
+- Given one entry or a selection, When delete is chosen, Then those entries are removed after a confirmation that names how many will go, and nothing else is touched. **Done.**
+- Given the current filtered set, When export is chosen, Then it downloads as CSV and as JSON with every stored field, and the file opens in a spreadsheet with the columns intact. **Done:** the CSV carries a byte order mark and quotes any value holding a comma, a quote or a newline.
+- Given the page, When it is operated with the keyboard only and with a screen reader, Then every control is reachable and labelled, and state is never conveyed by colour alone. **Done:** labelled controls, focus returned after a delete, a live region for copies and deletions, and a symbol beside every state.
 
 Priority: Must. Size: M. Depends on: BC-055.
-Decisions to close first: D24.
+Decisions: D24 (an export another install can read back) is still open. The JSON export holds every stored field, so it could be read back; no import is built.
 
 #### BC-057 Options page for tenant and note settings
 

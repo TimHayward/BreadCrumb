@@ -88,7 +88,19 @@ Every link you resolve, extracted or pasted, is kept on this device, so a folder
 - The newest **two thousand** are kept. Older ones make way, and anything already written to the note is kept in preference. The popup says when older results made way.
 - A write that fails is reported in the popup rather than passing silently.
 
-The options page says how many are kept and offers **Clear what is remembered**. Nothing is ever sent anywhere, and removing the extension removes all of it. Browsing and searching this history is still to come (backlog story BC-056).
+The options page says how many are kept and offers **Clear what is remembered**. Nothing is ever sent anywhere, and removing the extension removes all of it.
+
+### Looking through it
+
+The **History** link in the popup opens a full page of what is kept, newest first. From there you can:
+
+- **Search** by file name, folder or link.
+- **Filter** by confidence state, by whether it came from a Copilot citation or was pasted, and by what has been written to your note.
+- **Copy** the original link or the folder link, or open the folder in SharePoint.
+- **Delete** one result or a selection, after a confirmation that says how many will go.
+- **Export** whatever the filters are showing, as CSV for a spreadsheet or JSON with every stored field.
+
+A result that started Inferred and was later confirmed says what it used to be, so a correction is visible rather than silent.
 
 ## Paste a link
 
