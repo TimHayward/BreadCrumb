@@ -8,6 +8,7 @@ import { surfaceOf } from './hosts.js';
 import type { ContentToPopup, ExtractResponse, ExtractScope, PopupToContent, ProbeResponse, SampleResponse } from './messages.js';
 import { appendRows, rowsForClipboard } from './noteWriter.js';
 import {
+  addPastedRow,
   buildRows,
   clipboardText,
   copySummary,
@@ -318,6 +319,72 @@ function signInHelper(rows: PopupRow[], tabId: number, surfaceNote?: string): HT
   return box;
 }
 
+/**
+ * BC-054: paste a link that never appeared in a Copilot answer, for example
+ * one sent in Teams or by email. Pressing the button reveals the field, so
+ * it costs nothing when it is not wanted, and the result joins the top of
+ * whatever list is already there.
+ */
+function pasteControl(rows: PopupRow[], tabId: number, surfaceNote?: string): HTMLElement {
+  const box = el('div', { class: 'paste' });
+  const reveal = el('button', { type: 'button', class: 'row-link text-action', 'aria-expanded': 'false' }, icon('link'), el('span', {}, 'Paste a link'));
+  const form = el('form', { class: 'paste-form', hidden: 'hidden' });
+  const input = el('input', {
+    type: 'text',
+    class: 'paste-input',
+    id: 'paste-link',
+    placeholder: 'https://contoso.sharepoint.com/…',
+    autocomplete: 'off',
+    spellcheck: 'false',
+    'aria-label': 'A SharePoint or OneDrive link to convert',
+  });
+  const submit = el('button', { type: 'submit' }, 'Convert');
+  const status = el('p', { class: 'note paste-status', role: 'status' });
+
+  reveal.addEventListener('click', () => {
+    const showing = form.hidden;
+    form.hidden = !showing;
+    reveal.setAttribute('aria-expanded', String(showing));
+    if (showing) {
+      input.focus();
+    }
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const link = input.value.trim();
+    if (link === '') {
+      status.textContent = 'Paste a link first.';
+      input.focus();
+      return;
+    }
+    submit.disabled = true;
+    const { row, alreadyListed } = addPastedRow(rows, link);
+    input.value = '';
+    // Keep the field open and focused, so several links can go in one after another.
+    renderRows(rows, tabId, surfaceNote, alreadyListed ? 'That document was already listed, so it moved to the top.' : undefined);
+    revealPasteField();
+    await confirmRows([row], tabId, surfaceNote, rows);
+    revealPasteField();
+  });
+
+  form.append(input, submit);
+  box.append(reveal, form, status);
+  return box;
+}
+
+/** Re-opens the paste field after a re-render, so the flow is not interrupted. */
+function revealPasteField(): void {
+  const form = document.querySelector('.paste-form') as HTMLFormElement | null;
+  const reveal = document.querySelector('.paste [aria-expanded]');
+  if (form === null) {
+    return;
+  }
+  form.hidden = false;
+  reveal?.setAttribute('aria-expanded', 'true');
+  (form.querySelector('.paste-input') as HTMLInputElement | null)?.focus();
+}
+
 /** What to read, how many were found, and ticking them all at once. */
 function scopeBar(rows: PopupRow[], tabId: number, surfaceNote?: string): HTMLElement {
   const bar = el('div', { class: 'scope-bar' });
@@ -337,6 +404,7 @@ function scopeBar(rows: PopupRow[], tabId: number, surfaceNote?: string): HTMLEl
     group.append(option);
   }
   bar.append(group, el('span', { class: 'note scope-count' }, `${rows.length} ${rows.length === 1 ? 'file' : 'files'}`));
+  bar.append(pasteControl(rows, tabId, surfaceNote));
 
   const selectable = rows.filter((row) => row.result.ok);
   if (selectable.length > 1) {
@@ -472,6 +540,8 @@ function renderEmpty(kind: 'work' | 'consumer', tabId: number, strategy: string,
     actions.append(wider);
   }
   box.append(actions);
+  // A link from Teams or an email has no chat to come from: paste it here.
+  box.append(pasteControl([], tabId, surfaceNote));
 
   // Folded away: only useful when the answer did cite files and extraction missed them.
   const note = el('p', { class: 'note', role: 'status' });
@@ -568,7 +638,7 @@ async function loadCitations(tabId: number, surfaceNote?: string): Promise<void>
  * granted access, then re-renders. Also used by "Check again" after the user
  * has opened the site and signed in.
  */
-async function confirmRows(rows: PopupRow[], tabId: number, surfaceNote?: string): Promise<void> {
+async function confirmRows(rows: PopupRow[], tabId: number, surfaceNote?: string, renderList: PopupRow[] = rows): Promise<void> {
   await confirmWithSession(rows, {
     fetchImpl: (url, init) => fetch(url, init),
     hasPermission: (host) => chrome.permissions.contains({ origins: [`https://${host}/*`] }),
@@ -590,7 +660,7 @@ async function confirmRows(rows: PopupRow[], tabId: number, surfaceNote?: string
   const notFiles = count('unsupported');
   if (notFiles > 0) parts.push(`${notFiles} ${notFiles === 1 ? 'is not a link to a file' : 'are not links to files'}, so there is nothing to look up.`);
   if (count('no-access') > 0) parts.push('Allow your tenant on the options page to confirm the others instantly.');
-  renderRows(rows, tabId, surfaceNote, parts.length > 0 ? parts.join(' ') : undefined);
+  renderRows(renderList, tabId, surfaceNote, parts.length > 0 ? parts.join(' ') : undefined);
 }
 
 async function start(): Promise<void> {
@@ -601,7 +671,15 @@ async function start(): Promise<void> {
   }
   const surface = surfaceOf(new URL(tab.url).hostname);
   if (surface === 'other') {
-    main.replaceChildren(el('p', {}, 'BreadCrumb works on m365.cloud.microsoft, copilot.cloud.microsoft and copilot.microsoft.com. Open a Copilot response there.'));
+    // Not a Copilot page, so there are no citations to read. A link from
+    // Teams, an email or anywhere else can still be pasted here (BC-054).
+    const box = el('div', { class: 'empty' });
+    box.append(
+      el('h2', {}, 'Paste a link to find its folder'),
+      el('p', {}, 'BreadCrumb reads file citations on the Copilot pages at m365.cloud.microsoft and copilot.cloud.microsoft. Anywhere else, paste a SharePoint or OneDrive for Business link and it will work out where the file lives.'),
+      pasteControl([], tab.id, undefined),
+    );
+    main.replaceChildren(box);
     return;
   }
   setupDiagnostics(tab.id);

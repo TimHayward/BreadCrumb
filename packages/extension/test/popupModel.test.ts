@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VerifiedResult } from '@breadcrumb/validation';
-import { buildRows, clipboardText, copySummary, describeRow, noteRowsFor, pathSegments, recordNoteOutcomes, selectedFileLinks, selectedFolderLinks, sendSummary } from '../src/popupModel.js';
+import { addPastedRow, buildRows, clipboardText, copySummary, describeRow, noteRowsFor, pathSegments, recordNoteOutcomes, selectedFileLinks, selectedFolderLinks, sendSummary } from '../src/popupModel.js';
 
 const DIRECT = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder%20One/Report.pdf';
 const TOKEN = 'https://contoso.sharepoint.com/:b:/s/SiteA/EaBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789abc?e=Ab12Cd';
@@ -275,5 +275,58 @@ describe('what a signed out row says (user testing, 2026-09-23)', () => {
       tone: 'muted',
       detail: 'SharePoint answered 401 for contoso.sharepoint.com.',
     });
+  });
+});
+
+describe('pasting a link by hand (BC-054)', () => {
+  const FILE = 'https://contoso.sharepoint.com/sites/SiteA/Lib/Folder/Report.pdf';
+  const OTHER = 'https://contoso.sharepoint.com/sites/SiteB/Lib/Budget.xlsx';
+
+  it('puts the pasted link at the top of what is already listed', () => {
+    const rows = buildRows([{ url: OTHER }]);
+    const { row, alreadyListed } = addPastedRow(rows, FILE);
+    expect(alreadyListed).toBe(false);
+    expect(rows.map((r) => r.label)).toEqual(['Report.pdf', 'Budget.xlsx']);
+    expect(row.source).toBe('pasted');
+    expect(row.key.startsWith('paste-')).toBe(true);
+    expect(describeRow(row)).toMatchObject({ location: '/sites/SiteA/Lib/Folder', originalUrl: FILE });
+  });
+
+  it('works when nothing has been extracted at all', () => {
+    const rows: ReturnType<typeof buildRows> = [];
+    addPastedRow(rows, FILE);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.label).toBe('Report.pdf');
+  });
+
+  it('moves a document already listed to the top rather than repeating it', () => {
+    const rows = buildRows([{ url: OTHER }, { url: FILE }]);
+    const { alreadyListed } = addPastedRow(rows, FILE);
+    expect(alreadyListed).toBe(true);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.label)).toEqual(['Report.pdf', 'Budget.xlsx']);
+  });
+
+  it('recognises the same document pasted in another link form', () => {
+    const guid = '3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C';
+    const docAspx = `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${guid}%7D&file=Plan.docx&action=default`;
+    const sharing = `https://contoso.sharepoint.com/:w:/r/sites/SiteA/Lib/Plan.docx?d=w${guid.replaceAll('-', '').toLowerCase()}&csf=1&web=1`;
+    const rows = buildRows([{ url: docAspx }]);
+    expect(addPastedRow(rows, sharing).alreadyListed).toBe(true);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('keeps a link that cannot be converted, with its reason, rather than dropping it', () => {
+    const rows: ReturnType<typeof buildRows> = [];
+    const { row } = addPastedRow(rows, 'https://1drv.ms/x/s!AaBbCcDdEeFfGgHh');
+    expect(row.state).toBe('failed');
+    expect(describeRow(row).locationNote).toContain('which is not supported');
+    expect(rows).toHaveLength(1);
+  });
+
+  it('trims what was pasted, since a copied link often carries spaces', () => {
+    const rows: ReturnType<typeof buildRows> = [];
+    const { row } = addPastedRow(rows, `  ${FILE}  `);
+    expect(row.url).toBe(FILE);
   });
 });

@@ -132,3 +132,13 @@ button.row-link { min-height: 24px; padding: 0; text-align: start; border: 0; bo
 .empty-details { margin-top: var(--space-3); border-top: 1px solid var(--border); padding-top: var(--space-2); }
 .empty-details summary { cursor: pointer; color: var(--accent); min-height: 24px; }
 .empty-details p { margin: var(--space-2) 0; }
+
+/* Paste a link that never appeared in a Copilot answer (BC-054). */
+.paste { flex-basis: 100%; }
+.paste-form { display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-2); }
+.paste-input { flex: 1 1 auto; min-width: 0; min-height: 30px; padding: 4px var(--space-2); border: 1px solid var(--border); border-radius: 4px; font: inherit; color: var(--fg); background: var(--bg); }
+.paste-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.paste-form button { min-height: 30px; padding: 2px var(--space-3); }
+.paste-status { margin: var(--space-1) 0 0; }
+.paste-status:empty { display: none; }
+.empty .paste { margin-top: var(--space-3); }

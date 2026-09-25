@@ -123,16 +123,19 @@ Decisions to close first: D16, D22.
 
 #### BC-054 Paste a link by hand in the extension
 
+**Shipped 2026-09-25.** Tim settled decision D14 by describing the flow he wanted: a "Paste a link" control that reveals a field, and a result that joins the top of the list when there is one.
+
 As a user, I want to paste any Microsoft 365 link into the extension, so that I can get its folder location when the link did not come from a Copilot citation.
 
-- Given the extension popup on any page, When the user chooses to paste a link, Then a single input accepts one link and converting it shows the same row presentation as a citation: file name, document location, confidence state and the copy actions.
-- Given a pasted link on a tenant the user has granted, When it is converted, Then it is confirmed with the SharePoint session exactly as a citation is (BC-049), and the row shows Verified with the method text naming the call.
-- Given a pasted link that fails to parse, When it is converted, Then the failure message and reason are shown in the row, with no exception and no empty state.
-- Given a pasted link, When it has been converted, Then it is kept in the extension's history (BC-055) with its source recorded as pasted rather than extracted.
-- Given the popup opened on a page that is not a Copilot surface, When it opens, Then the paste input is available there too, so the extension is useful anywhere.
+- Given the extension popup on any page, When the user chooses to paste a link, Then a single input accepts one link and converting it shows the same row presentation as a citation: file name, document location, confidence state and the copy actions. **Done.**
+- Given a pasted link on a tenant the user has granted, When it is converted, Then it is confirmed with the SharePoint session exactly as a citation is (BC-049), and the row shows Verified with the method text naming the call. **Done.**
+- Given a pasted link that fails to parse, When it is converted, Then the failure message and reason are shown in the row, with no exception and no empty state. **Done.**
+- Given a pasted link, When it has been converted, Then it is kept in the extension’s history (BC-055) with its source recorded as pasted rather than extracted. **Not yet: the row carries its source, but there is no history to keep it in until BC-055.**
+- Given the popup opened on a page that is not a Copilot surface, When it opens, Then the paste input is available there too, so the extension is useful anywhere. **Done.**
+- Given a document already listed, When the same document is pasted in any link form, Then it moves to the top rather than being listed twice. **Done.**
 
-Priority: Must. Size: M. Depends on: BC-055.
-Decisions to close first: D14.
+Priority: Must. Size: M. Depends on: BC-055 for the last criterion only.
+Decisions: D14 closed 2026-09-25, in the popup, revealed by a button.
 
 #### BC-055 The extension keeps its own history
 
@@ -465,7 +468,7 @@ Each row says when it has to be settled. A story cannot start while a decision i
 | D11 | Whether the extension's local history stays once the note output exists. **Recommended: keep both, the note as the record that lasts and local history as the working copy.** | Keep both (recommended); local only; write to the note and keep nothing locally. | Before BC-055 is built. Blocks BC-056. | Product owner |
 | D12 | What happens when a document is sent again. **Decided 2026-09-19: always append a new row.** BreadCrumb never reads the existing rows to decide, never updates and never skips, so the note is a log of what was sent and when. The date processed column tells the two apart, and a duplicate is the user's to remove. | Always append (decided); update the row in place; skip it and say so. | Closed. | Product owner |
 | D13 | Whether Microsoft Graph confirmation survives at all, now that the SharePoint session covers the tested forms and the note output needs no Microsoft credential. | Keep it for what the session cannot confirm (assumed in BC-061 and BC-062); drop it and accept the session's ceiling. | After S12, before M6 planning is fixed. Blocks BC-061. | Product owner |
-| D14 | Where the paste input lives. **Recommended: in the popup, above the citation list, so there is one place to look.** | Popup only (recommended); a separate extension page; the browser side panel; both popup and page. | Before BC-054 starts. | Product owner |
+| D14 | Where the paste input lives. **Decided 2026-09-25: in the popup, behind a "Paste a link" control that reveals the field**, so it costs nothing when it is not wanted and is there on any page, Copilot or not. | Popup only (decided); a separate extension page; the browser side panel; both popup and page. | Closed. | Product owner |
 | D15 | The history cap and what is dropped first. **Recommended: two thousand entries, dropping the oldest that were never written to the note.** | A fixed cap with oldest first; a cap the user sets; no cap until the browser complains; never drop, refuse to add. | Before BC-055 is built. Blocks the BC-056 performance criterion. | Product owner |
 | D16 | What the third row action becomes now that "In BreadCrumb" has nowhere to go. **Recommended: "Open in Obsidian" once the document has a row, using an `obsidian://` link to the note; otherwise no third action.** Taken as "no third action" on 2026-09-18 when the web pages went; revisit with BC-067. | Open the note in Obsidian (recommended); open the extension's own history entry; drop the third action. | Before BC-067 ships. | Product owner |
 | D17 | When extraction runs: on opening the popup, as now, or as the Copilot response arrives. | On popup open (as now); watch the page and keep a running list; watch only when the user turns it on. | Before M5 is demonstrated; affects BC-062 and R1. | Extension owner |

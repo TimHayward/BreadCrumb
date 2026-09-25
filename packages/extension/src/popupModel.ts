@@ -28,6 +28,8 @@ export interface PopupRow {
   folder?: string;
   libraryInferred: boolean;
   selected: boolean;
+  /** Where the link came from: a Copilot answer, or pasted by hand (BC-054). */
+  source?: 'extracted' | 'pasted';
   /** What SharePoint said when asked with the browser's session (BC-049). */
   session?: SessionOutcome;
   /** What happened to this row on the last send to the note (BC-067). */
@@ -93,6 +95,36 @@ export function buildRows(citations: readonly Citation[]): PopupRow[] {
     rows.push(row);
   }
   return rows;
+}
+
+/**
+ * BC-054: a link the user pasted, rather than one lifted from a Copilot
+ * answer. A link sent in Teams or by email is exactly the case: the user has
+ * the link but not the folder, and no chat to read it from.
+ *
+ * The row goes to the top, because it is the one just asked for. A document
+ * already listed is moved there rather than repeated, so pasting a link to
+ * something on screen tidies rather than duplicates.
+ */
+export function addPastedRow(rows: PopupRow[], link: string): { rows: PopupRow[]; row: PopupRow; alreadyListed: boolean } {
+  const url = link.trim();
+  const result = parseLink(url);
+  const identity = documentKey(result, url);
+  const existing = rows.findIndex((row) => documentKey(row.result, row.url) === identity);
+  if (existing !== -1) {
+    const [found] = rows.splice(existing, 1);
+    const row = found as PopupRow;
+    rows.unshift(row);
+    return { rows, row, alreadyListed: true };
+  }
+
+  const [built] = buildRows([{ url }]);
+  const row = built as PopupRow;
+  // Keys must not collide with the row-N keys extraction hands out.
+  row.key = `paste-${rows.length + 1}-${Date.now().toString(36)}`;
+  row.source = 'pasted';
+  rows.unshift(row);
+  return { rows, row, alreadyListed: false };
 }
 
 /** A short line under a row's links; `tone` picks its colour, the text always carries the meaning. */

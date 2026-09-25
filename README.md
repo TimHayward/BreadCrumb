@@ -77,6 +77,14 @@ Open **Options** from the popup, or use **Details → Extension options** on the
 
 Edge grants folder access for the session. After a browser restart, or an extension reload, the popup will say the access has to be given again: open Options and pick the same folder.
 
+## Paste a link
+
+A link sent in Teams or by email never passed through Copilot, so there is nothing to extract. Open the popup and choose **Paste a link**, paste it, and press **Convert**.
+
+It works anywhere, not only on a Copilot page: on any other site the popup is the paste field and nothing else. On a Copilot page the result joins the top of the list, and is confirmed with your SharePoint session like any other row. The field stays open so several links can go in one after another.
+
+A document already in the list moves to the top rather than appearing twice, even when the link you pasted is a different form of the same document.
+
 ## Using it
 
 Open a Copilot response that cites files on `m365.cloud.microsoft` or `copilot.cloud.microsoft`, then open the popup. It lists each SharePoint or OneDrive for Business citation once, and each row shows:
