@@ -26,6 +26,13 @@ reads that link.
 From a link it derives the file name, the folder path and the tenant host. That
 is the product.
 
+**A note on OneDrive paths.** A OneDrive for Business path contains the account
+name of whoever owns that drive, for example
+`/personal/ada_contoso_com/Documents/...`, which is an email address in another
+form. BreadCrumb shows and stores that path because it is the file's location,
+not to identify anyone. It is never transmitted, and it is in the link you
+already had.
+
 ## Where BreadCrumb sends data
 
 **Only to your own tenant, and only if you ask it to.** If you grant access to

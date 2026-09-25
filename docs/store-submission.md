@@ -1,32 +1,174 @@
 # Edge Add-ons submission
 
-Everything Partner Center asks for, written out so it can be pasted in. Sources:
-[Publish an extension](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension)
-and the [Microsoft Edge Add-ons store policies](https://learn.microsoft.com/en-us/microsoft-edge/extensions/store-policies/developer-policies).
+Every answer Partner Center asks for, in the order the dashboard asks for it, so
+it can be pasted straight in. The section headings match the pages in the left
+hand navigation.
 
-## Package
+Source:
+[Publish a Microsoft Edge extension](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension)
+and the
+[developer policies](https://learn.microsoft.com/en-us/legal/microsoft-edge/extensions/developer-policies).
 
-- Built with `pnpm build`, zipped with `node scripts/package-extension.mjs`.
-- The zip is `release/breadcrumb-extension-<version>.zip`. Upload that file.
-- Manifest V3, no background service worker.
-- Permissions: `storage`, `clipboardWrite`. Host permissions: the three Copilot
-  hosts. Optional host permission: `https://*.sharepoint.com/*`.
+> Partner Center warns that anything incomplete, misleading or inaccurate on the
+> Privacy page counts as a policy violation and can delay or fail certification.
+> Every answer below is written to be literally true of the code as built.
 
-## Store listing
+---
 
-**Display name**
+## Packages
+
+Upload `release/breadcrumb-extension-<version>.zip`, built with `pnpm build` and
+zipped with `node scripts/package-extension.mjs`.
+
+The package is Manifest V3, has no background service worker, and contains 14
+files, every one of them named by the manifest. `name` and `description` are read
+out of the manifest and become the extension name and short description in the
+listing; neither can be edited in Partner Center.
+
+---
+
+## Availability
+
+- **Visibility**: `Public`.
+- **Markets**: all, which is the default and includes markets added later.
+
+---
+
+## Properties
+
+| Field | Answer |
+|---|---|
+| Category | Productivity |
+| Website | `https://github.com/TimHayward/BreadCrumb` |
+| Support contact detail | `https://github.com/TimHayward/BreadCrumb/issues` |
+| Mature content | Leave unticked |
+
+The privacy policy URL is **not** on this page. It is the last section of the
+Privacy page.
+
+---
+
+## Privacy
+
+Five sections, in this order.
+
+### 1. Single Purpose Description
 
 ```
-BreadCrumb
+BreadCrumb has one purpose: to show where a SharePoint or OneDrive for Business file is located. It takes a file link, either one cited in a Microsoft Copilot answer or one the user pastes into the popup, and resolves it to the folder that file sits in, which the user can then copy or record. Every feature serves that purpose: the popup lists the locations, the history page keeps the ones already found, and the optional Obsidian output writes them into the user's own notes.
 ```
 
-**Short description** (the manifest `description`, 96 characters)
+### 2. Permission justification
+
+Partner Center lists the permissions it found in the manifest and gives each one
+a text box. Five boxes are expected.
+
+**`storage`**
 
 ```
-Turns SharePoint and OneDrive citations in Copilot responses into folder locations you can copy.
+Stores the user's own settings (tenant name, Obsidian note path and vault folder name) and the local history of file locations already resolved, so a folder found once does not have to be found again. All of it stays in the browser profile; none of it is transmitted anywhere.
 ```
 
-**Description** (paste as-is; plain text, no other browser named)
+**`clipboardWrite`**
+
+```
+The extension's main action is putting a file link or a folder link on the clipboard. This permission is what the Copy buttons in the popup and on the history page use.
+```
+
+**`https://m365.cloud.microsoft/*`**, **`https://copilot.cloud.microsoft/*`**, **`https://copilot.microsoft.com/*`**
+
+Same text in each of the three boxes:
+
+```
+This is one of the three Microsoft Copilot pages BreadCrumb works on. A content script reads the SharePoint and OneDrive for Business file links cited in the answer on screen, so the extension can resolve them to folder locations. It reads only those file links: not the prompt, not the answer text, and nothing else on the page. No other site is matched.
+```
+
+**`https://*.sharepoint.com/*`** (this is declared as `optional_host_permissions`, so it may appear in its own box or not at all; if there is no box for it, say this in the Notes for certification instead)
+
+```
+Optional and requested at runtime, never at install. If the user grants it on the options page for their own tenant, BreadCrumb calls that tenant's own SharePoint API (https://<tenant>.sharepoint.com/_api/v2.0/shares/.../driveItem) to confirm exactly where a file lives, using the Microsoft 365 session the browser already has. The extension does not read cookie values and does not request the cookies permission. Without this grant the extension still works, showing locations decoded from the link alone; confirmation is what the grant adds. It is a wildcard because SharePoint tenant hostnames are specific to each organisation and cannot be known in advance; each user grants only their own.
+```
+
+### 3. Are you using remote code?
+
+This is a pair of option buttons, not a text box.
+
+**Select: `No, I am not using remote code`**
+
+Verified against the built bundles: every `<script>` and `<link>` in the three
+HTML pages is a relative path to a packaged file, there is no `eval`, no
+`new Function` and no dynamic `import()`, no `@import` or `url()` in the CSS, and
+no `content_security_policy` or `web_accessible_resources` in the manifest. The
+only absolute URLs in the bundles are the SVG namespace string, a bare `https://`
+used for building a URL, and the `contoso.sharepoint.com` example placeholder.
+The SharePoint calls fetch JSON, which is parsed as data and never executed.
+
+### 4. Data usage
+
+Two sets of checkboxes.
+
+**"What user data do you plan to collect from users now or in the future?"**
+
+| Checkbox | Tick? | Why |
+|---|---|---|
+| Personally identifiable information | No | BreadCrumb does not gather anyone's identity. See the note below on OneDrive paths. |
+| Health information | No | Never touched. |
+| Financial and payment information | No | Never touched. No payments, no paid tier. |
+| Authentication information | No | No password, token or cookie value is ever read. The browser attaches the SharePoint session itself; the extension does not request the `cookies` permission and cannot see credentials. |
+| Personal communications | No | The content script reads file links only. It does not read the prompt, the answer text, or any message. |
+| Location | No | No geolocation, no IP handling. |
+| Web history | No | The local history holds file links the user resolved, not pages the user visited. Nothing records browsing. |
+| User activity | No | No click, scroll, keystroke or network monitoring of any kind. |
+| **Website content** | **Yes** | This one is accurate and must be ticked. The content script reads hyperlinks from the Copilot page, and "hyperlinks" is named in this category. |
+
+**"I certify that the following disclosures are true"**
+
+Tick all of them. Each is true: BreadCrumb does not sell user data, does not
+transfer it for any purpose unrelated to its single purpose, does not use it to
+determine creditworthiness or for lending, and its handling matches the privacy
+policy below.
+
+**The one judgement call, so it is not a surprise if a reviewer raises it.**
+A OneDrive for Business path contains the account name, for example
+`/personal/ada_contoso_com/Documents/...`, which is an email address in another
+form. BreadCrumb displays and stores that path because it *is* the file's
+location, not to identify anyone, and it never leaves the device. That is why
+"Personally identifiable information" is not ticked: the category asks what the
+extension collects *from users*, and BreadCrumb collects no identity. The
+privacy policy says this explicitly so the two are consistent.
+
+### 5. Privacy Policy URL
+
+```
+https://github.com/TimHayward/BreadCrumb/blob/main/docs/PRIVACY.md
+```
+
+Checked: returns HTTP 200 publicly, signed out.
+
+---
+
+## Store listings
+
+One row per language in the package. BreadCrumb has no `_locales` folder, so
+there is a single row.
+
+| Field | Answer |
+|---|---|
+| Extension name | Read from the manifest: `BreadCrumb`. Read-only here. |
+| Short description | Read from the manifest, 96 characters. Read-only here; to change it, change the manifest and re-upload. |
+| Description | The block below. 2,501 characters, against a minimum of 250 and a maximum of 10,000. |
+| Extension logo | `docs/store/logo-300.png`, 300 x 300, which is the recommended size. |
+| Screenshots | `docs/store/screenshot-1.png`, `-2.png`, `-3.png`. All 1280 x 800, one of the two permitted sizes. Up to six are allowed. There is no caption field: each image carries its own wording. |
+| Small promotional tile | Optional, 440 x 280. Not supplied. |
+| Large promotional tile | Optional, 1400 x 560. Not supplied. |
+| YouTube video URL | Not supplied. |
+| Search terms | Below. Not shown to users. |
+
+There is a **Generate with AI** button under the Description box. Do not use it:
+the description below is written to be accurate, and an AI-generated one would
+have to be checked line by line against the code anyway.
+
+**Description** (paste as-is; names no browser other than the store's own)
 
 ```
 Copilot tells you which file an answer came from, but not where that file lives. BreadCrumb closes that gap.
@@ -60,134 +202,70 @@ A Microsoft 365 work or school account. Personal (consumer) OneDrive links are r
 BreadCrumb is free and open source: https://github.com/TimHayward/BreadCrumb
 ```
 
-**Category**: Productivity
-
-**Language**: English (United Kingdom)
-
-**Privacy policy URL**
+**Search terms** (maximum seven terms, 21 words in total, 30 characters each)
 
 ```
-https://github.com/TimHayward/BreadCrumb/blob/main/docs/PRIVACY.md
+SharePoint
+OneDrive
+Copilot
+file location
+folder path
+Microsoft 365
+Obsidian
 ```
 
-**Website**
+---
+
+## Submit: Notes for certification
+
+This box appears after pressing **Publish** on the Store listings page. It is the
+single most important field for an extension a reviewer cannot otherwise
+exercise, so do not leave it empty.
 
 ```
-https://github.com/TimHayward/BreadCrumb
-```
+BreadCrumb can be tested without a Microsoft 365 tenant, and no test credentials are needed.
 
-**Support contact**
-
-```
-https://github.com/TimHayward/BreadCrumb/issues
-```
-
-**Store logo**: `docs/store/logo-300.png` (300 x 300 PNG)
-
-**Screenshots** (1280 x 800 PNG)
-
-| File | Caption to type |
-|---|---|
-| `docs/store/screenshot-1.png` | Find where a cited file actually lives |
-| `docs/store/screenshot-2.png` | A link from Teams or email works too |
-| `docs/store/screenshot-3.png` | Everything you have resolved, kept on your device |
-
-## Properties: single purpose
-
-```
-BreadCrumb has one purpose: to show where a SharePoint or OneDrive for Business file is located. It takes a file link, either one cited in a Microsoft Copilot answer or one the user pastes, and resolves it to the folder that file sits in, which the user can then copy or record. Every feature serves that purpose: the popup lists the locations, the history page keeps the ones already found, and the Obsidian output writes them into the user's own notes.
-```
-
-## Privacy: permission justifications
-
-One per permission, where Partner Center asks why the extension needs it.
-
-**storage**
-
-```
-Stores the user's own settings (tenant name, Obsidian note path and vault folder name) and the local history of file locations already resolved, so a folder found once does not have to be found again. All of it stays in the browser profile; none of it is transmitted anywhere.
-```
-
-**clipboardWrite**
-
-```
-The product's main action is putting a file link or a folder link on the clipboard. This permission is what the Copy buttons in the popup and on the history page use.
-```
-
-**host permission: the three Copilot hosts**
-(`https://m365.cloud.microsoft/*`, `https://copilot.cloud.microsoft/*`, `https://copilot.microsoft.com/*`)
-
-```
-These are the Microsoft Copilot pages BreadCrumb works on. A content script reads the SharePoint and OneDrive file links cited in the answer on screen so the extension can resolve them to folder locations. It reads only those file links: not the prompt, not the answer text, and nothing else on the page. No other site is matched.
-```
-
-**optional host permission: https://\*.sharepoint.com/\***
-
-```
-Optional and requested at runtime, never at install. If the user grants it on the options page for their own tenant, BreadCrumb calls that tenant's own SharePoint API (https://<tenant>.sharepoint.com/_api/v2.0/shares/.../driveItem) to confirm exactly where a file lives, using the Microsoft 365 session the browser already has. The extension does not read cookie values and does not request the cookies permission. Without this grant the extension still works, showing locations decoded from the link alone; confirmation is what the grant adds. It is a wildcard because SharePoint tenant hostnames are specific to each organisation and unknowable in advance; each user grants only their own.
-```
-
-## Privacy: remote code
-
-```
-No remote code. All code is included in the package. There are no remotely hosted scripts, no CDN references, no eval and no dynamically fetched or generated code. The only network requests the extension makes are JSON requests to the user's own SharePoint host.
-```
-
-## Privacy: data collection and use
-
-- Personally identifiable information collected: **none**.
-- Data transmitted to the developer or a third party: **none**. There is no
-  server, no telemetry and no analytics.
-- Personal or sensitive user data handled: **file names and folder paths from
-  the user's own tenant**, read in order to display them. They stay on the
-  device, in the browser profile and, if the user chooses, in a file in their
-  own Obsidian vault.
-- Data is not sold, not shared, and not used for anything beyond the single
-  purpose above.
-- Certification: the extension's data handling matches the published privacy
-  policy at the URL above.
-
-## Notes for certification (store policy: testability)
-
-```
-BreadCrumb can be tested without a Microsoft 365 tenant.
-
-No account or credentials are needed to see what the extension does:
+To see what the extension does, with no account and no sign-in:
 
 1. Install, then click the BreadCrumb toolbar button on any ordinary web page.
    The popup shows the "Paste a link to find its folder" view.
 2. Click "Paste a link" and paste this example:
    https://contoso.sharepoint.com/sites/Finance/Shared%20Documents/2026/Quarterly%20Review.docx
-3. Press Convert. BreadCrumb decodes the link in the browser and lists the
-   document with its readable folder path, the folder link, and its confidence
+3. Press Convert. BreadCrumb decodes the link locally in the browser and lists
+   the document with its readable folder path, the folder link, and a confidence
    state. The Copy buttons put those links on the clipboard.
-4. Click "History" in the popup to see the result recorded, searchable,
-   exportable and deletable.
+4. Click "History" in the popup to see the result recorded, and to search,
+   export and delete it.
 
-That path exercises the product and needs no sign-in, because decoding happens
-locally in the browser.
+That path exercises the product end to end, because decoding happens in the
+browser with no network request at all.
 
 Confirming a location against a live tenant is the one part that needs a
 Microsoft 365 work or school account, because it uses the browser's existing
-SharePoint session. It is optional: the extension asks for access to
-https://*.sharepoint.com/* only when a user grants it on the options page for
-their own organisation, and everything above works without it. A reviewer with
-a work or school account can enable it by signing in to that tenant's
-SharePoint in a tab and granting access on the options page. No credentials
-from the developer are involved at any point.
+SharePoint session. It is optional. The extension declares
+https://*.sharepoint.com/* as an OPTIONAL host permission and asks for it only
+when a user chooses to grant it, on the options page, for their own
+organisation's hostname. Everything in the steps above works without it. A
+reviewer who has a work or school account can enable it by signing in to that
+tenant's SharePoint in a tab and then granting access on the options page. No
+credentials from the developer are involved at any point.
 
-The extension has no login of its own and no paid tier.
+The extension has no login of its own, no paid tier, and no hidden or locked
+features.
 ```
+
+---
 
 ## Policy checks
 
 | Policy | How BreadCrumb meets it |
 |---|---|
-| Single purpose | Stated above; every surface serves it. |
-| Minimum permissions | Two API permissions, three host permissions matching the pages it works on, and the SharePoint one optional and per-tenant. |
-| No obfuscated code | Bundled by esbuild, minification off; source is public. |
-| Remote code | None. |
-| Testable by the reviewer | The certification notes give a credential-free test path. |
-| No other browser named in metadata | The listing text names no browser but Microsoft Edge's own store context. |
-| Dependencies on other software disclosed | The Obsidian output needs Obsidian, and the listing says so and says it is optional. |
-| Content and imagery | Screenshots are the real built UI with a fictional `contoso` tenant; no real tenant data appears. |
+| Single purpose | Stated on the Privacy page; every surface serves it. |
+| Minimum permissions | Two API permissions, three host permissions matching exactly the pages it works on, and the SharePoint one optional and granted per tenant at runtime. |
+| No obfuscated code | Bundled by esbuild with minification off; comments intact; source public. |
+| No remote code | Verified against the built bundles, not just the source. |
+| Testable by the reviewer | The notes above give a path needing no account. |
+| Accurate privacy disclosures | Each data-usage checkbox reasoned through above, and the privacy policy says the same things. |
+| No other browser named in metadata | The listing text names none. |
+| Dependencies on other software disclosed | The Obsidian output needs Obsidian, and the description says so and says it is optional. |
+| Content and imagery | Screenshots are the real built UI against a fictional `contoso` tenant. No real tenant data appears. |
