@@ -181,3 +181,20 @@ export async function confirmWithSession(rows: PopupRow[], deps: SessionDeps): P
   }
   return rows;
 }
+
+/**
+ * The two hosts a tenant's files live on: the SharePoint sites and the
+ * OneDrive for Business one. Used by the options page to ask for the
+ * optional host permission for one tenant only (invariant 17).
+ */
+export function tenantOrigins(tenant: string): string[] | undefined {
+  const name = tenant
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/(-my)?\.sharepoint\.com.*$/, '');
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+    return undefined;
+  }
+  return [`https://${name}.sharepoint.com/*`, `https://${name}-my.sharepoint.com/*`];
+}

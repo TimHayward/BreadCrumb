@@ -11,6 +11,8 @@ import { resolve } from 'node:path';
 
 const OUT = resolve(import.meta.dirname, '..', 'packages', 'extension', 'icons');
 const SIZES = [16, 32, 48, 128];
+/** The store wants a square logo at 300px; the rest are the browser sizes. */
+const STORE_SIZES = [300];
 
 /** Crumbs as unit circles: x, y and radius as fractions of the icon. */
 const CRUMBS = [
@@ -115,6 +117,15 @@ function draw(size) {
 mkdirSync(OUT, { recursive: true });
 for (const size of SIZES) {
   const file = resolve(OUT, `icon-${size}.png`);
+  writeFileSync(file, png(size, draw(size)));
+  console.log(`wrote ${file}`);
+}
+
+// Store listing art, kept out of the extension package itself.
+const STORE = resolve(import.meta.dirname, "..", "docs", "store");
+mkdirSync(STORE, { recursive: true });
+for (const size of STORE_SIZES) {
+  const file = resolve(STORE, `logo-${size}.png`);
   writeFileSync(file, png(size, draw(size)));
   console.log(`wrote ${file}`);
 }

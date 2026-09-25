@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { VerifiedResult } from '@breadcrumb/validation';
 import { addPastedRow, buildRows, clipboardText, copySummary, describeRow, noteRowsFor, pathSegments, recordNoteOutcomes, selectedFileLinks, selectedFolderLinks, sendSummary } from '../src/popupModel.js';
@@ -328,5 +329,14 @@ describe('pasting a link by hand (BC-054)', () => {
     const rows: ReturnType<typeof buildRows> = [];
     const { row } = addPastedRow(rows, `  ${FILE}  `);
     expect(row.url).toBe(FILE);
+  });
+});
+
+describe('the paste field stays hidden until it is asked for (store screenshots, 2026-09-25)', () => {
+  it('has a stylesheet rule that the hidden attribute wins over', () => {
+    // A `display: flex` on .paste-form would otherwise override [hidden], which
+    // left the field open in every popup until it was caught in a screenshot.
+    const css = readFileSync(new URL('../src/popup.css', import.meta.url), 'utf8');
+    expect(css).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important/);
   });
 });

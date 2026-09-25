@@ -339,6 +339,21 @@ As a user with a long Copilot conversation, I want the popup to stay quick and r
 Priority: Must. Size: M. Depends on: BC-044.
 Decisions: none outstanding. The row cap and the number of lookups at once are in the code, not settings; make them settings only if testing shows the defaults are wrong.
 
+#### BC-073 Publish to the Microsoft Edge Add-ons store
+
+**Package and artefacts done 2026-09-25.** Submission itself is Tim's to make, as it needs the Partner Center account. What is done: the service worker and the SharePoint session tester removed, permissions cut to `storage` and `clipboardWrite`, a 300 x 300 store logo and three 1280 x 800 screenshots generated from the real built UI, a privacy policy at `docs/PRIVACY.md` and every Partner Center answer written out in `docs/store-submission.md`. A live bug was found while making the screenshots: the paste field was visible at all times because a display rule beat the `hidden` attribute. Fixed and held by a test.
+
+As the person maintaining BreadCrumb, I want the extension published in the Edge Add-ons store, so that people can install it without developer mode and get updates without unzipping anything.
+
+- Given the submitted package, When a reviewer inspects it, Then every file in it is named by the manifest, no code is obfuscated or fetched remotely, and the permissions are the least the product can work with.
+- Given the store listing, When it is read, Then it states one purpose, names no other browser, and discloses that the Obsidian output needs Obsidian.
+- Given the privacy page in Partner Center, When it is filled in, Then every permission has a justification, remote code is declared as none, and the privacy policy URL resolves publicly.
+- Given a reviewer with no Microsoft 365 tenant, When they follow the certification notes, Then they can convert a pasted link and see the result and the history without signing in to anything.
+- Given a published listing, When a user installs from the store, Then the extension behaves as the unpacked build does, and the README points at the store as the first install route.
+
+Priority: Must. Size: S. Depends on: BC-067, decision D7.
+Decisions: D7 closed 2026-09-25 (the Edge Add-ons store). Nothing outstanding. Approval is Microsoft's to give; what is in our hands is meeting every published requirement, which this story does.
+
 ### E6 Copilot extension
 
 #### BC-050 Chrome and other Chromium browsers
@@ -466,7 +481,7 @@ Each row says when it has to be settled. A story cannot start while a decision i
 
 | ID | Decision needed | Options | Decide by | Who decides |
 |---|---|---|---|---|
-| D7 | How the extension is distributed. | Unpacked developer mode; enterprise policy from a private update URL; browser store. Now the only distribution question, since there is no server. | Before BC-064, and before M6 is demonstrated. Blocks BC-063, R7. | Product owner |
+| D7 | How the extension is distributed. **Decided 2026-09-25: the Microsoft Edge Add-ons store**, with the GitHub release kept for people who load it unpacked. Enterprise policy from a private update URL is no longer needed for the main route. | Unpacked developer mode; enterprise policy from a private update URL; browser store (decided). | Closed. | Product owner |
 | D8 | Whether failed conversions are kept in the extension's history by default. **Decided 2026-09-25: always kept.** A link that could not be converted is worth seeing again, and local history is cheap. | Never kept; kept only when the user opts in; always kept (decided). | Closed. | Product owner |
 | D10 | How rows reach the vault. **Decided 2026-09-19: the File System Access API with a directory handle for the vault, picked once on the options page.** BreadCrumb reads the note, places rows inside the table and writes the whole file back. Obsidian's own Web Clipper uses the `obsidian://` URI with the clipboard and is capped near 1,500 characters of content, which a growing table would pass; the file route has no such limit. The URI route stays as BC-065, for people who will not grant folder access. | File access with a vault folder handle (decided); the Obsidian URI scheme; a local REST API plugin; clipboard only (BC-066). | Closed. | Product owner |
 | D11 | Whether the extension's local history stays once the note output exists. **Decided 2026-09-25: keep both.** The note is the record that lasts; the local history is the working copy. | Keep both (decided); local only; write to the note and keep nothing locally. | Closed. | Product owner |
@@ -495,7 +510,7 @@ Decisions D1, D2, D5 and D6 are closed by the architecture change: the web frame
 - Any BreadCrumb server, API, database, container image or deployment. Withdrawn 2026-09-17.
 - Personal (consumer) OneDrive in any form: such links fail with a not supported message (BC-051).
 - Authenticated confirmation for sovereign and government clouds. Those links parse in best effort mode only.
-- Extension support for Firefox, Safari or any non Chromium browser, and browser store publication.
+- Extension support for Firefox, Safari or any non Chromium browser. Store publication came back into scope on 2026-09-25 (BC-073, decision D7); the Edge Add-ons store is the one it targets.
 - Copilot surfaces other than the three named hosts, including Copilot panes inside Word, Excel, PowerPoint, Outlook and Teams.
 - Any write operation against SharePoint or OneDrive: never files, folders, permissions or sharing. BreadCrumb reads from Microsoft 365 and writes only to the user's own note.
 - Writing anywhere in the vault except the configured note, or changing anything in that note except the table BreadCrumb appends to.

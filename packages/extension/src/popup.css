@@ -25,6 +25,8 @@
 }
 
 * { box-sizing: border-box; }
+/* A display rule must never beat the hidden attribute: the paste field is revealed, not shown. */
+[hidden] { display: none !important; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 body { margin: 0; width: 420px; max-height: 580px; overflow: auto; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); background: var(--bg); }
 header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); background: var(--surface); }

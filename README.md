@@ -19,7 +19,7 @@ Installing the extension is the whole installation. No server, no database and n
 
 It can also write what it finds into an Obsidian note, as rows in a Markdown table in your own vault.
 
-> **What it holds.** File names and folder paths from your tenant appear in the popup while it is open, go to your clipboard when you copy, and go into your note when you send. The extension itself stores only the tenant you granted, your vault folder and the note path. Keeping a searchable history in the extension is still to come (see `BACKLOG.md`, story BC-055).
+> **What it holds.** File names and folder paths from your tenant appear in the popup while it is open, go to your clipboard when you copy, and go into your note when you send. It also keeps a searchable history of what it has resolved, in this browser profile, alongside the tenant you granted, your vault folder and the note path. Nothing is sent anywhere but your own tenant. See [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Repository layout
 

@@ -9,8 +9,7 @@
 import { PARSER_VERSION } from '@breadcrumb/parser';
 import { HISTORY_CAP, clearHistory, readHistory } from './history.js';
 import { DEFAULT_NOTE_PATH, getObsidianSettings, setNotePath, setVaultName } from './settings.js';
-import type { LinkReport } from './spTest.js';
-import { tenantOrigins } from './spTest.js';
+import { tenantOrigins } from './session.js';
 import { forgetVaultHandle, loadVaultHandle, requestVaultPermission, saveVaultHandle, splitNotePath, vaultPermission, type DirectoryHandleLike } from './vault.js';
 
 // Which version is installed, for anyone reporting what they saw (BC-064).
@@ -127,10 +126,6 @@ const openOneDrive = document.getElementById('open-od') as HTMLAnchorElement;
 const grant = document.getElementById('grant') as HTMLButtonElement;
 const revoke = document.getElementById('revoke') as HTMLButtonElement;
 const grantStatus = document.getElementById('grant-status') as HTMLElement;
-const linksInput = document.getElementById('links') as HTMLTextAreaElement;
-const test = document.getElementById('test') as HTMLButtonElement;
-const testStatus = document.getElementById('test-status') as HTMLElement;
-const output = document.getElementById('test-output') as HTMLPreElement;
 
 const TENANT_KEY = 'spTenant';
 
@@ -186,34 +181,4 @@ revoke.addEventListener('click', async () => {
   if (origins === undefined) return;
   const removed = await chrome.permissions.remove({ origins });
   grantStatus.textContent = removed ? 'Access removed.' : 'Nothing to remove.';
-});
-
-test.addEventListener('click', async () => {
-  const links = linksInput.value.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== '');
-  if (links.length === 0) {
-    testStatus.textContent = 'Paste one or more links first.';
-    return;
-  }
-  test.disabled = true;
-  testStatus.textContent = 'Asking SharePoint…';
-  const response = (await chrome.runtime.sendMessage({ type: 'breadcrumb:sp-test', links })) as { ok: boolean; reports?: LinkReport[]; error?: string };
-  test.disabled = false;
-  if (!response.ok || response.reports === undefined) {
-    testStatus.textContent = `The test failed: ${response.error ?? 'no answer from the service worker'}`;
-    return;
-  }
-  const reports = response.reports;
-  const calls = reports.flatMap((r) => r.calls);
-  const worked = calls.filter((c) => c.ok).length;
-  testStatus.textContent = `${worked} of ${calls.length} SharePoint calls answered 2xx. The detail is below.`;
-  output.hidden = false;
-  output.textContent = reports
-    .map((r) =>
-      [
-        `${r.link}`,
-        `  form ${r.form ?? '?'} on ${r.host ?? '?'}${r.permission !== undefined ? `, access ${r.permission}` : ''}${r.note !== undefined ? ` (${r.note})` : ''}`,
-        ...r.calls.map((c) => `  ${c.label}: ${c.status ?? 'no response'} ${c.error ?? ''}${c.finalUrl !== undefined ? ` → ended at ${c.finalUrl}` : ''}`),
-      ].join('\n'),
-    )
-    .join('\n\n');
 });

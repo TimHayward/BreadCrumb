@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildRows, type FetchLike } from '../src/popupModel.js';
 import { classifySessionFailure, confirmWithSession, sessionHost } from '../src/session.js';
-import { encodeSharingUrl } from '../src/spTest.js';
 
 const GUID = '3F2A9C1E-7B4D-4E0A-9C6B-1D2E3F4A5B6C';
 const DOC = `https://contoso.sharepoint.com/sites/SiteA/_layouts/15/Doc.aspx?sourcedoc=%7B${GUID}%7D&file=Plan.pptx&action=edit`;
@@ -131,7 +130,8 @@ describe('telling the refusals apart (user testing, 2026-09-24)', () => {
   it('classifies each row against what its own host answered for the others', async () => {
     // One file on the tenant host confirms; a second on the same host is refused.
     const LOCKED = 'https://contoso.sharepoint.com/sites/SiteB/Lib/Locked.docx';
-    const lockedToken = encodeSharingUrl(LOCKED);
+    // The shares endpoint carries the link as u! plus unpadded base64url.
+    const lockedToken = `u!${btoa(LOCKED).replace(/=+$/, '').replaceAll('+', '-').replaceAll('/', '_')}`;
     const rows = buildRows([{ url: DOC }, { url: LOCKED }]);
     const fetchImpl: FetchLike = async (url, init) =>
       url.includes(lockedToken) ? json({ error: { code: 'accessDenied' } }, 401) : sharePoint(url, init);

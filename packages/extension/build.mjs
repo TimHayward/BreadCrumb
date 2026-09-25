@@ -1,8 +1,11 @@
 // Bundles the extension with esbuild. The parser is pulled in from the
 // workspace package, never copied (invariant 1).
 import { build } from 'esbuild';
-import { cpSync, mkdirSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync } from 'node:fs';
 
+// Start from nothing. A file left behind by an earlier build is a file the
+// manifest no longer names, and the store package would carry it anyway.
+rmSync('dist', { recursive: true, force: true });
 mkdirSync('dist', { recursive: true });
 
 await build({
@@ -10,7 +13,6 @@ await build({
     popup: 'src/popup.ts',
     options: 'src/options.ts',
     content: 'src/content.ts',
-    background: 'src/background.ts',
     historyPage: 'src/historyPage.ts',
   },
   bundle: true,

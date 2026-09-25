@@ -695,11 +695,14 @@ async function confirmRows(rows: PopupRow[], tabId: number, surfaceNote?: string
 
 async function start(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id === undefined || tab.url === undefined) {
+  if (tab?.id === undefined) {
     main.replaceChildren(el('p', {}, 'Open a Copilot page and try again.'));
     return;
   }
-  const surface = surfaceOf(new URL(tab.url).hostname);
+  // Without activeTab the URL is only visible for hosts BreadCrumb has
+  // permission for, which are exactly the Copilot ones. Anywhere else it is
+  // undefined, and anywhere else is the paste-only view.
+  const surface = tab.url === undefined ? 'other' : surfaceOf(new URL(tab.url).hostname);
   if (surface === 'other') {
     // Not a Copilot page, so there are no citations to read. A link from
     // Teams, an email or anywhere else can still be pasted here (BC-054).
